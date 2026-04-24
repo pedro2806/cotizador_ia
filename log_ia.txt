@@ -1,0 +1,4 @@
+2026-04-23 16:04:02 - Procesando ID: 264
+2026-04-23 16:04:02 - ERROR: Table 'cotizador_ia.historial_precios' doesn't exist
+2026-04-23 16:07:02 - Procesando ID: 264
+2026-04-23 16:07:02 - ERROR: Table 'cotizador_ia.historial_precios' doesn't exist
