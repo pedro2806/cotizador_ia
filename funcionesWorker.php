@@ -21,7 +21,7 @@ function obtenerHistorialMESS($busqueda) {
     
     // Traemos los últimos 10 para tener un buen rango y alternativas
     $sql = "SELECT CDMESS, DESCRIPCION, PRECIO_VENTA FROM cotizaciones_items 
-            WHERE DESCRIPCION LIKE ? OR CDMESS LIKE ? 
+            WHERE DESCRIPCION LIKE ? OR CDMESS LIKE ? AND PRECIO_VENTA > 0
             ";
             
     $stmt = $conn->prepare($sql);
