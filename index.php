@@ -1,5 +1,7 @@
 <?php
 include 'conexion.php';
+include 'funcionesWorker.php';
+
 
 // Estadísticas rápidas para el Dashboard
 $total_proyectos = $conn->query("SELECT COUNT(DISTINCT id_proyecto) as total FROM cola_procesamiento")->fetch_assoc()['total'];

@@ -1,6 +1,8 @@
 <?php
 //C:\wamp64\bin\php\php8.3.14\php.exe C:\wamp64\www\cotizador_ia\worker_ia.php
 include 'conexion.php';
+include 'funcionesWorker.php';
+
 set_time_limit(0);
 // Evitar que el script se detenga por tiempo en el servidor
 set_time_limit(0);

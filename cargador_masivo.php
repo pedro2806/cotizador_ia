@@ -1,5 +1,7 @@
 <?php
 include 'conexion.php';
+include 'funcionesWorker.php';
+
 
 $mensaje = "";
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {

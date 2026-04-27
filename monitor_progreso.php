@@ -1,5 +1,7 @@
 <?php
 include 'conexion.php';
+include 'funcionesWorker.php';
+
 
 echo verificarWorker() ? '<span class="text-success">● Worker Activo</span>' : '<span class="text-danger">○ Worker Apagado (Ejecuta el .bat)</span>';
 

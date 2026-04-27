@@ -1,6 +1,8 @@
 <?php
 // get_proyecto_data.php
 include 'conexion.php';
+include 'funcionesWorker.php';
+
 
 // Establecemos la cabecera para que el navegador sepa que recibe JSON
 header('Content-Type: application/json');

@@ -1,5 +1,7 @@
 <?php
 include 'conexion.php';
+include 'funcionesWorker.php';
+
 
 function ejecutarAccion($accion, $datos = []) {
     global $conn;

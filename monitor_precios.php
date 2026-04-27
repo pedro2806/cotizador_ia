@@ -1,5 +1,7 @@
 <?php
 include 'conexion.php';
+include 'funcionesWorker.php';
+
 $proyecto = $_GET['proyecto'] ?? '';
 ?>
 
