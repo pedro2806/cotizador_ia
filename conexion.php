@@ -5,8 +5,8 @@
 
 // 1. Configuración de la Base de Datos
 $db_host = "localhost";
-$db_user = "root";
-$db_pass = "";
+$db_user = "messias_admin";
+$db_pass = "Pipmytrade123";
 $db_name = "cotizador_ia";
 
 $conn = new mysqli($db_host, $db_user, $db_pass, $db_name);
