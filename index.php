@@ -5,6 +5,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/x-icon" href="fav.ico">
     <title>MessIAs | Dashboard</title>
     <link href="css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="css/bootstrap-icons.css">
@@ -244,7 +245,7 @@
                         </button>
                     </form>
                     <p class="mt-3 text-center text-muted" style="font-size: 0.7rem;">
-                        <i class="bi bi-shield-lock me-1"></i> Integración con login-master de Messbook habilitada próximamente.
+                        <i class="bi bi-shield-lock me-1"></i> Acceso restringido &middot; Grupo MESS
                     </p>
                 </div>
                 <?php endif; ?>

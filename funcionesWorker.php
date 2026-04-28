@@ -84,8 +84,12 @@ function preguntarOllamaConPrecios($stats, $consulta_usuario, $aprendizaje = "")
     // Si hay aprendizaje (respuestas humanas previas), se lo damos como REGLA DE ORO.
     if (!empty($aprendizaje)) {
         $prompt .= "--- REGLAS DE ORO (CRITERIO HUMANO RECIENTE) ---\n";
-        $prompt .= "Los expertos de MESS han validado estos precios recientemente para casos similares:\n";
+        $prompt .= "Los expertos de MESS han validado estos precios para casos similares:\n";
         $prompt .= $aprendizaje . "\n";
+        $prompt .= "INSTRUCCIONES DE AJUSTE:\n";        
+        $prompt .= "1. Si el aprendizaje dice 'Precio muy alto', tu nuevo 'precio_ia' DEBE ser menor al precio validado anteriormente.\n";
+        $prompt .= "2. IGNORA el promedio histórico si este contradice el precio validado por el humano.\n";
+        $prompt .= "3. El valor de 'precio_ia' que generes debe reflejar esta corrección AHORA.\n\n";
         $prompt .= "IMPORTANTE: Si los datos de 'REGLAS DE ORO' contradicen el promedio histórico, DEBES dar prioridad al criterio humano.\n\n";
     }
 
@@ -96,10 +100,10 @@ function preguntarOllamaConPrecios($stats, $consulta_usuario, $aprendizaje = "")
     $prompt .= "{\n";
     $prompt .= "  \"cdmess\": \"{$stats['cdmess']}\",\n";
     $prompt .= "  \"desc\": \"Descripción técnica breve\",\n";
-    $prompt .= "  \"precio_min\": $p_min,\n";
-    $prompt .= "  \"precio_max\": $p_max,\n";
-    $prompt .= "  \"precio_promedio\": $p_avg,\n";
-    $prompt .= "  \"precio_ia\": $p_avg,\n";
+    $prompt .= "  \"precio_min\": {$stats['min']},\n"; // Corregido: antes era $p_min
+    $prompt .= "  \"precio_max\": {$stats['max']},\n"; // Corregido: antes era $p_max
+    $prompt .= "  \"precio_promedio\": {$stats['avg']},\n"; // Corregido: antes era $p_avg
+    $prompt .= "  \"precio_ia\": {$stats['avg']},\n"; // Usamos el promedio como base para que la IA lo ajuste
     $prompt .= "  \"notas\": \"Justificación del precio sugerido\",\n";
     $prompt .= "  \"coincidencias\": \"{$stats['alternativas']}\"\n";
     $prompt .= "}";
@@ -107,7 +111,8 @@ function preguntarOllamaConPrecios($stats, $consulta_usuario, $aprendizaje = "")
     $data = [
         "model" => "llama3.1:8b", // Modelo optimizado para tareas de integración de datos 3.1:8b
         "format" => "json",
-        "system" => "Eres un integrador de datos para MESS. Tu única función es devolver JSON puro con la estructura solicitada.",
+        //"system" => "Eres un integrador de datos para MESS. Tu única función es devolver JSON puro con la estructura solicitada.",
+        "system" => "Eres un integrador de precios para MESS. Tu prioridad número 1 es el APRENDIZAJE HUMANO. Si recibes una retroalimentación de 'Precio muy alto' o 'Precio muy bajo', ajusta el valor de 'precio_ia' inmediatamente ignorando los promedios antiguos. Tu única función es devolver JSON puro con la estructura solicitada.",
         "prompt" => $prompt,
         "stream" => false,
         "options" => ["temperature" => 0.1]
@@ -189,7 +194,8 @@ function obtenerAprendizajeReciente($busqueda, $conn) {
 function obtenerAprendizajeHumano($entrada, $conn) {
     $busqueda = $conn->real_escape_string($entrada);
     // Buscamos los últimos 2 casos similares completados donde hubo intervención humana
-    $sql = "SELECT entrada_usuario, respuesta, precio_usuario FROM cola_procesamiento 
+    $sql = "SELECT entrada_usuario, respuesta, precio_usuario, categoria_rechazo
+            FROM cola_procesamiento 
             WHERE estatus = 'completado' 
             AND (respuesta IS NOT NULL OR precio_usuario > 0)
             AND entrada_usuario LIKE '%$busqueda%' 
@@ -203,7 +209,8 @@ function obtenerAprendizajeHumano($entrada, $conn) {
         while ($row = $res->fetch_assoc()) {
             $ejemplos .= "Usuario buscó: " . $row['entrada_usuario'] . "\n";
             $ejemplos .= "Precio aprobado: $" . ($row['precio_usuario'] ?? 'N/A') . "\n";
-            $ejemplos .= "Nota humana: " . ($row['respuesta'] ?? 'Sin comentarios') . "\n\n";
+            $ejemplos .= "Nota humana: " . ($row['respuesta'] ?? 'Sin comentarios') . "\n";
+            $ejemplos .= "Categoría de rechazo: " . ($row['categoria_rechazo'] ?? 'No especificada') . "\n\n";
         }
     }
     return $ejemplos;
