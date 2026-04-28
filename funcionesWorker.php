@@ -20,8 +20,9 @@ function obtenerHistorialMESS($busqueda) {
     $termino = "%" . str_replace(' ', '%', trim($busqueda)) . "%";
     
     // Traemos los últimos 10 para tener un buen rango y alternativas
-    $sql = "SELECT CDMESS, DESCRIPCION, (PRECIO_VENTA/CANT) AS PRECIO_VENTA, CANT FROM cotizaciones_items 
-            WHERE DESCRIPCION LIKE ? OR CDMESS LIKE ? AND (PRECIO_VENTA > 0 OR CANT > 0) AND PRECIO_VENTA IS NOT NULL";
+    $sql = "SELECT CDMESS, DESCRIPCION, (PRECIO_VENTA/CANT) AS PRECIO_VENTA, CANT 
+            FROM cotizaciones_items 
+            WHERE (DESCRIPCION LIKE ? OR CDMESS LIKE ?) AND PRECIO_VENTA > 0 OR CANT > 0 AND PRECIO_VENTA IS NOT NULL";
             
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("ss", $termino, $termino);
@@ -213,4 +214,29 @@ function obtenerAprendizajeHumano($entrada, $conn) {
         }
     }
     return $ejemplos;
+}
+
+/**
+ * Busca opciones únicas basadas en CDMESS para evitar duplicados en la cola
+ */
+function obtenerOpcionesUnicasHistoricas($busqueda, $conn) {
+    $termino = "%" . $busqueda . "%";
+    
+    // TRUNCATE o TRIM para asegurar que 'P27-59 ' sea igual a 'P27-59'
+    $sql = "SELECT 
+                TRIM(CDMESS) as CDMESS, 
+                MAX(DESCRIPCION) as descripcion, 
+                AVG(PRECIO_VENTA / CANT) as precio_promedio
+            FROM cotizaciones_items 
+            WHERE (DESCRIPCION LIKE ? OR CDMESS LIKE ?)
+                AND PRECIO_VENTA > 0 AND CANT > 0
+                AND CDMESS IS NOT NULL AND CDMESS != ''
+            GROUP BY TRIM(CDMESS) 
+            ORDER BY COUNT(*) DESC 
+            LIMIT 5";
+            
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("ss", $termino, $termino);
+    $stmt->execute();
+    return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 }
