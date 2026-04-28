@@ -204,9 +204,15 @@ async function cargarDatos() {
                             value="${item.precio_usuario > 0 ? item.precio_usuario : (ia.precio_ia || 0)}" step="0.01">
                     </td>
 
-                    <td style="min-width: 200px;">
+                    <td>
+                        <select id="cat_u_${idReg}" class="form-select form-select-sm mb-1 x-small">
+                            <option value="Acepta precio IA">Acepta precio IA</option>
+                            <option value="Precio muy bajo">Precio muy bajo</option>
+                            <option value="Precio muy alto">Precio muy alto</option>
+                            <option value="Descripción incorrecta">Descripción incorrecta</option>                            
+                        </select>
                         <textarea id="resp_u_${idReg}" class="form-control form-control-sm x-small" rows="2" 
-                                placeholder="Escribe la validación o corrección...">${item.respuesta || ''}</textarea>
+                                placeholder="Notas adicionales...">${item.respuesta || ''}</textarea>
                     </td>
 
                     <td class="text-center align-middle">
@@ -227,6 +233,7 @@ async function cargarDatos() {
 async function validarRegistro(id) {
     const precio = document.getElementById(`precio_u_${id}`).value;
     const respuesta = document.getElementById(`resp_u_${id}`).value;
+    const categoria = document.getElementById(`cat_u_${id}`).value;
     const idUsuario = 1; // ID del usuario actual
 
     // Validación básica de SweetAlert2
@@ -255,6 +262,7 @@ async function validarRegistro(id) {
                 formData.append('precio_usuario', precio);
                 formData.append('respuesta', respuesta);
                 formData.append('id_usuario', idUsuario);
+                formData.append('categoria_rechazo', categoria);
 
                 const response = await fetch('acciones_monitor_precios_v2.php', {
                     method: 'POST',
