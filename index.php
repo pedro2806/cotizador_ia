@@ -1,12 +1,4 @@
-<?php
-include 'conexion.php';
-include 'funcionesWorker.php';
-
-
-// Estadísticas rápidas para el Dashboard
-$total_proyectos = $conn->query("SELECT COUNT(DISTINCT id_proyecto) as total FROM cola_procesamiento")->fetch_assoc()['total'];
-$total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")->fetch_assoc()['total'];
-?>
+<?php include 'acciones_login.php'; ?>
 
 <!DOCTYPE html>
 <html lang="es">
@@ -110,11 +102,15 @@ $total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")-
             <img src="logo.png" alt="Grupo MESS Logo" height="45">
         </a>
         <div class="d-flex text-white align-items-center">
-            <div class="text-end me-3 d-none d-sm-block">
-                <small class="d-block opacity-75">Bienvenido,</small>
-                <span class="fw-bold">Ing. Pedro Martínez</span>
-            </div>
-            <a href="#" class="btn btn-sm btn-outline-light rounded-pill px-3">Salir</a>
+            <?php if ($logueado): ?>
+                <div class="text-end me-3 d-none d-sm-block">
+                    <small class="d-block opacity-75">Bienvenido,</small>
+                    <span class="fw-bold"><?php echo htmlspecialchars($_SESSION['nombre']); ?></span>
+                </div>
+                <a href="logout.php" class="btn btn-sm btn-outline-light rounded-pill px-3">Salir</a>
+            <?php else: ?>
+                <span class="opacity-50 small me-3 d-none d-sm-block">No has iniciado sesión</span>
+            <?php endif; ?>
         </div>
     </div>
 </nav>
@@ -141,7 +137,8 @@ $total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")-
             
             <div class="row g-4">
                 <div class="col-md-6">
-                    <div class="card card-menu h-100 p-4" onclick="location.href='cargador_masivo.php'">
+                    <div class="card card-menu h-100 p-4<?php echo $logueado ? '' : ' opacity-50 pe-none'; ?>"
+                         <?php if ($logueado): ?>onclick="location.href='cargador_masivo.php'"<?php endif; ?>>
                         <div class="card-body text-center">
                             <div class="icon-box bg-soft-success">
                                 <i class="bi bi-cloud-arrow-up-fill"></i>
@@ -153,7 +150,8 @@ $total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")-
                 </div>
 
                 <div class="col-md-6">
-                    <div class="card card-menu h-100 p-4" onclick="location.href='monitor_precios_v2.php'">
+                    <div class="card card-menu h-100 p-4<?php echo $logueado ? '' : ' opacity-50 pe-none'; ?>"
+                         <?php if ($logueado): ?>onclick="location.href='monitor_precios_v2.php'"<?php endif; ?>>
                         <div class="card-body text-center">
                             <div class="icon-box bg-soft-primary">
                                 <i class="bi bi-speedometer2"></i>
@@ -185,23 +183,40 @@ $total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")-
                     <?php endif; ?>
                 </div>
 
+                <?php if (!$logueado): ?>
                 <div class="auth-section mt-4 bg-light p-3 rounded-4">
                     <h6 class="small fw-bold text-uppercase text-muted mb-3">Autenticación</h6>
-                    <form action="#" method="POST">
-                        <div class="mb-3">
-                            <input type="text" class="form-control form-control-sm bg-white border-0" placeholder="Usuario" disabled>
+
+                    <?php if ($login_error): ?>
+                        <div class="alert alert-danger border-0 py-2 mb-3 small">
+                            <i class="bi bi-exclamation-circle me-1"></i>
+                            <?php echo htmlspecialchars($login_error); ?>
+                        </div>
+                    <?php endif; ?>
+                    <form action="acciones_login.php" method="POST">
+                        <div class="mb-2">
+                            <input type="email" name="correo" class="form-control form-control-sm bg-white border-0"
+                                   placeholder="Correo corporativo"
+                                   value="<?php echo htmlspecialchars($_POST['correo'] ?? ''); ?>"
+                                   required>
                         </div>
                         <div class="mb-3">
-                            <input type="password" class="form-control form-control-sm bg-white border-0" placeholder="Contraseña" disabled>
+                            <input type="password" name="password" class="form-control form-control-sm bg-white border-0"
+                                   placeholder="Contraseña" required>
                         </div>
-                        <button type="button" class="btn btn-dark btn-sm w-100 rounded-pill py-2 shadow-sm" disabled>
+                        <button type="submit" class="btn btn-dark btn-sm w-100 rounded-pill py-2 shadow-sm">
                             <i class="bi bi-lock-fill me-1"></i> Entrar
                         </button>
                     </form>
                     <p class="mt-3 text-center text-muted" style="font-size: 0.7rem;">
+<<<<<<< Updated upstream
                         <i class="bi bi-shield-lock me-1"></i> Integración con login-master de Messbook habilitada próximamente.
+=======
+                        <i class="bi bi-shield-lock me-1"></i> Acceso restringido &middot; Grupo MESS
+>>>>>>> Stashed changes
                     </p>
                 </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>

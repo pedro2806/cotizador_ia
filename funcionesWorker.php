@@ -64,49 +64,32 @@ function obtenerHistorialMESS($busqueda) {
 }
 
 /**
- * Función para hablar con la IA (Llama 3)
+ * Función para hablar con la IA
  */
-function preguntarOllama($historico, $consulta) {
+function preguntarOllamaConPrecios($stats, $consulta_usuario, $aprendizaje = "") {
     $url = "http://localhost:11434/api/generate";
     
-    $prompt = "Analiza el historial de precios para: '$consulta'.\n";
-    $prompt .= "HISTORIAL:\n$historico\n";
-    $prompt .= "TAREA: Sugiere el precio de venta óptimo en USD y justifica por qué.\n";
-    $prompt .= "Responde UNICAMENTE en formato JSON con esta estructura:\n";
-    $prompt .= "{ \"cdmess\": \"código\", \"descripcion\": \"resumen técnico\", \"precio_ia\": 0.00, \"notas\": \"justificación breve\" }";
+    // 1. Preparar el contexto del historial de MESS para la IA
+    $contexto_historico = "Datos históricos de MESS para esta búsqueda:\n";
+    $contexto_historico .= "- Precio Mínimo: $" . $stats['min'] . "\n";
+    $contexto_historico .= "- Precio Máximo: $" . $stats['max'] . "\n";
+    $contexto_historico .= "- Promedio: $" . $stats['avg'] . "\n";
+    $contexto_historico .= "- Coincidencias encontradas: " . $stats['alternativas'] . "\n";
 
-    $data = [
-        "model" => "llama3",
-        "system" => "Eres un analista de costos en metrología. Tu respuesta debe ser exclusivamente el objeto JSON.",
-        "prompt" => $prompt,
-        "format" => "json", // Forzamos a Llama 3 a responder en JSON
-        "stream" => false,
-        "options" => ["temperature" => 0.1] // Máxima precisión numérica
-    ];
-
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 600);
-
-    $response = curl_exec($ch);
-    $json = json_decode($response, true);
-    curl_close($ch);
-
-    return $json['response'] ?? null;
-}
-
-function preguntarOllamaConPrecios($stats, $consulta_usuario) {
-    $url = "http://localhost:11434/api/generate";
+    // 2. Construir el prompt (Corregido el = por .= para no borrar el historial)
+    $prompt = "Eres un experto en metrología y ventas de Grupo MESS. Tu objetivo es sugerir el mejor precio.\n\n";
+    $prompt .= "DETALLE HISTÓRICO ADICIONAL:\n" . ($stats['detalle'] ?? '') . "\n\n";
+    $prompt .= $contexto_historico . "\n";
     
-    $p_min = number_format($stats['min'], 2, '.', '');
-    $p_max = number_format($stats['max'], 2, '.', '');
-    $p_avg = number_format($stats['avg'], 2, '.', '');
+    // Si hay aprendizaje (respuestas humanas previas), se lo damos como REGLA DE ORO.
+    if (!empty($aprendizaje)) {
+        $prompt .= "--- REGLAS DE ORO (CRITERIO HUMANO RECIENTE) ---\n";
+        $prompt .= "Los expertos de MESS han validado estos precios recientemente para casos similares:\n";
+        $prompt .= $aprendizaje . "\n";
+        $prompt .= "IMPORTANTE: Si los datos de 'REGLAS DE ORO' contradicen el promedio histórico, DEBES dar prioridad al criterio humano.\n\n";
+    }
 
-    $prompt = "CONTEXTO HISTORICO MESS:\n" . $stats['detalle'] . "\n\n";
-    $prompt .= "SOLICITUD: '$consulta_usuario'\n";
+    $prompt .= "SOLICITUD: '$consulta_usuario'\n";    
     $prompt .= "REGLA: Genera un JSON con TODOS los campos siguientes. Si no hay datos, usa los valores por defecto proporcionados.\n\n";
     
     $prompt .= "FORMATO JSON OBLIGATORIO:\n";
@@ -122,12 +105,12 @@ function preguntarOllamaConPrecios($stats, $consulta_usuario) {
     $prompt .= "}";
 
     $data = [
-        "model" => "llama3",
+        "model" => "llama3.1:8b", // Modelo optimizado para tareas de integración de datos 3.1:8b
         "format" => "json",
         "system" => "Eres un integrador de datos para MESS. Tu única función es devolver JSON puro con la estructura solicitada.",
         "prompt" => $prompt,
         "stream" => false,
-        "options" => ["temperature" => 0.0]
+        "options" => ["temperature" => 0.1]
     ];
 
     $ch = curl_init($url);
@@ -173,4 +156,55 @@ function obtenerDetalleProyectoAJAX($id_proyecto) {
         $items[] = $row;
     }
     return $items;
+}
+
+/**
+ * Obtiene el aprendizaje basado en respuestas previas de usuarios.
+ */
+function obtenerAprendizajeReciente($busqueda, $conn) {
+    $termino = "%" . $busqueda . "%";
+    // Buscamos registros completados con precio o respuesta humana
+    $sql = "SELECT entrada_usuario, respuesta, precio_usuario FROM cola_procesamiento 
+            WHERE estatus = 'completado' 
+            AND entrada_usuario LIKE ? 
+            ORDER BY fecha_creacion DESC LIMIT 3";
+    
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("s", $termino);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    
+    $aprendizaje = "";
+    while ($row = $res->fetch_assoc()) {
+        $texto = $row['respuesta'] ?? "Sin comentario";
+        $precio = $row['precio_usuario'] ?? "No definido";
+        $aprendizaje .= "- Para: " . $row['entrada_usuario'] . " | Precio validado: $" . $precio . " | Nota: " . $texto . "\n";
+    }
+    return $aprendizaje;
+}
+
+/**
+ * Obtiene ejemplos de precios y descripciones que un humano ya aprobó en el sistema.
+ */
+function obtenerAprendizajeHumano($entrada, $conn) {
+    $busqueda = $conn->real_escape_string($entrada);
+    // Buscamos los últimos 2 casos similares completados donde hubo intervención humana
+    $sql = "SELECT entrada_usuario, respuesta, precio_usuario FROM cola_procesamiento 
+            WHERE estatus = 'completado' 
+            AND (respuesta IS NOT NULL OR precio_usuario > 0)
+            AND entrada_usuario LIKE '%$busqueda%' 
+            ORDER BY id DESC LIMIT 2";
+    
+    $res = $conn->query($sql);
+    $ejemplos = "";
+    
+    if ($res && $res->num_rows > 0) {
+        $ejemplos = "\n--- APRENDIZAJE DE EXPERTOS MESS (Prioridad Alta) ---\n";
+        while ($row = $res->fetch_assoc()) {
+            $ejemplos .= "Usuario buscó: " . $row['entrada_usuario'] . "\n";
+            $ejemplos .= "Precio aprobado: $" . ($row['precio_usuario'] ?? 'N/A') . "\n";
+            $ejemplos .= "Nota humana: " . ($row['respuesta'] ?? 'Sin comentarios') . "\n\n";
+        }
+    }
+    return $ejemplos;
 }
