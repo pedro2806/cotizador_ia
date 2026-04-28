@@ -127,14 +127,9 @@
         </a>
         <div class="d-flex text-white align-items-center">
             <?php if ($logueado): ?>
-                <?php
-                    $partes   = explode(' ', trim($_SESSION['nombre']));
-                    $iniciales = strtoupper(mb_substr($partes[0], 0, 1) . (isset($partes[1]) ? mb_substr($partes[1], 0, 1) : ''));
-                ?>
-                <div class="user-avatar me-2"><?php echo $iniciales; ?></div>
                 <div class="text-end me-3 d-none d-sm-block">
                     <small class="d-block opacity-75">Bienvenido,</small>
-                    <span class="fw-bold"><?php echo htmlspecialchars($partes[0]); ?></span>
+                    <span class="fw-bold"><?php echo htmlspecialchars($_SESSION['nombre']); ?></span>
                 </div>
                 <button onclick="confirmarSalida()" class="btn btn-sm btn-outline-light rounded-pill px-3">Salir</button>
             <?php else: ?>
@@ -222,12 +217,15 @@
                             <?php echo htmlspecialchars($login_error); ?>
                         </div>
                     <?php endif; ?>
-                    <form action="acciones_login.php" method="POST">
+                    <form action="acciones_login.php" method="POST" id="formLogin">
                         <div class="mb-2">
-                            <input type="email" name="correo" class="form-control form-control-sm bg-white border-0"
-                                   placeholder="Correo corporativo"
-                                   value="<?php echo htmlspecialchars($_POST['correo'] ?? ''); ?>"
-                                   required>
+                            <div class="input-group input-group-sm">
+                                <input type="text" id="inputCorreo" name="correo" class="form-control bg-white border-0"
+                                       placeholder="usuario"
+                                       value="<?php echo htmlspecialchars($_POST['correo'] ?? ''); ?>"
+                                       required>
+                                <span class="input-group-text bg-white border-0 text-muted" style="font-size:0.75rem;">@mess.com.mx</span>
+                            </div>
                         </div>
                         <div class="mb-1 input-group input-group-sm">
                             <input type="password" id="inputPassword" name="password" class="form-control bg-white border-0"
@@ -239,8 +237,7 @@
                         <div class="caps-warning mb-2" id="capsWarning">
                             <i class="bi bi-exclamation-triangle-fill me-1"></i> Mayúsculas activadas
                         </div>
-                        <button type="submit" id="btnLogin" class="btn btn-dark btn-sm w-100 rounded-pill py-2 shadow-sm"
-                                onclick="this.disabled=true; this.innerHTML='<i class=\'bi bi-hourglass-split me-1\'></i> Entrando...'; this.form.submit();">
+                        <button type="submit" id="btnLogin" class="btn btn-dark btn-sm w-100 rounded-pill py-2 shadow-sm">
                             <i class="bi bi-lock-fill me-1"></i> Entrar
                         </button>
                     </form>
@@ -264,6 +261,20 @@
 </footer>
 <script src="js/sweetalert2.all.min.js"></script>
 <script>
+    // Auto-dominio y bloqueo de submit
+    const formLogin = document.getElementById('formLogin');
+    if (formLogin) {
+        formLogin.addEventListener('submit', function(e) {
+            const correoInput = document.getElementById('inputCorreo');
+            if (!correoInput.value.includes('@')) {
+                correoInput.value = correoInput.value.trim() + '@mess.com.mx';
+            }
+            const btn = document.getElementById('btnLogin');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Entrando...';
+        });
+    }
+
     // Caps Lock detector
     const pwdInput = document.getElementById('inputPassword');
     if (pwdInput) {
