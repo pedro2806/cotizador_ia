@@ -1,0 +1,4 @@
+ALTER TABLE cola_procesamiento 
+ADD COLUMN precio_usuario DECIMAL(10,2) NULL,
+ADD COLUMN id_usuario INT NULL,
+ADD COLUMN categoria_rechazo VARCHAR(50) NULL;

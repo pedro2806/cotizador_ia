@@ -29,5 +29,37 @@ function ejecutarAccion($accion, $datos = []) {
 
         default:
             return null;
+
+        case 'GUARDAR_APROBACION_HUMANA':
+            $id = intval($datos['id']);
+            $respuesta = $conn->real_escape_string($datos['respuesta']);
+            $precio_user = floatval($datos['precio_usuario']);
+            $categoria = $conn->real_escape_string($datos['categoria_rechazo']);
+            $id_user = intval($datos['id_usuario']);
+
+            $sql = "UPDATE cola_procesamiento 
+                    SET respuesta = '$respuesta', 
+                        precio_usuario = $precio_user, 
+                        id_usuario = $id_user, 
+                        estatus = 'completado', 
+                        categoria_rechazo = '$categoria'
+                    WHERE id = $id";
+            return $conn->query($sql);    
     }
+}
+
+// Lógica para procesar peticiones AJAX directas
+if (isset($_POST['accion'])) {
+    $res = ejecutarAccion($_POST['accion'], $_POST);
+    
+    // Si $res es un objeto de mysqli_result, no lo podemos encodear directo
+    if ($res instanceof mysqli_result) {
+        $data = [];
+        while($row = $res->fetch_assoc()) $data[] = $row;
+        echo json_encode($data);
+    } else {
+        // Si es un booleano (como en el UPDATE)
+        echo json_encode(['status' => $res ? 'success' : 'error']);
+    }
+    exit;
 }

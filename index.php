@@ -1,21 +1,15 @@
-<?php
-include 'conexion.php';
-include 'funcionesWorker.php';
-
-
-// Estadísticas rápidas para el Dashboard
-$total_proyectos = $conn->query("SELECT COUNT(DISTINCT id_proyecto) as total FROM cola_procesamiento")->fetch_assoc()['total'];
-$total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")->fetch_assoc()['total'];
-?>
+<?php include 'acciones_login.php'; ?>
 
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/x-icon" href="fav.ico">
     <title>MessIAs | Dashboard</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link href="css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/bootstrap-icons.css">
+    
     <style>
         :root {
             --mess-blue: #013569;
@@ -99,6 +93,29 @@ $total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")-
         }
 
         footer { font-size: 0.85rem; color: #888; }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .login-card { animation: fadeInUp 0.4s ease both; }
+
+        .user-avatar {
+            width: 34px; height: 34px;
+            border-radius: 50%;
+            background: var(--mess-gold);
+            color: var(--mess-blue);
+            font-weight: 800;
+            font-size: 0.8rem;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .caps-warning {
+            font-size: 0.72rem;
+            color: #e65100;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -109,11 +126,20 @@ $total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")-
             <img src="logo.png" alt="Grupo MESS Logo" height="45">
         </a>
         <div class="d-flex text-white align-items-center">
-            <div class="text-end me-3 d-none d-sm-block">
-                <small class="d-block opacity-75">Bienvenido,</small>
-                <span class="fw-bold">Ing. Pedro Martínez</span>
-            </div>
-            <a href="#" class="btn btn-sm btn-outline-light rounded-pill px-3">Salir</a>
+            <?php if ($logueado): ?>
+                <?php
+                    $partes   = explode(' ', trim($_SESSION['nombre']));
+                    $iniciales = strtoupper(mb_substr($partes[0], 0, 1) . (isset($partes[1]) ? mb_substr($partes[1], 0, 1) : ''));
+                ?>
+                <div class="user-avatar me-2"><?php echo $iniciales; ?></div>
+                <div class="text-end me-3 d-none d-sm-block">
+                    <small class="d-block opacity-75">Bienvenido,</small>
+                    <span class="fw-bold"><?php echo htmlspecialchars($partes[0]); ?></span>
+                </div>
+                <button onclick="confirmarSalida()" class="btn btn-sm btn-outline-light rounded-pill px-3">Salir</button>
+            <?php else: ?>
+                <span class="opacity-50 small me-3 d-none d-sm-block">No has iniciado sesión</span>
+            <?php endif; ?>
         </div>
     </div>
 </nav>
@@ -140,7 +166,8 @@ $total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")-
             
             <div class="row g-4">
                 <div class="col-md-6">
-                    <div class="card card-menu h-100 p-4" onclick="location.href='cargador_masivo.php'">
+                    <div class="card card-menu h-100 p-4<?php echo $logueado ? '' : ' opacity-50 pe-none'; ?>"
+                         <?php if ($logueado): ?>onclick="location.href='cargador_masivo.php'"<?php endif; ?>>
                         <div class="card-body text-center">
                             <div class="icon-box bg-soft-success">
                                 <i class="bi bi-cloud-arrow-up-fill"></i>
@@ -152,7 +179,8 @@ $total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")-
                 </div>
 
                 <div class="col-md-6">
-                    <div class="card card-menu h-100 p-4" onclick="location.href='monitor_precios_v2.php'">
+                    <div class="card card-menu h-100 p-4<?php echo $logueado ? '' : ' opacity-50 pe-none'; ?>"
+                         <?php if ($logueado): ?>onclick="location.href='monitor_precios_v2.php'"<?php endif; ?>>
                         <div class="card-body text-center">
                             <div class="icon-box bg-soft-primary">
                                 <i class="bi bi-speedometer2"></i>
@@ -184,23 +212,43 @@ $total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")-
                     <?php endif; ?>
                 </div>
 
+                <?php if (!$logueado): ?>
                 <div class="auth-section mt-4 bg-light p-3 rounded-4">
                     <h6 class="small fw-bold text-uppercase text-muted mb-3">Autenticación</h6>
-                    <form action="#" method="POST">
-                        <div class="mb-3">
-                            <input type="text" class="form-control form-control-sm bg-white border-0" placeholder="Usuario" disabled>
+
+                    <?php if ($login_error): ?>
+                        <div class="alert alert-danger border-0 py-2 mb-3 small">
+                            <i class="bi bi-exclamation-circle me-1"></i>
+                            <?php echo htmlspecialchars($login_error); ?>
                         </div>
-                        <div class="mb-3">
-                            <input type="password" class="form-control form-control-sm bg-white border-0" placeholder="Contraseña" disabled>
+                    <?php endif; ?>
+                    <form action="acciones_login.php" method="POST">
+                        <div class="mb-2">
+                            <input type="email" name="correo" class="form-control form-control-sm bg-white border-0"
+                                   placeholder="Correo corporativo"
+                                   value="<?php echo htmlspecialchars($_POST['correo'] ?? ''); ?>"
+                                   required>
                         </div>
-                        <button type="button" class="btn btn-dark btn-sm w-100 rounded-pill py-2 shadow-sm" disabled>
+                        <div class="mb-1 input-group input-group-sm">
+                            <input type="password" id="inputPassword" name="password" class="form-control bg-white border-0"
+                                   placeholder="Contraseña" required>
+                            <button type="button" class="btn btn-light border-0" onclick="togglePassword()">
+                                <i class="bi bi-eye" id="toggleIcon"></i>
+                            </button>
+                        </div>
+                        <div class="caps-warning mb-2" id="capsWarning">
+                            <i class="bi bi-exclamation-triangle-fill me-1"></i> Mayúsculas activadas
+                        </div>
+                        <button type="submit" id="btnLogin" class="btn btn-dark btn-sm w-100 rounded-pill py-2 shadow-sm"
+                                onclick="this.disabled=true; this.innerHTML='<i class=\'bi bi-hourglass-split me-1\'></i> Entrando...'; this.form.submit();">
                             <i class="bi bi-lock-fill me-1"></i> Entrar
                         </button>
                     </form>
                     <p class="mt-3 text-center text-muted" style="font-size: 0.7rem;">
-                        <i class="bi bi-shield-lock me-1"></i> Integración con login-master de Messbook habilitada próximamente.
+                        <i class="bi bi-shield-lock me-1"></i> Acceso restringido &middot; Grupo MESS
                     </p>
                 </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -211,9 +259,81 @@ $total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")-
         <hr class="opacity-10 mb-4">
         <p class="mb-1 fw-bold">Mess Servicios Metrológicos, S. de R.L. de C.V.</p>
         <p class="small mb-0">Desarrollo y Sistematización | MessIAs&copy;</p>
-        <small class="opacity-50">Versión 2.1 - 2026</small>
+        <small class="opacity-50">Versión 2.1 - <?php echo date('Y'); ?></small>
     </div>
 </footer>
+<script src="js/sweetalert2.all.min.js"></script>
+<script>
+    // Caps Lock detector
+    const pwdInput = document.getElementById('inputPassword');
+    if (pwdInput) {
+        pwdInput.addEventListener('keyup', e => {
+            document.getElementById('capsWarning').style.display =
+                e.getModifierState('CapsLock') ? 'block' : 'none';
+        });
+    }
+
+    // Placeholder animado en el campo de correo
+    const correoInput = document.querySelector('input[name="correo"]');
+    if (correoInput) {
+        const hints = ['usuario@mess.com.mx', 'nombre.apellido@mess.com.mx', 'tu correo corporativo'];
+        let i = 0;
+        setInterval(() => {
+            if (document.activeElement !== correoInput) {
+                correoInput.placeholder = hints[i++ % hints.length];
+            }
+        }, 2500);
+    }
+
+    function togglePassword() {
+        const input = document.getElementById('inputPassword');
+        const icon  = document.getElementById('toggleIcon');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.replace('bi-eye', 'bi-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.replace('bi-eye-slash', 'bi-eye');
+        }
+    }
+
+    function confirmarSalida() {
+        Swal.fire({
+            toast: true,
+            position: 'top-center',
+            icon: 'question',
+            title: '¿Seguro que quieres salir?',
+            showConfirmButton: true,
+            confirmButtonText: 'Salir',
+            showCancelButton: true,
+            cancelButtonText: 'No',
+            timer: 2500
+        }).then(result => {
+            if (result.isConfirmed) window.location.href = 'logout.php';
+        });
+    }
+
+    <?php if (!empty($_SESSION['login_error'])): ?>
+    Swal.fire({
+        icon: 'error',
+        title: 'Error al iniciar sesión',
+        text: '<?php echo addslashes($_SESSION['login_error']); unset($_SESSION['login_error']); ?>',
+        confirmButtonColor: '#013569'
+    });
+    <?php endif; ?>
+
+    <?php if (!empty($_SESSION['login_success'])): unset($_SESSION['login_success']); ?>
+    Swal.fire({
+        icon: 'success',
+        title: '¡Bienvenido, <?php echo htmlspecialchars($_SESSION['nombre']); ?>!',
+        text: 'Has iniciado sesión correctamente.',
+        timer: 2500,
+        timerProgressBar: true,
+        showConfirmButton: false
+    });
+    
+    <?php endif; ?>
+</script>
 
 </body>
 </html>
