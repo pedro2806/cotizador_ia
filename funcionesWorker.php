@@ -81,7 +81,7 @@ function preguntarOllama($historico, $consulta) {
         "prompt" => $prompt,
         "format" => "json", // Forzamos a Llama 3 a responder en JSON
         "stream" => false,
-        "options" => ["temperature" => 0.9] // Máxima precisión numérica
+        "options" => ["temperature" => 0.1] // Máxima precisión numérica
     ];
 
     $ch = curl_init($url);

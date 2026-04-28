@@ -106,7 +106,7 @@ $total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")-
 <nav class="navbar navbar-expand-lg navbar-dark shadow">
     <div class="container-fluid">
         <a class="navbar-brand" href="#">
-            <img src="https://www.messbook.com.mx/ControlVehicular/img/MESS_05_Imagotipo.svg" alt="Grupo MESS Logo" height="45">
+            <img src="logo.png" alt="Grupo MESS Logo" height="45">
         </a>
         <div class="d-flex text-white align-items-center">
             <div class="text-end me-3 d-none d-sm-block">
