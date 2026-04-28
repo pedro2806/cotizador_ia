@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Carga Masiva | MESS AI</title>
+    <title>Cotizador | MessIAs</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <style>
@@ -134,7 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <h4 class="fw-bold mb-1 text-dark">Nueva Carga de Proyecto</h4>
-                            <p class="text-muted mb-0 small">Importe de descripciones o códigos CDMESS para análisis con referencias en el histórico de cotizaciones y sugerencias del modelo de IA MessIAs &copy;.</p>
+                            <p class="text-muted mb-0 small">Carga descripciones o códigos CDMESS para análisis con referencias en el histórico de cotizaciones y sugerencias de MessIAs.</p>
                         </div>
                         <i class="bi bi-cloud-arrow-up text-primary fs-1 opacity-25"></i>
                     </div>
@@ -175,7 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
                                 
                                 <div class="d-grid">
                                     <button type="submit" class="btn btn-upload btn-lg mb-3">
-                                        <i class="bi bi-cpu-fill me-2"></i> Iniciar Análisis con MessIAs &copy;
+                                        <i class="bi bi-cpu-fill me-2"></i> Iniciar Análisis con MessIAs
                                     </button>
                                     <p class="text-center text-muted x-small">
                                         Al procesar, se generará un ID de proyecto automático para seguimiento.
@@ -200,10 +200,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
 </div>
 
 <footer class="py-4 text-center text-muted border-top bg-white mt-auto">
-     <div class="container">
+      <div class="container">
         <hr class="opacity-10 mb-4">
         <p class="mb-1 fw-bold">GRUPO MESS</p>
-        <p class="small mb-0">Desarrollo y Sistematización | Querétaro, México</p>
+        <p class="small mb-0">Desarrollo y Sistematización | MessIAs&copy; IA</p>
         <small class="opacity-50">Versión 2.1 - 2026</small>
     </div>
 </footer>
