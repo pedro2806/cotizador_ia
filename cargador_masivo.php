@@ -201,9 +201,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
 
 <footer class="py-4 text-center text-muted border-top bg-white mt-auto">
       <div class="container">
-        <hr class="opacity-10 mb-4">
-        <p class="mb-1 fw-bold">GRUPO MESS</p>
-        <p class="small mb-0">Desarrollo y Sistematización | MessIAs&copy; IA</p>
+       <hr class="opacity-10 mb-4">
+        <p class="mb-1 fw-bold">Mess Servicios Metrológicos, S. de R.L. de C.V.</p>
+        <p class="small mb-0">Desarrollo y Sistematización | MessIAs&copy;</p>
         <small class="opacity-50">Versión 2.1 - 2026</small>
     </div>
 </footer>
