@@ -20,9 +20,8 @@ function obtenerHistorialMESS($busqueda) {
     $termino = "%" . str_replace(' ', '%', trim($busqueda)) . "%";
     
     // Traemos los últimos 10 para tener un buen rango y alternativas
-    $sql = "SELECT CDMESS, DESCRIPCION, PRECIO_VENTA FROM cotizaciones_items 
-            WHERE DESCRIPCION LIKE ? OR CDMESS LIKE ? AND PRECIO_VENTA > 0
-            ";
+    $sql = "SELECT CDMESS, DESCRIPCION, (PRECIO_VENTA/CANT) AS PRECIO_VENTA, CANT FROM cotizaciones_items 
+            WHERE DESCRIPCION LIKE ? OR CDMESS LIKE ? AND (PRECIO_VENTA > 0 OR CANT > 0) AND PRECIO_VENTA IS NOT NULL";
             
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("ss", $termino, $termino);

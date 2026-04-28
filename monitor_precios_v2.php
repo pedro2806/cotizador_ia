@@ -298,7 +298,7 @@ async function validarRegistro(id) {
 
 if (proyectoActual) {
     cargarDatos();
-    setInterval(cargarDatos, 10000); // Refresco cada 5 segundos
+    setInterval(cargarDatos, 20000);// Refrescar cada 20 segundos para mantener datos actualizados
 }
 </script>
 
