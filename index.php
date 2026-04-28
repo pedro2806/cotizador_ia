@@ -13,7 +13,7 @@ $total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MESS AI | Dashboard</title>
+    <title>MessIAs | Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <style>
@@ -123,7 +123,7 @@ $total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")-
         
         <div class="col-lg-8">
             <div class="hero-welcome">
-                <h1 class="display-6 fw-bold">MESS AI <span class="fw-light">| Smart Pricing</span></h1>
+                <h1 class="display-6 fw-bold">MessIAs &copy; <span class="fw-light">| Smart Pricing</span></h1>
                 <p class="opacity-75">Optimización de cotizaciones basada en inteligencia analítica y registros históricos.</p>
                 <div class="d-flex gap-4 mt-4">
                     <div>
@@ -146,7 +146,7 @@ $total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")-
                                 <i class="bi bi-cloud-arrow-up-fill"></i>
                             </div>
                             <h4 class="fw-bold">Nueva Cotizaci&oacute;n</h4>
-                            <p class="text-muted small">Lectura linea a linea con análisis automático del modelo IA de Mess.</p>
+                            <p class="text-muted small">Lectura linea a linea con análisis automático del modelo MessIAs &copy;.</p>
                         </div>
                     </div>
                 </div>
@@ -158,7 +158,7 @@ $total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")-
                                 <i class="bi bi-speedometer2"></i>
                             </div>
                             <h4 class="fw-bold">Entrenamiento del Modelo</h4>
-                            <p class="text-muted small">Auditoría, variaciones de margen y ajustes para el entrenamiento de la IA.</p>
+                            <p class="text-muted small">Auditoría, variaciones de margen y ajustes para el entrenamiento del modelo MessIAs &copy;.</p>
                         </div>
                     </div>
                 </div>
@@ -198,7 +198,7 @@ $total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")-
                         </button>
                     </form>
                     <p class="mt-3 text-center text-muted" style="font-size: 0.7rem;">
-                        <i class="bi bi-shield-lock me-1"></i> Integración con login-messbook habilitada próximamente.
+                        <i class="bi bi-shield-lock me-1"></i> Integración con login-master de Messbook habilitada próximamente.
                     </p>
                 </div>
             </div>
