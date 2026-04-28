@@ -145,8 +145,8 @@ $total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")-
                             <div class="icon-box bg-soft-success">
                                 <i class="bi bi-cloud-arrow-up-fill"></i>
                             </div>
-                            <h4 class="fw-bold">Carga Masiva</h4>
-                            <p class="text-muted small">Importación inteligente desde Excel con análisis automático de Llama 3.</p>
+                            <h4 class="fw-bold">Nueva Cotizaci&oacute;n</h4>
+                            <p class="text-muted small">Lectura linea a linea con análisis automático del modelo IA de Mess.</p>
                         </div>
                     </div>
                 </div>
@@ -157,8 +157,8 @@ $total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")-
                             <div class="icon-box bg-soft-primary">
                                 <i class="bi bi-speedometer2"></i>
                             </div>
-                            <h4 class="fw-bold">Monitor de Precios</h4>
-                            <p class="text-muted small">Auditoría en tiempo real, variaciones de margen y ajustes de IA.</p>
+                            <h4 class="fw-bold">Entrenamiento del Modelo</h4>
+                            <p class="text-muted small">Auditoría, variaciones de margen y ajustes para el entrenamiento de la IA.</p>
                         </div>
                     </div>
                 </div>
@@ -198,7 +198,7 @@ $total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")-
                         </button>
                     </form>
                     <p class="mt-3 text-center text-muted" style="font-size: 0.7rem;">
-                        <i class="bi bi-shield-lock me-1"></i> Integración con Active Directory MESS habilitada próximamente.
+                        <i class="bi bi-shield-lock me-1"></i> Integración con login-messbook habilitada próximamente.
                     </p>
                 </div>
             </div>
@@ -210,7 +210,7 @@ $total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")-
     <div class="container">
         <hr class="opacity-10 mb-4">
         <p class="mb-1 fw-bold">GRUPO MESS</p>
-        <p class="small mb-0">Departamento de Desarrollo y Sistematización | Querétaro, México</p>
+        <p class="small mb-0">Desarrollo y Sistematización | Querétaro, México</p>
         <small class="opacity-50">Versión 2.1 - 2026</small>
     </div>
 </footer>
