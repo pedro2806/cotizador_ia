@@ -16,7 +16,8 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Monitor MESS AI | Auditoría de Precios</title>
+    <link rel="icon" type="image/x-icon" href="fav.ico">
+    <title>Monitor MessIAs | Auditoría de Precios</title>
     <link href="css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="css/bootstrap-icons.css">
     <link href="css/sweetalert2.min.css" rel="stylesheet">
