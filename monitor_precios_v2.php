@@ -47,7 +47,7 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
     <div class="container-fluid px-4">
         <a class="navbar-brand fw-bold d-flex align-items-center" href="index.php">
             <img src="logo.png" alt="MESS" height="35" class="me-3">
-            <span class="border-start ps-3">Monitor de cotizaciones realizadas por el modelo MessIAs &copy;</span>
+            <span class="border-start ps-3">Monitor de cotizaciones realizadas por el modelo MessIAs</span>
         </a>
         <div class="d-flex align-items-center gap-3">
             <span class="text-white x-small" id="last-update">Sincronizando...</span>
@@ -130,7 +130,7 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
             <div class="table-container d-flex flex-column align-items-center justify-content-center text-center p-5">
                 <i class="bi bi-clipboard2-check text-light" style="font-size: 5rem;"></i>
                 <h4 class="text-muted mt-3">Panel de Auditoría de Cotizaciones</h4>
-                <p class="text-secondary">Selecciona un proyecto del listado para ver el análisis de los precios dados por el modelo MessIAs &copy;.</p>
+                <p class="text-secondary">Selecciona un proyecto del listado para ver el análisis de los precios dados por el modelo MessIAs.</p>
             </div>
             <?php endif; ?>
         </div>

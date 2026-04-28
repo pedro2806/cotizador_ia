@@ -123,7 +123,7 @@ $total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")-
         
         <div class="col-lg-8">
             <div class="hero-welcome">
-                <h1 class="display-6 fw-bold">MessIAs &copy; <span class="fw-light">| Smart Pricing</span></h1>
+                <h1 class="display-6 fw-bold">MessIAs <span class="fw-light">| Smart Pricing</span></h1>
                 <p class="opacity-75">Optimización de cotizaciones basada en inteligencia analítica y registros históricos.</p>
                 <div class="d-flex gap-4 mt-4">
                     <div>
@@ -145,8 +145,8 @@ $total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")-
                             <div class="icon-box bg-soft-success">
                                 <i class="bi bi-cloud-arrow-up-fill"></i>
                             </div>
-                            <h4 class="fw-bold">Nueva Cotizaci&oacute;n</h4>
-                            <p class="text-muted small">Lectura linea a linea con análisis automático del modelo MessIAs &copy;.</p>
+                            <h4 class="fw-bold">Nueva Cotizaci&oacute;n con IA</h4>
+                            <p class="text-muted small">Lectura linea a linea con análisis automático del modelo MessIAs.</p>
                         </div>
                     </div>
                 </div>
@@ -158,7 +158,7 @@ $total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")-
                                 <i class="bi bi-speedometer2"></i>
                             </div>
                             <h4 class="fw-bold">Entrenamiento del Modelo</h4>
-                            <p class="text-muted small">Auditoría, variaciones de margen y ajustes para el entrenamiento del modelo MessIAs &copy;.</p>
+                            <p class="text-muted small">Auditoría, variaciones de margen y ajustes para el entrenamiento del modelo MessIAs.</p>
                         </div>
                     </div>
                 </div>
@@ -210,7 +210,7 @@ $total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")-
     <div class="container">
         <hr class="opacity-10 mb-4">
         <p class="mb-1 fw-bold">GRUPO MESS</p>
-        <p class="small mb-0">Desarrollo y Sistematización | Querétaro, México</p>
+        <p class="small mb-0">Desarrollo y Sistematización | MessIAs&copy; IA</p>
         <small class="opacity-50">Versión 2.1 - 2026</small>
     </div>
 </footer>
