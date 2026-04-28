@@ -209,8 +209,8 @@ $total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")-
 <footer class="mt-5 py-4 text-center">
     <div class="container">
         <hr class="opacity-10 mb-4">
-        <p class="mb-1 fw-bold">GRUPO MESS</p>
-        <p class="small mb-0">Desarrollo y Sistematización | MessIAs&copy; IA</p>
+        <p class="mb-1 fw-bold">Mess Servicios Metrológicos, S. de R.L. de C.V.</p>
+        <p class="small mb-0">Desarrollo y Sistematización | MessIAs&copy;</p>
         <small class="opacity-50">Versión 2.1 - 2026</small>
     </div>
 </footer>
