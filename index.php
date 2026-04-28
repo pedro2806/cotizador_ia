@@ -209,11 +209,7 @@
                         </button>
                     </form>
                     <p class="mt-3 text-center text-muted" style="font-size: 0.7rem;">
-<<<<<<< Updated upstream
-                        <i class="bi bi-shield-lock me-1"></i> Integración con login-master de Messbook habilitada próximamente.
-=======
                         <i class="bi bi-shield-lock me-1"></i> Acceso restringido &middot; Grupo MESS
->>>>>>> Stashed changes
                     </p>
                 </div>
                 <?php endif; ?>
