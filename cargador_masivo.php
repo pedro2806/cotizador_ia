@@ -9,19 +9,51 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
     $lineas = explode("\n", $_POST['lista_excel']);
     $insertados = 0;
 
-    $stmt = $conn->prepare("INSERT INTO cola_procesamiento (id_proyecto, entrada_usuario, estatus) VALUES (?, ?, 'pendiente')");
-
     foreach ($lineas as $linea) {
         $linea = trim($linea);
         if (!empty($linea)) {
-            $stmt->bind_param("ss", $id_proyecto, $linea);
-            $stmt->execute();
-            $insertados++;
+            // 1. Buscamos si hay opciones únicas en el historial (los 58MB)
+            // Esta función debe estar en tu funcionesWorker.php
+            $opciones = obtenerOpcionesUnicasHistoricas($linea, $conn);
+
+            if (count($opciones) > 0) {
+                $claves_insertadas = []; // Array para controlar duplicados en este item
+
+                foreach ($opciones as $opcion) {
+                    $clave = trim($opcion['CDMESS']);
+
+                    // SI LA CLAVE YA EXISTE EN ESTE ITEM, LA SALTAMOS
+                    if (in_array($clave, $claves_insertadas)) continue;
+
+                    $stmt = $conn->prepare("INSERT INTO cola_procesamiento 
+                        (id_proyecto, entrada_usuario, cdmess_historico, descripcion_historica, precio_historico, estatus) 
+                        VALUES (?, ?, ?, ?, ?, 'pendiente')");
+                    
+                    $stmt->bind_param("ssssd", 
+                        $id_proyecto, 
+                        $linea, 
+                        $clave, 
+                        $opcion['descripcion'], 
+                        $opcion['precio_promedio']
+                    );
+                    $stmt->execute();
+                    
+                    $claves_insertadas[] = $clave; // Registramos que ya insertamos esta clave
+                    $insertados++;
+                }
+                $stmt->close();
+            } else {
+                // 3. Si NO hay historial, insertamos el registro genérico como lo hacías antes
+                $stmt_nuevo = $conn->prepare("INSERT INTO cola_procesamiento (id_proyecto, entrada_usuario, estatus) VALUES (?, ?, 'pendiente')");
+                $stmt_nuevo->bind_param("ss", $id_proyecto, $linea);
+                $stmt_nuevo->execute();
+                $stmt_nuevo->close();
+                $insertados++;
+            }
         }
     }
-    $stmt->close();
     
-    // Redirección inmediata al monitor para ver la magia en tiempo real
+    // Redirección inmediata al monitor
     header("Location: monitor_precios_v2.php?proyecto=" . urlencode($id_proyecto));
     exit;
 }

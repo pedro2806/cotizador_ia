@@ -3,7 +3,6 @@
 include 'conexion.php';
 include 'funcionesWorker.php';
 
-// Evitar que el script se detenga por tiempo en el servidor
 set_time_limit(0);
 
 echo "====================================================\n";
@@ -12,7 +11,8 @@ echo "   Soportando: Min-Max, Promedio y Coincidencias    \n";
 echo "====================================================\n";
 
 while (true) {
-    $res = $conn->query("SELECT id, entrada_usuario FROM cola_procesamiento WHERE estatus = 'pendiente' LIMIT 1");
+    // CAMBIO 1: Agregamos las nuevas columnas al SELECT
+    $res = $conn->query("SELECT id, entrada_usuario, cdmess_historico, precio_historico, descripcion_historica FROM cola_procesamiento WHERE estatus = 'pendiente' LIMIT 1");
 
     if ($res && $res->num_rows > 0) {
         $item = $res->fetch_assoc();
@@ -21,9 +21,15 @@ while (true) {
         
         $conn->query("UPDATE cola_procesamiento SET estatus = 'procesando' WHERE id = $id");
 
-        $stats = obtenerHistorialMESS($entrada);
+        // CAMBIO 2: Lógica de selección de historial (Para respetar la división)
+        if (!empty($item['cdmess_historico'])) {
+            // Si tiene clave histórica, forzamos a obtenerHistorialMESS a buscar SOLO esa clave
+            $stats = obtenerHistorialMESS($item['cdmess_historico']);
+        } else {
+            // Si no tiene clave (es nuevo), busca por descripción normal
+            $stats = obtenerHistorialMESS($entrada);
+        }
 
-        // NUEVO: Obtener el aprendizaje humano para "entrenar" a la IA
         $aprendizaje = obtenerAprendizajeHumano($entrada, $conn);
         
         $respuesta_ia = preguntarOllamaConPrecios($stats, $entrada, $aprendizaje);
@@ -31,7 +37,12 @@ while (true) {
         if (preg_match('/\{.*\}/s', $respuesta_ia, $matches)) {
             $data = json_decode($matches[0], true);
             
-            // RED DE SEGURIDAD: Si la IA omitió campos, PHP los restaura del array $stats
+            // CAMBIO 3: Seguro de vida para el CDMESS
+            // Si la IA intentó cambiar la clave, la regresamos a la que ya teníamos en la tabla
+            if (!empty($item['cdmess_historico']) && ($data['cdmess'] ?? '') !== $item['cdmess_historico']) {
+                $data['cdmess'] = $item['cdmess_historico'];
+            }
+
             if (!isset($data['precio_min'])) $data['precio_min'] = $stats['min'];
             if (!isset($data['precio_max'])) $data['precio_max'] = $stats['max'];
             if (!isset($data['precio_promedio'])) $data['precio_promedio'] = $stats['avg'];
@@ -40,9 +51,8 @@ while (true) {
 
             $json_final = json_encode($data, JSON_UNESCAPED_UNICODE);
         } else {
-            // Fallback total
             $json_final = json_encode([
-                "cdmess" => $stats['cdmess'],
+                "cdmess" => (!empty($item['cdmess_historico'])) ? $item['cdmess_historico'] : $stats['cdmess'],
                 "desc" => $entrada,
                 "precio_min" => $stats['min'],
                 "precio_max" => $stats['max'],
