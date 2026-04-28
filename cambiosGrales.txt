@@ -1,3 +1,6 @@
+//Para reiniciar el worker
+sudo systemctl restart mess-worker.service
+
 ALTER TABLE cola_procesamiento 
 ADD COLUMN precio_usuario DECIMAL(10,2) NULL,
 ADD COLUMN id_usuario INT NULL,
