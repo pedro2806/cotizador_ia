@@ -9,7 +9,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'] ?? '';
 
     if ($correo === '' || $password === '') {
-        header('Location: index.php?login_error=campos');
+        $_SESSION['login_error'] = 'Completa todos los campos.';
+        header('Location: index.php');
         exit;
     }
 
@@ -25,9 +26,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['usuario_id'] = $row['id_usuario'];
         $_SESSION['nombre']     = $row['nombre'];
         $_SESSION['correo']     = $row['correo'];
+        $_SESSION['login_success'] = true;
         header('Location: index.php');
     } else {
-        header('Location: index.php?login_error=credenciales');
+        $_SESSION['login_error'] = 'Correo o contraseña incorrectos, o cuenta inactiva.';
+        header('Location: index.php');
     }
 
     $stmt->close();
