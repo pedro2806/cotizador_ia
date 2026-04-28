@@ -1,19 +1,11 @@
-<?php
-include 'conexion.php';
-include 'funcionesWorker.php';
-
-
-// Estadísticas rápidas para el Dashboard
-$total_proyectos = $conn->query("SELECT COUNT(DISTINCT id_proyecto) as total FROM cola_procesamiento")->fetch_assoc()['total'];
-$total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")->fetch_assoc()['total'];
-?>
+<?php include 'acciones_login.php'; ?>
 
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MESS AI | Dashboard</title>
+    <title>MessIAs | Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <style>
@@ -109,11 +101,15 @@ $total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")-
             <img src="logo.png" alt="Grupo MESS Logo" height="45">
         </a>
         <div class="d-flex text-white align-items-center">
-            <div class="text-end me-3 d-none d-sm-block">
-                <small class="d-block opacity-75">Bienvenido,</small>
-                <span class="fw-bold">Ing. Pedro Martínez</span>
-            </div>
-            <a href="#" class="btn btn-sm btn-outline-light rounded-pill px-3">Salir</a>
+            <?php if ($logueado): ?>
+                <div class="text-end me-3 d-none d-sm-block">
+                    <small class="d-block opacity-75">Bienvenido,</small>
+                    <span class="fw-bold"><?php echo htmlspecialchars($_SESSION['nombre']); ?></span>
+                </div>
+                <a href="logout.php" class="btn btn-sm btn-outline-light rounded-pill px-3">Salir</a>
+            <?php else: ?>
+                <span class="opacity-50 small me-3 d-none d-sm-block">No has iniciado sesión</span>
+            <?php endif; ?>
         </div>
     </div>
 </nav>
@@ -123,7 +119,7 @@ $total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")-
         
         <div class="col-lg-8">
             <div class="hero-welcome">
-                <h1 class="display-6 fw-bold">MESS AI <span class="fw-light">| Smart Pricing</span></h1>
+                <h1 class="display-6 fw-bold">MessIAs <span class="fw-light">| Smart Pricing</span></h1>
                 <p class="opacity-75">Optimización de cotizaciones basada en inteligencia analítica y registros históricos.</p>
                 <div class="d-flex gap-4 mt-4">
                     <div>
@@ -140,25 +136,27 @@ $total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")-
             
             <div class="row g-4">
                 <div class="col-md-6">
-                    <div class="card card-menu h-100 p-4" onclick="location.href='cargador_masivo.php'">
+                    <div class="card card-menu h-100 p-4<?php echo $logueado ? '' : ' opacity-50 pe-none'; ?>"
+                         <?php if ($logueado): ?>onclick="location.href='cargador_masivo.php'"<?php endif; ?>>
                         <div class="card-body text-center">
                             <div class="icon-box bg-soft-success">
                                 <i class="bi bi-cloud-arrow-up-fill"></i>
                             </div>
-                            <h4 class="fw-bold">Nueva Cotizaci&oacute;n</h4>
-                            <p class="text-muted small">Lectura linea a linea con análisis automático del modelo IA de Mess.</p>
+                            <h4 class="fw-bold">Nueva Cotizaci&oacute;n con IA</h4>
+                            <p class="text-muted small">Lectura linea a linea con análisis automático del modelo MessIAs.</p>
                         </div>
                     </div>
                 </div>
 
                 <div class="col-md-6">
-                    <div class="card card-menu h-100 p-4" onclick="location.href='monitor_precios_v2.php'">
+                    <div class="card card-menu h-100 p-4<?php echo $logueado ? '' : ' opacity-50 pe-none'; ?>"
+                         <?php if ($logueado): ?>onclick="location.href='monitor_precios_v2.php'"<?php endif; ?>>
                         <div class="card-body text-center">
                             <div class="icon-box bg-soft-primary">
                                 <i class="bi bi-speedometer2"></i>
                             </div>
                             <h4 class="fw-bold">Entrenamiento del Modelo</h4>
-                            <p class="text-muted small">Auditoría, variaciones de margen y ajustes para el entrenamiento de la IA.</p>
+                            <p class="text-muted small">Auditoría, variaciones de margen y ajustes para el entrenamiento del modelo MessIAs.</p>
                         </div>
                     </div>
                 </div>
@@ -184,23 +182,40 @@ $total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")-
                     <?php endif; ?>
                 </div>
 
+                <?php if (!$logueado): ?>
                 <div class="auth-section mt-4 bg-light p-3 rounded-4">
                     <h6 class="small fw-bold text-uppercase text-muted mb-3">Autenticación</h6>
-                    <form action="#" method="POST">
-                        <div class="mb-3">
-                            <input type="text" class="form-control form-control-sm bg-white border-0" placeholder="Usuario" disabled>
+
+                    <?php if ($login_error): ?>
+                        <div class="alert alert-danger border-0 py-2 mb-3 small">
+                            <i class="bi bi-exclamation-circle me-1"></i>
+                            <?php echo htmlspecialchars($login_error); ?>
+                        </div>
+                    <?php endif; ?>
+                    <form action="acciones_login.php" method="POST">
+                        <div class="mb-2">
+                            <input type="email" name="correo" class="form-control form-control-sm bg-white border-0"
+                                   placeholder="Correo corporativo"
+                                   value="<?php echo htmlspecialchars($_POST['correo'] ?? ''); ?>"
+                                   required>
                         </div>
                         <div class="mb-3">
-                            <input type="password" class="form-control form-control-sm bg-white border-0" placeholder="Contraseña" disabled>
+                            <input type="password" name="password" class="form-control form-control-sm bg-white border-0"
+                                   placeholder="Contraseña" required>
                         </div>
-                        <button type="button" class="btn btn-dark btn-sm w-100 rounded-pill py-2 shadow-sm" disabled>
+                        <button type="submit" class="btn btn-dark btn-sm w-100 rounded-pill py-2 shadow-sm">
                             <i class="bi bi-lock-fill me-1"></i> Entrar
                         </button>
                     </form>
                     <p class="mt-3 text-center text-muted" style="font-size: 0.7rem;">
-                        <i class="bi bi-shield-lock me-1"></i> Integración con login-messbook habilitada próximamente.
+<<<<<<< Updated upstream
+                        <i class="bi bi-shield-lock me-1"></i> Integración con login-master de Messbook habilitada próximamente.
+=======
+                        <i class="bi bi-shield-lock me-1"></i> Acceso restringido &middot; Grupo MESS
+>>>>>>> Stashed changes
                     </p>
                 </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -209,8 +224,8 @@ $total_items = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")-
 <footer class="mt-5 py-4 text-center">
     <div class="container">
         <hr class="opacity-10 mb-4">
-        <p class="mb-1 fw-bold">GRUPO MESS</p>
-        <p class="small mb-0">Desarrollo y Sistematización | Querétaro, México</p>
+        <p class="mb-1 fw-bold">Mess Servicios Metrológicos, S. de R.L. de C.V.</p>
+        <p class="small mb-0">Desarrollo y Sistematización | MessIAs&copy;</p>
         <small class="opacity-50">Versión 2.1 - 2026</small>
     </div>
 </footer>

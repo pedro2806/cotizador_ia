@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Carga Masiva | MESS AI</title>
+    <title>Cotizador | MessIAs</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <style>
@@ -116,11 +116,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
 <nav class="navbar navbar-dark navbar-custom mb-5 shadow">
     <div class="container">
         <a class="navbar-brand d-flex align-items-center" href="index.php">
-            <img src="https://www.messbook.com.mx/ControlVehicular/img/MESS_05_Imagotipo.svg" alt="MESS" height="40" class="me-3">
-            <span class="fw-bold border-start ps-3">IA Pricing</span>
+            <img src="logo.png" alt="MESS" height="40" class="me-3">
+            <span class="fw-bold border-start ps-3">MessIAs | Smart Pricing</span>
         </a>
         <a href="index.php" class="btn btn-outline-light btn-sm rounded-pill">
-            <i class="bi bi-arrow-left"></i> Volver al Dashboard
+            <i class="bi bi-arrow-left"></i> Volver a Inicio
         </a>
     </div>
 </nav>
@@ -134,7 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <h4 class="fw-bold mb-1 text-dark">Nueva Carga de Proyecto</h4>
-                            <p class="text-muted mb-0 small">Importe masivo de descripciones o códigos CDMESS para análisis histórico.</p>
+                            <p class="text-muted mb-0 small">Carga descripciones o códigos CDMESS para análisis con referencias en el histórico de cotizaciones y sugerencias de MessIAs.</p>
                         </div>
                         <i class="bi bi-cloud-arrow-up text-primary fs-1 opacity-25"></i>
                     </div>
@@ -146,21 +146,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
                             <h6 class="fw-bold text-uppercase small text-muted mb-4">Instrucciones</h6>
                             <div class="mb-4 d-flex align-items-start">
                                 <span class="step-badge">1</span>
-                                <p class="small text-secondary">Copia la columna de **descripciones** o **claves** desde tu Excel.</p>
+                                <p class="small text-secondary">Copia las **descripciones** o **claves mess** para el an&aacute;lisis.</p>
                             </div>
                             <div class="mb-4 d-flex align-items-start">
                                 <span class="step-badge">2</span>
-                                <p class="small text-secondary">Pega el contenido en el recuadro de la derecha.</p>
+                                <p class="small text-secondary">Pega el contenido en el recuadro de la derecha. Debes agregar un registro por linea</p>
                             </div>
                             <div class="mb-4 d-flex align-items-start">
                                 <span class="step-badge">3</span>
-                                <p class="small text-secondary">Haz clic en procesar para que el motor IA inicie la auditoría.</p>
+                                <p class="small text-secondary">Haz clic en procesar para que MessIAs inicie el an&aacute;lisis.</p>
                             </div>
                             
                             <div class="alert alert-warning border-0 rounded-4 p-3 mt-5">
                                 <div class="d-flex">
                                     <i class="bi bi-info-circle-fill me-2"></i>
-                                    <small><strong>Tip:</strong> Puedes mezclar códigos como `S8-5` con descripciones largas como `Calibración de vernier`.</small>
+                                    <small><strong>Tip:</strong> Puedes mezclar códigos como `S8-5` con descripciones como `Calibración de vernier`.</small>
                                 </div>
                             </div>
                         </div>
@@ -175,7 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
                                 
                                 <div class="d-grid">
                                     <button type="submit" class="btn btn-upload btn-lg mb-3">
-                                        <i class="bi bi-cpu-fill me-2"></i> Iniciar Análisis con IA
+                                        <i class="bi bi-cpu-fill me-2"></i> Iniciar Análisis con MessIAs
                                     </button>
                                     <p class="text-center text-muted x-small">
                                         Al procesar, se generará un ID de proyecto automático para seguimiento.
@@ -200,7 +200,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
 </div>
 
 <footer class="py-4 text-center text-muted border-top bg-white mt-auto">
-    <small>MESS IA | Área de Sistematización y Desarrollo &copy; 2026</small>
+      <div class="container">
+       <hr class="opacity-10 mb-4">
+        <p class="mb-1 fw-bold">Mess Servicios Metrológicos, S. de R.L. de C.V.</p>
+        <p class="small mb-0">Desarrollo y Sistematización | MessIAs&copy;</p>
+        <small class="opacity-50">Versión 2.1 - 2026</small>
+    </div>
 </footer>
 
 </body>

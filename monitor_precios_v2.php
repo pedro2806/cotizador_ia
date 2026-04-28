@@ -59,8 +59,8 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
 <nav class="navbar navbar-dark navbar-custom mb-4 shadow-sm">
     <div class="container-fluid px-4">
         <a class="navbar-brand fw-bold d-flex align-items-center" href="index.php">
-            <img src="https://www.messbook.com.mx/ControlVehicular/img/MESS_05_Imagotipo.svg" alt="MESS" height="35" class="me-3">
-            <span class="border-start ps-3">Monitor IA</span>
+            <img src="logo.png" alt="MESS" height="35" class="me-3">
+            <span class="border-start ps-3">Monitor de cotizaciones realizadas por el modelo MessIAs</span>
         </a>
         <div class="d-flex align-items-center gap-3">
             <span class="text-white x-small" id="last-update">Sincronizando...</span>
@@ -126,10 +126,10 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
                         <thead>
                             <tr class="x-small text-uppercase">
                                 <th style="width: 12%;">CDMESS</th>
-                                <th style="width: 30%;">Descripción Técnica (IA)</th>
+                                <th style="width: 30%;">Descripción Técnica (MessIAs))</th>
                                 <th style="width: 15%;" class="text-center">Rango (Min - Max)</th>
                                 <th style="width: 12%;" class="text-center">Hist. Promedio</th>
-                                <th style="width: 12%;" class="text-center bg-primary text-white">Sugerido IA</th>
+                                <th style="width: 12%;" class="text-center bg-primary text-white">Sugerido por MessIAs</th>
                                 <th style="width: 19%;">Notas / Justificación</th>
                             </tr>
                         </thead>
@@ -142,7 +142,7 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
             <div class="table-container d-flex flex-column align-items-center justify-content-center text-center p-5">
                 <i class="bi bi-clipboard2-check text-light" style="font-size: 5rem;"></i>
                 <h4 class="text-muted mt-3">Panel de Auditoría de Cotizaciones</h4>
-                <p class="text-secondary">Selecciona un proyecto del listado para ver el análisis de precios.</p>
+                <p class="text-secondary">Selecciona un proyecto del listado para ver el análisis de los precios dados por el modelo MessIAs.</p>
             </div>
             <?php endif; ?>
         </div>
