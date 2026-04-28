@@ -3,12 +3,11 @@
 include 'conexion.php';
 include 'funcionesWorker.php';
 
-set_time_limit(0);
 // Evitar que el script se detenga por tiempo en el servidor
 set_time_limit(0);
 
 echo "====================================================\n";
-echo "   MOTOR IA MESS - RESTAURADO Y OPTIMIZADO          \n";
+echo "   MOTOR IA MESS - OPTIMIZADO - APRENDIENDO         \n";
 echo "   Soportando: Min-Max, Promedio y Coincidencias    \n";
 echo "====================================================\n";
 
@@ -23,7 +22,11 @@ while (true) {
         $conn->query("UPDATE cola_procesamiento SET estatus = 'procesando' WHERE id = $id");
 
         $stats = obtenerHistorialMESS($entrada);
-        $respuesta_ia = preguntarOllamaConPrecios($stats, $entrada);
+
+        // NUEVO: Obtener el aprendizaje humano para "entrenar" a la IA
+        $aprendizaje = obtenerAprendizajeHumano($entrada, $conn);
+        
+        $respuesta_ia = preguntarOllamaConPrecios($stats, $entrada, $aprendizaje);
 
         if (preg_match('/\{.*\}/s', $respuesta_ia, $matches)) {
             $data = json_decode($matches[0], true);

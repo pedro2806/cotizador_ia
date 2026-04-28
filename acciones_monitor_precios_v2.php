@@ -29,5 +29,30 @@ function ejecutarAccion($accion, $datos = []) {
 
         default:
             return null;
+
+        case 'GUARDAR_APROBACION_HUMANA':
+            $id = intval($datos['id']);
+            $respuesta = $conn->real_escape_string($datos['respuesta']);
+            $precio_user = floatval($datos['precio_usuario']);
+            $id_user = intval($datos['id_usuario']);
+
+            $sql = "UPDATE cola_procesamiento 
+                    SET respuesta = '$respuesta', 
+                        precio_usuario = $precio_user, 
+                        id_usuario = $id_user, 
+                        estatus = 'completado' 
+                    WHERE id = $id";
+            return $conn->query($sql);    
     }
+}
+
+// Lógica para procesar peticiones AJAX directas
+if (isset($_POST['accion'])) {
+    $res = ejecutarAccion($_POST['accion'], $_POST);
+    if (is_bool($res)) {
+        echo json_encode(['status' => $res ? 'success' : 'error']);
+    } else {
+        // Para otros casos puedes manejar la respuesta aquí
+    }
+    exit;
 }

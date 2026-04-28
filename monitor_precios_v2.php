@@ -16,9 +16,10 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Monitor MessIAs | Auditoría de Precios</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <title>Monitor MESS AI | Auditoría de Precios</title>
+    <link href="css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/bootstrap-icons.css">
+    <link href="css/sweetalert2.min.css" rel="stylesheet">
     <style>
         :root { --mess-blue: #002d5a; --mess-gold: #ffc107; }
         body { background-color: #f4f7f6; font-family: 'Inter', sans-serif; }
@@ -39,6 +40,18 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
         .x-small { font-size: 0.75rem; }
         .bg-sugerido { background-color: #f0f7ff !important; }
         .badge-range { background-color: #f8f9fa; color: #6c757d; border: 1px solid #dee2e6; font-weight: normal; }
+
+        .bg-sugerido {
+            background-color: #f8f9fa;
+        }
+        .bg-sugerido input {
+            border: 1px solid #002d5a;
+            background-color: #fffceb;
+        }
+        textarea.x-small {
+            font-size: 0.75rem !important;
+            resize: none;
+        }
     </style>
 </head>
 <body>
@@ -72,8 +85,7 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
                             $porcentaje = ($total > 0) ? round(($listos / $total) * 100) : 0;
                             $es_activo = ($id_proyecto_activo == $p['id_proyecto']) ? 'active' : '';
                         ?>
-                        <a href="?proyecto=<?php echo urlencode($p['id_proyecto']); ?>&p_pag=<?php echo $p_pag; ?>" 
-                           class="list-group-item list-group-item-action <?php echo $es_activo; ?>">
+                        <a href="?proyecto=<?php echo urlencode($p['id_proyecto']); ?>&p_pag=<?php echo $p_pag; ?>" class="list-group-item list-group-item-action <?php echo $es_activo; ?>">
                             <div class="d-flex justify-content-between align-items-center mb-1">
                                 <span class="fw-bold x-small text-truncate" style="max-width: 150px;"><?php echo $p['id_proyecto']; ?></span>
                                 <span class="fw-bold x-small"><?php echo $porcentaje; ?>%</span>
@@ -136,6 +148,7 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
         </div>
     </div>
 </div>
+<script src="js/sweetalert2.all.min.js"></script>
 
 <script>
 const proyectoActual = "<?php echo $id_proyecto_activo; ?>";
@@ -171,6 +184,8 @@ async function cargarDatos() {
             }
 
             const ia = item.propuesta_ia || {};
+            const idReg = item.id; // Asegúrate de que el ID esté disponible
+
             return `
                 <tr class="font-small shadow-sm">
                     <td class="fw-bold text-primary"><i class="bi bi-hash"></i> ${ia.cdmess || 'S/C'}</td>
@@ -182,10 +197,24 @@ async function cargarDatos() {
                         <span class="badge badge-range">$${ia.precio_min || 0} - $${ia.precio_max || 0}</span>
                     </td>
                     <td class="text-center text-secondary">$${ia.precio_promedio || 0}</td>
-                    <td class="text-center fw-bold bg-sugerido text-primary border-start border-end" style="font-size: 1rem;">
-                        $${ia.precio_ia || 0}
+                    
+                    <td class="bg-sugerido border-start border-end" style="min-width: 120px;">
+                        <div class="x-small text-muted mb-1">Sugerido IA: $${ia.precio_ia || 0}</div>
+                        <input type="number" id="precio_u_${idReg}" class="form-control form-control-sm fw-bold text-primary" 
+                            value="${item.precio_usuario > 0 ? item.precio_usuario : (ia.precio_ia || 0)}" step="0.01">
                     </td>
-                    <td class="x-small fst-italic text-secondary line-height-sm">${ia.notas || 'Sin observaciones.'}</td>
+
+                    <td style="min-width: 200px;">
+                        <textarea id="resp_u_${idReg}" class="form-control form-control-sm x-small" rows="2" 
+                                placeholder="Escribe la validación o corrección...">${item.respuesta || ''}</textarea>
+                    </td>
+
+                    <td class="text-center align-middle">
+                        <button class="btn btn-sm ${item.estatus === 'completado' ? 'btn-success' : 'btn-outline-primary'}" 
+                                onclick="validarRegistro(${idReg})" title="Validar y Entrenar IA">
+                            <i class="bi ${item.estatus === 'completado' ? 'bi-check-all' : 'bi-send-check'}"></i>
+                        </button>
+                    </td>
                 </tr>
             `;
         }).join('');
@@ -193,6 +222,70 @@ async function cargarDatos() {
     } catch (e) {
         console.error("Error en la carga AJAX:", e);
     }
+}
+
+async function validarRegistro(id) {
+    const precio = document.getElementById(`precio_u_${id}`).value;
+    const respuesta = document.getElementById(`resp_u_${id}`).value;
+    const idUsuario = 1; // ID del usuario actual
+
+    // Validación básica de SweetAlert2
+    Swal.fire({
+        title: '¿Confirmar validación?',
+        text: "Este precio y nota se guardarán como aprendizaje para la IA.",
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#002d5a', // Azul MESS
+        cancelButtonColor: '#d33',
+        confirmButtonText: '<i class="bi bi-check-lg"></i> Sí, validar',
+        cancelButtonText: 'Cancelar'
+    }).then(async (result) => {
+        if (result.isConfirmed) {
+            try {
+                // Mostrar un cargando mientras se procesa
+                Swal.fire({
+                    title: 'Procesando...',
+                    didOpen: () => { Swal.showLoading() },
+                    allowOutsideClick: false
+                });
+
+                const formData = new FormData();
+                formData.append('accion', 'GUARDAR_APROBACION_HUMANA');
+                formData.append('id', id);
+                formData.append('precio_usuario', precio);
+                formData.append('respuesta', respuesta);
+                formData.append('id_usuario', idUsuario);
+
+                const response = await fetch('acciones_monitor_precios_v2.php', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const res = await response.json();
+
+                if (res.status === 'success') {
+                    Swal.fire({
+                        title: '¡Éxito!',
+                        text: 'El precio ha sido validado y la IA ha aprendido de esta corrección.',
+                        icon: 'success',
+                        confirmButtonColor: '#002d5a'
+                    }).then(() => {
+                        // Recargar el detalle del proyecto para ver los cambios
+                        const urlParams = new URLSearchParams(window.location.search);
+                        if (urlParams.has('proyecto')) {
+                            cargarDetalle(urlParams.get('proyecto'));
+                        }
+                    });
+                } else {
+                    throw new Error('Error en la respuesta del servidor');
+                }
+
+            } catch (error) {
+                console.error("Error al validar:", error);
+                Swal.fire('Error', 'No se pudo conectar con el servidor físico.', 'error');
+            }
+        }
+    });
 }
 
 if (proyectoActual) {
