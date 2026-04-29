@@ -74,76 +74,54 @@ function obtenerHistorialMESS($busqueda) {
  */
 function obtenerHistorialMESS($busqueda) {
     global $conn;
-    $busqueda = trim($busqueda);
     
-    // Detecta si el usuario quiere un servicio o un equipo
-    $busca_servicio = preg_match('/calibra|servicio|mantenimiento|verificacion/i', $busqueda);
-    $tipo_filtro = $busca_servicio ? "TIPO = 'SERVICIO'" : "TIPO = 'EQUIPO'";
+    // Si empieza con S o tiene "calibracion", es SERVICIO
+    $busca_servicio = (stripos($busqueda, 'servicio') !== false || 
+                       stripos($busqueda, 'calibracion') !== false ||
+                       stripos($busqueda, 'mantenimiento') !== false ||
+                       preg_match('/^S\d+/i', $busqueda));
     
-    // 1. Match exacto por CDmess
+    $tipo_val = $busca_servicio ? 'SERVICIO' : 'EQUIPO';
+    
+    // Quita acentos para el MATCH porque FULLTEXT es sensible
+    $termino = iconv('UTF-8', 'ASCII//TRANSLIT', $busqueda);
+    $termino = preg_replace('/[^a-zA-Z0-9\s]/', '', $termino);
+    $termino = trim($termino) . '*'; // Agrega * para buscar prefijos
+    
+    error_log("BUSCANDO MESS: termino='$termino' tipo='$tipo_val'");
+    
     $stmt = $conn->prepare("
-        SELECT CDMESS, DESCRIPCION, (PRECIO_VENTA/CANT) AS PRECIO_VENTA 
-        FROM cotizaciones_items 
-        WHERE CDMESS = ? AND PRECIO_VENTA > 0 AND CANT > 0 AND $tipo_filtro AND STATUS_COTIZACION = 'Ganadas'
-        ORDER BY id_item DESC LIMIT 10
-    ");
-    $stmt->bind_param("s", $busqueda);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    
-    // 2. Si no hay match exacto, busca por texto
-    if ($res->num_rows == 0) {
-        // Si busca equipo, excluye palabras de servicio. Si busca servicio, no excluyas nada
-        if ($busca_servicio) {
-            $termino = $busqueda . '*';
-        } else {
-            $termino = $busqueda . '* -calibracion* -servicio* -mantenimiento*';
-        }
-        
-        $stmt = $conn->prepare("
-            SELECT CDMESS,
-        DESCRIPCION,
-        (PRECIO_VENTA/CANT) AS PRECIO_VENTA,
-        MATCH(DESCRIPCION) AGAINST(? IN BOOLEAN MODE) AS score 
+        SELECT 
+            CDMESS, 
+            DESCRIPCION, 
+            (PRECIO_VENTA/CANT) AS PRECIO_VENTA
         FROM cotizaciones_items 
         WHERE MATCH(DESCRIPCION) AGAINST(? IN BOOLEAN MODE)
-        AND $tipo_filtro
-        AND PRECIO_VENTA > 0
-        AND CANT > 0
-        ORDER BY score DESC, id_item DESC
+          AND TIPO = ?
+          AND PRECIO_VENTA > 0 
+          AND CANT > 0
+          AND STATUS_COTIZACION != 'Canceladas'
+        ORDER BY id_item DESC 
         LIMIT 10
-        ");
-        $stmt->bind_param("ss", $termino, $termino);
-        $stmt->execute();
-        $res = $stmt->get_result();
-    }
-
-    $precios = [];
-    $alternativas = [];
-    $cdmess_principal = "S/C";
-    $detalle_ia = "";
-
-    while ($row = $res->fetch_assoc()) {
-        $precios[] = (float)$row['PRECIO_VENTA'];
-        if (empty($alternativas)) $cdmess_principal = $row['CDMESS'];
-        
-        $item_str = "[{$row['CDMESS']}] " . $row['DESCRIPCION'];
-        $alternativas[] = $item_str;
-        $detalle_ia .= "- $item_str: $" . number_format($row['PRECIO_VENTA'], 2) . "\n";
-    }
-
-    if (empty($precios)) {
-        $tipo_txt = $busca_servicio ? 'servicios' : 'equipos';
-        return ['min'=>0, 'max'=>0, 'avg'=>0, 'cdmess'=>'S/C', 'detalle'=>"Sin historial de $tipo_txt", 'alternativas'=>[]];
+    ");
+    $stmt->bind_param("ss", $termino, $tipo_val);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $rows = $result->fetch_all(MYSQLI_ASSOC);
+    
+    error_log("RESULTADOS MESS: ".count($rows)." filas");
+    
+    if (empty($rows)) {
+        return ['min' => 0, 'max' => 0, 'avg' => 0, 'cdmess' => 'N/A', 'alternativas' => []];
     }
     
+    $precios = array_column($rows, 'PRECIO_VENTA');
     return [
         'min' => min($precios),
         'max' => max($precios),
         'avg' => array_sum($precios) / count($precios),
-        'cdmess' => $cdmess_principal,
-        'detalle' => $detalle_ia,
-        'alternativas' => $alternativas
+        'cdmess' => $rows[0]['CDMESS'],
+        'alternativas' => array_slice(array_column($rows, 'DESCRIPCION'), 0, 3)
     ];
 }
 
