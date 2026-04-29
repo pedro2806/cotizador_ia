@@ -101,18 +101,17 @@ function obtenerHistorialMESS($busqueda) {
         }
         
         $stmt = $conn->prepare("
-            SELECT 
-                CDMESS, 
-                DESCRIPCION, 
-                (PRECIO_VENTA/CANT) AS PRECIO_VENTA,
-                MATCH(DESCRIPCION) AGAINST(? IN BOOLEAN MODE) AS score
-            FROM cotizaciones_items 
-            WHERE MATCH(DESCRIPCION) AGAINST(? IN BOOLEAN MODE)
-              AND $tipo_filtro
-              AND PRECIO_VENTA > 0 
-              AND CANT > 0
-            ORDER BY score DESC, id_item DESC 
-            LIMIT 10
+            SELECT CDMESS,
+        DESCRIPCION,
+        (PRECIO_VENTA/CANT) AS PRECIO_VENTA,
+        MATCH(DESCRIPCION) AGAINST(? IN BOOLEAN MODE) AS score 
+        FROM cotizaciones_items 
+        WHERE MATCH(DESCRIPCION) AGAINST(? IN BOOLEAN MODE)
+        AND $tipo_filtro
+        AND PREDCIO_VENTA > 0
+        AND CANT > 0
+        ORDER BY score DESC, id?item DESC
+        LIMIT 10
         ");
         $stmt->bind_param("ss", $termino, $termino);
         $stmt->execute();
