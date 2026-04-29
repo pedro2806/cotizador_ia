@@ -84,7 +84,7 @@ function obtenerHistorialMESS($busqueda) {
     $stmt = $conn->prepare("
         SELECT CDMESS, DESCRIPCION, (PRECIO_VENTA/CANT) AS PRECIO_VENTA 
         FROM cotizaciones_items 
-        WHERE CDMESS = ? AND PRECIO_VENTA > 0 AND CANT > 0 AND $tipo_filtro
+        WHERE CDMESS = ? AND PRECIO_VENTA > 0 AND CANT > 0 AND $tipo_filtro AND STATUS_COTIZACION = 'Ganadas'
         ORDER BY id_item DESC LIMIT 10
     ");
     $stmt->bind_param("s", $busqueda);
