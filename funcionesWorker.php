@@ -72,26 +72,34 @@ function obtenerHistorialMESS($busqueda) {
 
 /** Nueva funcion obtenerhistorialmess optimizada.
  */
-
 function obtenerHistorialMESS($busqueda) {
     global $conn;
     $busqueda = trim($busqueda);
     
-    // 1. Si es un código exacto como "G3-69", búscalo directo
+    // Detecta si el usuario quiere un servicio o un equipo
+    $busca_servicio = preg_match('/calibra|servicio|mantenimiento|verificacion/i', $busqueda);
+    $tipo_filtro = $busca_servicio ? "TIPO = 'SERVICIO'" : "TIPO = 'EQUIPO'";
+    
+    // 1. Match exacto por CDmess
     $stmt = $conn->prepare("
         SELECT CDMESS, DESCRIPCION, (PRECIO_VENTA/CANT) AS PRECIO_VENTA 
         FROM cotizaciones_items 
-        WHERE CDMESS = ? AND PRECIO_VENTA > 0 AND CANT > 0 AND TIPO = 'EQUIPO'
+        WHERE CDMESS = ? AND PRECIO_VENTA > 0 AND CANT > 0 AND $tipo_filtro
         ORDER BY id_item DESC LIMIT 10
     ");
     $stmt->bind_param("s", $busqueda);
     $stmt->execute();
     $res = $stmt->get_result();
     
-    // 2. Si no encontró nada, usa FULLTEXT y filtra servicios
+    // 2. Si no hay match exacto, busca por texto
     if ($res->num_rows == 0) {
-        // El -* quita calibracion, servicio, mantenimiento de los resultados
-        $termino = $busqueda . '* -calibracion* -servicio* -mantenimiento*';
+        // Si busca equipo, excluye palabras de servicio. Si busca servicio, no excluyas nada
+        if ($busca_servicio) {
+            $termino = $busqueda . '*';
+        } else {
+            $termino = $busqueda . '* -calibracion* -servicio* -mantenimiento*';
+        }
+        
         $stmt = $conn->prepare("
             SELECT 
                 CDMESS, 
@@ -100,10 +108,10 @@ function obtenerHistorialMESS($busqueda) {
                 MATCH(DESCRIPCION) AGAINST(? IN BOOLEAN MODE) AS score
             FROM cotizaciones_items 
             WHERE MATCH(DESCRIPCION) AGAINST(? IN BOOLEAN MODE)
-              AND TIPO = 'EQUIPO'
+              AND $tipo_filtro
               AND PRECIO_VENTA > 0 
               AND CANT > 0
-            GROUP BY CDMESS  -- Esto quita los duplicados
+            GROUP BY CDMESS
             ORDER BY score DESC, id_item DESC 
             LIMIT 10
         ");
@@ -127,7 +135,8 @@ function obtenerHistorialMESS($busqueda) {
     }
 
     if (empty($precios)) {
-        return ['min'=>0, 'max'=>0, 'avg'=>0, 'cdmess'=>'S/C', 'detalle'=>'Sin historial de equipos', 'alternativas'=>[]];
+        $tipo_txt = $busca_servicio ? 'servicios' : 'equipos';
+        return ['min'=>0, 'max'=>0, 'avg'=>0, 'cdmess'=>'S/C', 'detalle'=>"Sin historial de $tipo_txt", 'alternativas'=>[]];
     }
     
     return [
@@ -139,7 +148,6 @@ function obtenerHistorialMESS($busqueda) {
         'alternativas' => $alternativas
     ];
 }
-
 
 
 /**
