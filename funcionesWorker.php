@@ -111,7 +111,6 @@ function obtenerHistorialMESS($busqueda) {
               AND $tipo_filtro
               AND PRECIO_VENTA > 0 
               AND CANT > 0
-            GROUP BY CDMESS
             ORDER BY score DESC, id_item DESC 
             LIMIT 10
         ");
