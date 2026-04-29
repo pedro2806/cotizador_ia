@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
                     if (in_array($clave, $claves_insertadas)) continue;
 
                     $stmt = $conn->prepare("INSERT INTO cola_procesamiento 
-                        (id_proyecto, entrada_usuario, cdmess_historico, descripcion_historica, precio_historico, estatus) 
+                        (id_proyecto, entrada_usuario, cdmess_sugerido, descripcion_historica, precio_historico, estatus) 
                         VALUES (?, ?, ?, ?, ?, 'pendiente')");
                     
                     $stmt->bind_param("ssssd", 
