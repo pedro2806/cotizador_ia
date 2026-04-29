@@ -110,7 +110,7 @@ function obtenerHistorialMESS($busqueda) {
         AND $tipo_filtro
         AND PREDCIO_VENTA > 0
         AND CANT > 0
-        ORDER BY score DESC, id?item DESC
+        ORDER BY score DESC, id_item DESC
         LIMIT 10
         ");
         $stmt->bind_param("ss", $termino, $termino);
