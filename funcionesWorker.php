@@ -101,6 +101,7 @@ function obtenerHistorialMESS($busqueda) {
           AND PRECIO_VENTA > 0 
           AND CANT > 0
           AND STATUS_COTIZACION != 'Canceladas'
+          GROUP BY CDMESS, DESCRIPCION, ROUND(PRECIO_VENTA/CANT, 2)
         ORDER BY id_item DESC 
         LIMIT 10
     ");
@@ -119,7 +120,7 @@ function obtenerHistorialMESS($busqueda) {
     return [
         'min' => min($precios),
         'max' => max($precios),
-        'avg' => array_sum($precios) / count($precios),
+        'avg' => round(array_sum($precios) / count($precios),2),
         'cdmess' => $rows[0]['CDMESS'],
         'alternativas' => array_slice(array_column($rows, 'DESCRIPCION'), 0, 3)
     ];
