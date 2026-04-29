@@ -157,7 +157,7 @@ while (true) {
 
         $json_final = json_encode($data, JSON_UNESCAPED_UNICODE);
 
-        $stmt = $conn->prepare("UPDATE cola_procesamiento SET propuesta_ia = ?, estatus = 'completado', fecha_procesado = NOW() WHERE id = ?");
+        $stmt = $conn->prepare("UPDATE cola_procesamiento SET propuesta_ia = ?, estatus = 'completado', fecha_registro = NOW() WHERE id = ?");
         $stmt->bind_param("si", $json_final, $id);
         $stmt->execute();
         
