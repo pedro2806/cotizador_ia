@@ -112,77 +112,72 @@ while (true) {
         
         $conn->query("UPDATE cola_procesamiento SET estatus = 'procesando' WHERE id = $id");
 
-        // AQUÍ EMPIEZA EL TRY QUE TE DECÍA
-        try {
-            // 1. Obtén historial normal de cotizaciones_items
-            if (!empty($item['cdmess_historico'])) {
-                $stats = obtenerHistorialMESS($item['cdmess_historico']);
-                $clave_buscar = $item['cdmess_historico'];
-            } else {
-                $stats = obtenerHistorialMESS($entrada);
-                $clave_buscar = $stats['cdmess'] ?? $entrada;
+    try {
+    // 1. Obtén historial - esto ya te da el CDMESS aunque busques por texto
+    $stats = obtenerHistorialMESS($item['cdmess_historico'] ?: $entrada);
+    
+    // 2. CLAVE: Usa el CDMESS que regresó el historial para buscar aprendizaje
+    $cdmess_para_aprendizaje = $stats['cdmess'] ?? $item['cdmess_historico'] ?? 'N/A';
+    $aprendizaje = obtenerAprendizajeHumano($cdmess_para_aprendizaje, $conn);
+    
+    error_log("APRENDIZAJE PARA $cdmess_para_aprendizaje: " . json_encode($aprendizaje));
+
+    $precio_base = round($stats['avg'] ?? 0, 2);
+    $precio_final = $precio_base;
+    $nota_final = "Basado en histórico de cotizaciones_items";
+    
+    if (!empty($aprendizaje)) {
+        if (!empty($aprendizaje['precio_sugerido'])) {
+            $precio_final = $aprendizaje['precio_sugerido'];
+            $nota_final = "Precio corregido por {$aprendizaje['total_correcciones']} revisiones humanas";
+        } else {
+            switch ($aprendizaje['categoria_principal']) {
+                case 'Precio muy alto':
+                    $precio_final = round($precio_base * 0.85, 2);
+                    $nota_final = "Reducido 15% por reportes de 'precio muy alto'";
+                    break;
+                case 'Precio muy bajo':
+                    $precio_final = round($precio_base * 1.15, 2);
+                    $nota_final = "Aumentado 15% por reportes de 'precio muy bajo'";
+                    break;
+                case 'Descripcion incorrecta':
+                    $nota_final = "ALERTA: " . ($aprendizaje['nota_humana'] ?? 'Descripción reportada como incorrecta');
+                    break;
             }
+        }
+        
+        if ($aprendizaje['alerta_descripcion'] && $aprendizaje['categoria_principal'] != 'Descripcion incorrecta') {
+            $nota_final .= " | ATENCIÓN: " . $aprendizaje['nota_humana'];
+        }
+    }
 
-            // 2. Busca si hay aprendizaje humano previo - AQUÍ SE USA TU FUNCIÓN
-            $aprendizaje = obtenerAprendizajeHumano($clave_buscar, $conn);
+    $data = [
+        "cdmess" => $cdmess_para_aprendizaje,
+        "desc" => $item['descripcion_historica'] ?? $entrada,
+        "precio_min" => round($stats['min'] ?? 0, 2),
+        "precio_max" => round($stats['max'] ?? 0, 2),
+        "precio_promedio" => $precio_base,
+        "precio_ia" => $precio_final,
+        "notas" => $nota_final,
+        "coincidencias" => $stats['alternativas'] ?? [],
+        "aprendizaje_aplicado" => !empty($aprendizaje),
+        "num_correcciones" => $aprendizaje['total_correcciones'] ?? 0
+    ];
 
-            // 3. Precio base: promedio histórico
-            $precio_base = round($stats['avg'] ?? 0, 2);
-            $precio_final = $precio_base;
-            $nota_final = "Basado en histórico de cotizaciones_items";
-            
-            // 4. APLICAR APRENDIZAJE SI EXISTE
-            if (!empty($aprendizaje)) {
-                // Regla 1: Si hay precio_usuario promedio, úsalo
-                if (!empty($aprendizaje['precio_sugerido'])) {
-                    $precio_final = $aprendizaje['precio_sugerido'];
-                    $nota_final = "Precio corregido por {$aprendizaje['total_correcciones']} revisiones humanas";
-                } 
-                // Regla 2: Si no hay precio pero sí categoría, ajusta %
-                else {
-                    switch ($aprendizaje['categoria_principal']) {
-                        case 'Precio muy alto':
-                            $precio_final = round($precio_base * 0.85, 2);
-                            $nota_final = "Reducido 15% por reportes de 'precio muy alto'";
-                            break;
-                        case 'Precio muy bajo':
-                            $precio_final = round($precio_base * 1.15, 2);
-                            $nota_final = "Aumentado 15% por reportes de 'precio muy bajo'";
-                            break;
-                        case 'Descripcion incorrecta':
-                            $nota_final = "ALERTA: " . ($aprendizaje['nota_humana'] ?? 'Descripción reportada como incorrecta');
-                            break;
-                    }
-                }
-                
-                // Si además hay alerta de descripción, agrégala
-                if ($aprendizaje['alerta_descripcion'] && $aprendizaje['categoria_principal'] != 'Descripcion incorrecta') {
-                    $nota_final .= " | ATENCIÓN: " . $aprendizaje['nota_humana'];
-                }
-            }
+    $json_final = json_encode($data, JSON_UNESCAPED_UNICODE);
+    $estado_final = 'completado';
 
-            $data = [
-                "cdmess" => $clave_buscar,
-                "desc" => $item['descripcion_historica'] ?? $entrada,
-                "precio_min" => round($stats['min'] ?? 0, 2),
-                "precio_max" => round($stats['max'] ?? 0, 2),
-                "precio_promedio" => $precio_base,
-                "precio_ia" => $precio_final, // <- Ya viene con aprendizaje aplicado
-                "notas" => $nota_final,
-                "coincidencias" => $stats['alternativas'] ?? [],
-                "aprendizaje_aplicado" => !empty($aprendizaje),
-                "num_correcciones" => $aprendizaje['total_correcciones'] ?? 0
-            ];
+} catch (Exception $e) {
+    error_log("ERROR procesando ID $id: " . $e->getMessage());
+    $json_final = json_encode([
+        "error" => true,
+        "mensaje" => "Error al procesar: " . $e->getMessage(),
+        "cdmess" => $item['cdmess_historico'] ?? 'N/A'
+    ]);
+    $estado_final = 'error';
+}
 
-            // Seguro: no cambiar CDMESS si ya tenía uno
-            if (!empty($item['cdmess_historico']) && $data['cdmess'] !== $item['cdmess_historico']) {
-                $data['cdmess'] = $item['cdmess_historico'];
-            }
-
-            $json_final = json_encode($data, JSON_UNESCAPED_UNICODE);
-            $estado_final = 'completado';
-
-        } catch (Exception $e) {
+catch (Exception $e) {
             // Si algo truena, no dejes el registro en 'procesando'
             error_log("ERROR procesando ID $id: " . $e->getMessage());
             $json_final = json_encode([
