@@ -15,6 +15,8 @@ function limpiarEntrada($texto) {
  * Obtiene el contexto histórico de la base de datos de 58MB.
  * Prioriza códigos exactos (CDMESS) antes de buscar por descripción.
  */
+
+/** 
 function obtenerHistorialMESS($busqueda) {
     global $conn;
     $termino = "%" . str_replace(' ', '%', trim($busqueda)) . "%";
@@ -62,6 +64,83 @@ function obtenerHistorialMESS($busqueda) {
         'alternativas' => $coincidencias_str
     ];
 }
+*/
+
+
+
+
+
+/** Nueva funcion obtenerhistorialmess optimizada.
+ */
+
+function obtenerHistorialMESS($busqueda) {
+    global $conn;
+    $busqueda = trim($busqueda);
+    
+    // 1. Si es un código exacto como "G3-69", búscalo directo
+    $stmt = $conn->prepare("
+        SELECT CDMESS, DESCRIPCION, (PRECIO_VENTA/CANT) AS PRECIO_VENTA 
+        FROM cotizaciones_items 
+        WHERE CDMESS = ? AND PRECIO_VENTA > 0 AND CANT > 0 AND TIPO = 'EQUIPO'
+        ORDER BY id_item DESC LIMIT 10
+    ");
+    $stmt->bind_param("s", $busqueda);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    
+    // 2. Si no encontró nada, usa FULLTEXT y filtra servicios
+    if ($res->num_rows == 0) {
+        // El -* quita calibracion, servicio, mantenimiento de los resultados
+        $termino = $busqueda . '* -calibracion* -servicio* -mantenimiento*';
+        $stmt = $conn->prepare("
+            SELECT 
+                CDMESS, 
+                DESCRIPCION, 
+                (PRECIO_VENTA/CANT) AS PRECIO_VENTA,
+                MATCH(DESCRIPCION) AGAINST(? IN BOOLEAN MODE) AS score
+            FROM cotizaciones_items 
+            WHERE MATCH(DESCRIPCION) AGAINST(? IN BOOLEAN MODE)
+              AND TIPO = 'EQUIPO'
+              AND PRECIO_VENTA > 0 
+              AND CANT > 0
+            GROUP BY CDMESS  -- Esto quita los duplicados
+            ORDER BY score DESC, id_item DESC 
+            LIMIT 10
+        ");
+        $stmt->bind_param("ss", $termino, $termino);
+        $stmt->execute();
+        $res = $stmt->get_result();
+    }
+
+    $precios = [];
+    $alternativas = [];
+    $cdmess_principal = "S/C";
+    $detalle_ia = "";
+
+    while ($row = $res->fetch_assoc()) {
+        $precios[] = (float)$row['PRECIO_VENTA'];
+        if (empty($alternativas)) $cdmess_principal = $row['CDMESS'];
+        
+        $item_str = "[{$row['CDMESS']}] " . $row['DESCRIPCION'];
+        $alternativas[] = $item_str;
+        $detalle_ia .= "- $item_str: $" . number_format($row['PRECIO_VENTA'], 2) . "\n";
+    }
+
+    if (empty($precios)) {
+        return ['min'=>0, 'max'=>0, 'avg'=>0, 'cdmess'=>'S/C', 'detalle'=>'Sin historial de equipos', 'alternativas'=>[]];
+    }
+    
+    return [
+        'min' => min($precios),
+        'max' => max($precios),
+        'avg' => array_sum($precios) / count($precios),
+        'cdmess' => $cdmess_principal,
+        'detalle' => $detalle_ia,
+        'alternativas' => $alternativas
+    ];
+}
+
+
 
 /**
  * Función para hablar con la IA
