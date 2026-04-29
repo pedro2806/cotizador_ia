@@ -88,7 +88,7 @@ ini_set('display_errors', '0');
 ini_set('log_errors', '1');
 
 echo "====================================================\n";
-echo "   MOTOR IA MESS - OPTIMIZADO - SIN OLLAMA          \n";
+echo "   MOTOR IA MESS         \n";
 echo "   Soportando: Min-Max, Promedio y Coincidencias    \n";
 echo "====================================================\n";
 
@@ -125,6 +125,9 @@ while (true) {
         $t_aprendizaje_fin = microtime(true);
         
         // SIN OLLAMA: Armamos el JSON directo con PHP - 0.0001s
+        
+        $respuesta_ia = preguntarOllamaConPrecios($stats, $entrada, $aprendizaje);
+        /*
         $data = [
             "cdmess" => (!empty($item['cdmess_historico'])) ? $item['cdmess_historico'] : ($stats['cdmess'] ?? 'N/A'),
             "desc" => $item['descripcion_historica'] ?? $entrada,
@@ -135,7 +138,7 @@ while (true) {
             "notas" => "Recuperado automáticamente por el sistema.",
             "coincidencias" => $stats['alternativas'] ?? []
         ];
-
+*/
         // Si hay aprendizaje humano, sobreescribe con eso
         if (!empty($aprendizaje)) {
             if (!empty($aprendizaje['cdmess_correcto'])) {
