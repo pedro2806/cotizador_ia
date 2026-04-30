@@ -16,6 +16,7 @@ function ejecutarAccion($accion, $datos = []) {
                     SUM(CASE WHEN es_sugerencia = 0 THEN 1 ELSE 0 END) as total,
                     SUM(CASE WHEN es_sugerencia = 0 AND estatus = 'completado' THEN 1 ELSE 0 END) as listos
                     FROM cola_procesamiento
+                    WHERE id_us_registro = " . intval($_SESSION['usuario_id'] ?? $datos['id_usuario'] ?? 0) . "
                     GROUP BY id_proyecto
                     ORDER BY fecha DESC
                     LIMIT $inicio, $por_pagina";

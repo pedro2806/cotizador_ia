@@ -16,19 +16,41 @@ function limpiarEntrada($texto) {
  * Prioriza códigos exactos (CDMESS) antes de buscar por descripción.
  */
 
-/*
 function obtenerHistorialMESS($busqueda) {
     global $conn;
-    $termino = "%" . str_replace(' ', '%', trim($busqueda)) . "%";
+    $terminoCDMESS = $busqueda; //"%". str_replace(' ', '%', trim($busqueda)) . "%";
     
+    $terminoDESCRIPCION = iconv('UTF-8', 'ASCII//TRANSLIT', $busqueda);
+    $terminoDESCRIPCION = preg_replace('/[^a-zA-Z0-9\s]/', '', $terminoDESCRIPCION);
+    $terminoDESCRIPCION = trim($terminoDESCRIPCION) . '*';
+    
+    $busca_servicio = (stripos($busqueda, 'servicio') !== false || 
+                       stripos($busqueda, 'calibracion') !== false ||
+                       stripos($busqueda, 'mantenimiento') !== false ||
+                       preg_match('/^S\d+/i', $busqueda));
+    
+    $tipo_val = $busca_servicio ? 'SERVICIO' : 'EQUIPO';
+
     // Traemos los últimos 10 para tener un buen rango y alternativas
-    $sql = "SELECT CDMESS, DESCRIPCION, (PRECIO_VENTA/CANT) AS PRECIO_VENTA, CANT 
-            FROM cotizaciones_items 
-            //WHERE (DESCRIPCION LIKE ? OR CDMESS LIKE ?) AND PRECIO_VENTA > 0 OR CANT > 0 AND PRECIO_VENTA IS NOT NULL
-            WHERE (DESCRIPCION LIKE ? OR CDMESS LIKE ?) AND PRECIO_VENTA > 0 AND CANT > 0";
+    $sql = "SELECT
+            ci.CDmess,
+            ci.DESCRIPCION,
+            ROUND(AVG(ci.PRECIO_VENTA/ci.CANT), 2) AS PRECIO_VENTA
+            FROM cotizaciones_items ci
+            INNER JOIN (
+            SELECT CDmess, DESCRIPCION, MAX(id_item) as max_id
+            FROM cotizaciones_items
+            WHERE (MATCH(DESCRIPCION) AGAINST(? IN BOOLEAN MODE) OR CDMESS = ?)
+            AND TIPO = ?
+            AND PRECIO_VENTA > 0
+            AND CANT > 0
+            GROUP BY CDmess, DESCRIPCION
+            ) ultimos ON ci.id_item = ultimos.max_id
+            GROUP BY ci.CDmess, ci.DESCRIPCION
+            LIMIT 10";
             
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ss", $termino, $termino);
+    $stmt->bind_param("sss", $terminoDESCRIPCION, $terminoCDMESS, $tipo_val);
     $stmt->execute();
     $res = $stmt->get_result();
     
@@ -65,9 +87,9 @@ function obtenerHistorialMESS($busqueda) {
         'alternativas' => $coincidencias_str
     ];
 }
-*/
 
 //Nueva funcion obtenerhistorialmess optimizada.
+/*
 function obtenerHistorialMESS($busqueda) {
     global $conn;
     
@@ -119,11 +141,7 @@ function obtenerHistorialMESS($busqueda) {
         'alternativas' => array_slice(array_column($rows, 'DESCRIPCION'), 0, 3)
     ];
 }
-
-
-
-
-
+*/
 /**
  * Función para hablar con la IA
  */

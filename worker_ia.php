@@ -122,6 +122,9 @@ echo "   Soportando: Min-Max, Promedio y Feedback        \n";
 echo "====================================================\n";
 
 while (true) {
+
+    $id = null;
+
     if ($conn->connect_error) {
         error_log("BD MUERTA: " . $conn->connect_error);
         sleep(5);
@@ -141,7 +144,7 @@ while (true) {
         $entrada = trim($item['entrada_usuario']);
         
         $conn->query("UPDATE cola_procesamiento SET estatus = 'procesando' WHERE id = $id");
-
+    }
   
   try {
     // 1. Obtén historial - esto ya te da el CDMESS aunque busques por texto
@@ -199,21 +202,9 @@ while (true) {
         $json_final = json_encode($data, JSON_UNESCAPED_UNICODE);
     $estado_final = 'completado';
 
-  }
-        catch (Exception $e) {
-    error_log("ERROR procesando ID $id: " . $e->getMessage());
-    $json_final = json_encode([
-        "error" => true,
-        "mensaje" => "Error al procesar: " . $e->getMessage(),
-        "cdmess" => $item['cdmess_historico'] ?? 'N/A'
-    ]);
-    $estado_final = 'error';
-
-
- 
-}
-
-catch (Exception $e) {
+    }
+      
+    catch (Exception $e) {
             // Si algo truena, no dejes el registro en 'procesando'
             error_log("ERROR procesando ID $id: " . $e->getMessage());
             $json_final = json_encode([
@@ -224,7 +215,7 @@ catch (Exception $e) {
             $estado_final = 'error';
         }
         // AQUÍ TERMINA EL TRY/CATCH
-
+    if ($id !== null) {
         $stmt = $conn->prepare("UPDATE cola_procesamiento SET propuesta_ia = ?, estatus = ?, fecha_registro = NOW() WHERE id = ?");
         $stmt->bind_param("ssi", $json_final, $estado_final, $id);
         $stmt->execute();

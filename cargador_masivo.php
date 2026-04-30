@@ -36,16 +36,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
                     $es_primera = false;
 
                     $stmt = $conn->prepare("INSERT INTO cola_procesamiento
-                        (id_proyecto, entrada_usuario, cdmess_historico, descripcion_historica, precio_historico, estatus, es_sugerencia)
-                        VALUES (?, ?, ?, ?, ?, 'pendiente', ?)");
+                        (id_proyecto, entrada_usuario, cdmess_historico, descripcion_historica, precio_historico, estatus, es_sugerencia, id_us_registro)
+                        VALUES (?, ?, ?, ?, ?, 'pendiente', ?, ?)");
 
-                    $stmt->bind_param("ssssdi",
+                    $stmt->bind_param("ssssdii",
                         $id_proyecto,
                         $linea,
                         $clave,
                         $opcion['descripcion'],
                         $opcion['precio_promedio'],
-                        $es_sugerencia
+                        $es_sugerencia,
+                        $_SESSION['usuario_id']
                     );
                     $stmt->execute();
 

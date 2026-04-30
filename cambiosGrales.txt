@@ -31,3 +31,6 @@ ALTER TABLE cola_procesamiento ADD COLUMN cdmess_historico VARCHAR(50), ADD COLU
 
 //Se agrego para marcar cada fila como ítem original del usuario (0) o sugerencia generada por MessIAs desde las coincidencias (1) (SGR)
 ALTER TABLE cola_procesamiento ADD COLUMN es_sugerencia TINYINT(1) NOT NULL DEFAULT 0;
+
+//SGR 30/04/2026
+ALTER TABLE `cola_procesamiento` ADD `id_us_registro` INT NOT NULL AFTER `categoria_rechazo`;
