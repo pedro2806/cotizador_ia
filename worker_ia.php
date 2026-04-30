@@ -112,7 +112,8 @@ while (true) {
         
         $conn->query("UPDATE cola_procesamiento SET estatus = 'procesando' WHERE id = $id");
 
-    try {
+  
+  try {
     // 1. Obtén historial - esto ya te da el CDMESS aunque busques por texto
     $stats = obtenerHistorialMESS($item['cdmess_historico'] ?: $entrada);
     
@@ -126,6 +127,7 @@ while (true) {
     $precio_final = $precio_base;
     $nota_final = "Basado en histórico de cotizaciones_items";
     
+    // 3. APLICAR APRENDIZAJE SI EXISTE
     if (!empty($aprendizaje)) {
         if (!empty($aprendizaje['precio_sugerido'])) {
             $precio_final = $aprendizaje['precio_sugerido'];
@@ -164,10 +166,8 @@ while (true) {
         "num_correcciones" => $aprendizaje['total_correcciones'] ?? 0
     ];
 
-    $json_final = json_encode($data, JSON_UNESCAPED_UNICODE);
-    $estado_final = 'completado';
-
-} catch (Exception $e) {
+  }
+        catch (Exception $e) {
     error_log("ERROR procesando ID $id: " . $e->getMessage());
     $json_final = json_encode([
         "error" => true,
