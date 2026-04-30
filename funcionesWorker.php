@@ -16,7 +16,7 @@ function limpiarEntrada($texto) {
  * Prioriza códigos exactos (CDMESS) antes de buscar por descripción.
  */
 
-/** 
+/*
 function obtenerHistorialMESS($busqueda) {
     global $conn;
     $termino = "%" . str_replace(' ', '%', trim($busqueda)) . "%";
@@ -24,9 +24,8 @@ function obtenerHistorialMESS($busqueda) {
     // Traemos los últimos 10 para tener un buen rango y alternativas
     $sql = "SELECT CDMESS, DESCRIPCION, (PRECIO_VENTA/CANT) AS PRECIO_VENTA, CANT 
             FROM cotizaciones_items 
-            /*WHERE (DESCRIPCION LIKE ? OR CDMESS LIKE ?) AND PRECIO_VENTA > 0 OR CANT > 0 AND PRECIO_VENTA IS NOT NULL*/
-            WHERE (DESCRIPCION LIKE ? OR CDMESS LIKE ?) AND PRECIO_VENTA > 0 AND CANT > 0
-";
+            //WHERE (DESCRIPCION LIKE ? OR CDMESS LIKE ?) AND PRECIO_VENTA > 0 OR CANT > 0 AND PRECIO_VENTA IS NOT NULL
+            WHERE (DESCRIPCION LIKE ? OR CDMESS LIKE ?) AND PRECIO_VENTA > 0 AND CANT > 0";
             
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("ss", $termino, $termino);
@@ -68,12 +67,8 @@ function obtenerHistorialMESS($busqueda) {
 }
 */
 
-
-
-
-
-/** Nueva funcion obtenerhistorialmess optimizada.
- */function obtenerHistorialMESS($busqueda) {
+//Nueva funcion obtenerhistorialmess optimizada.
+function obtenerHistorialMESS($busqueda) {
     global $conn;
     
     $busca_servicio = (stripos($busqueda, 'servicio') !== false || 
