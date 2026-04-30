@@ -166,6 +166,9 @@ while (true) {
         "num_correcciones" => $aprendizaje['total_correcciones'] ?? 0
     ];
 
+        $json_final = json_encode($data, JSON_UNESCAPED_UNICODE);
+    $estado_final = 'completado';
+
   }
         catch (Exception $e) {
     error_log("ERROR procesando ID $id: " . $e->getMessage());
@@ -175,6 +178,9 @@ while (true) {
         "cdmess" => $item['cdmess_historico'] ?? 'N/A'
     ]);
     $estado_final = 'error';
+
+
+ 
 }
 
 catch (Exception $e) {
