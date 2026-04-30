@@ -131,7 +131,7 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
                                 <th style="width: 15%;" class="text-center">Rango (Min - Max)</th>
                                 <th style="width: 12%;" class="text-center">Hist. Promedio</th>
                                 <th style="width: 12%;" class="text-center bg-primary text-white">Sugerido por MessIAs</th>
-                                <th style="width: 19%;">Notas / Justificación</th>
+                                <th style="width: 19%;">Entrenamiento</th>
                             </tr>
                         </thead>
                         <tbody id="contenedor-items">
@@ -209,8 +209,7 @@ async function cargarDatos() {
                         <select id="cat_u_${idReg}" class="form-select form-select-sm mb-1 x-small">
                             <option value="Acepta precio IA">Acepta precio IA</option>
                             <option value="Precio muy bajo">Precio muy bajo</option>
-                            <option value="Precio muy alto">Precio muy alto</option>
-                            <option value="Descripción incorrecta">Descripción incorrecta</option>                            
+                            <option value="Precio muy alto">Precio muy alto</option>                            
                         </select>
                         <textarea id="resp_u_${idReg}" class="form-control form-control-sm x-small" rows="2" 
                                 placeholder="Notas adicionales...">${item.respuesta || ''}</textarea>
@@ -240,7 +239,7 @@ async function validarRegistro(id) {
     // Validación básica de SweetAlert2
     Swal.fire({
         title: '¿Confirmar validación?',
-        text: "Este precio y nota se guardarán como aprendizaje para la IA.",
+        text: "El precio y nota se guardarán como aprendizaje para la IA.",
         icon: 'question',
         showCancelButton: true,
         confirmButtonColor: '#002d5a', // Azul MESS
