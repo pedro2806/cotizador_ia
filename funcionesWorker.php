@@ -15,6 +15,8 @@ function limpiarEntrada($texto) {
  * Obtiene el contexto histórico de la base de datos de 58MB.
  * Prioriza códigos exactos (CDMESS) antes de buscar por descripción.
  */
+
+/** 
 function obtenerHistorialMESS($busqueda) {
     global $conn;
     $termino = "%" . str_replace(' ', '%', trim($busqueda)) . "%";
@@ -64,6 +66,68 @@ function obtenerHistorialMESS($busqueda) {
         'alternativas' => $coincidencias_str
     ];
 }
+*/
+
+
+
+
+
+/** Nueva funcion obtenerhistorialmess optimizada.
+ */function obtenerHistorialMESS($busqueda) {
+    global $conn;
+    
+    $busca_servicio = (stripos($busqueda, 'servicio') !== false || 
+                       stripos($busqueda, 'calibracion') !== false ||
+                       stripos($busqueda, 'mantenimiento') !== false ||
+                       preg_match('/^S\d+/i', $busqueda));
+    
+    $tipo_val = $busca_servicio ? 'SERVICIO' : 'EQUIPO';
+    
+    $termino = iconv('UTF-8', 'ASCII//TRANSLIT', $busqueda);
+    $termino = preg_replace('/[^a-zA-Z0-9\s]/', '', $termino);
+    $termino = trim($termino) . '*';
+    
+    // Subquery para traer solo el id_item más reciente por cada CDmess + DESCRIPCION
+    $stmt = $conn->prepare("
+        SELECT 
+            ci.CDmess, 
+            ci.DESCRIPCION, 
+            ROUND(AVG(ci.PRECIO_VENTA/ci.CANT), 2) AS PRECIO_VENTA
+        FROM cotizaciones_items ci
+        INNER JOIN (
+            SELECT CDmess, DESCRIPCION, MAX(id_item) as max_id
+            FROM cotizaciones_items
+            WHERE MATCH(DESCRIPCION) AGAINST(? IN BOOLEAN MODE)
+              AND TIPO = ?
+              AND PRECIO_VENTA > 0 
+              AND CANT > 0
+            GROUP BY CDmess, DESCRIPCION
+        ) ultimos ON ci.id_item = ultimos.max_id
+        GROUP BY ci.CDmess, ci.DESCRIPCION
+        LIMIT 10
+    ");
+    $stmt->bind_param("ss", $termino, $tipo_val);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $rows = $result->fetch_all(MYSQLI_ASSOC);
+    
+    if (empty($rows)) {
+        return ['min' => 0, 'max' => 0, 'avg' => 0, 'cdmess' => 'N/A', 'alternativas' => []];
+    }
+    
+    $precios = array_column($rows, 'PRECIO_VENTA');
+    return [
+        'min' => round(min($precios), 2),
+        'max' => round(max($precios), 2),
+        'avg' => round(array_sum($precios) / count($precios), 2),
+        'cdmess' => $rows[0]['CDmess'],
+        'alternativas' => array_slice(array_column($rows, 'DESCRIPCION'), 0, 3)
+    ];
+}
+
+
+
+
 
 /**
  * Función para hablar con la IA
@@ -192,7 +256,7 @@ function obtenerAprendizajeReciente($busqueda, $conn) {
 
 /**
  * Obtiene ejemplos de precios y descripciones que un humano ya aprobó en el sistema.
- */
+ *//*
 function obtenerAprendizajeHumano($entrada, $conn) {
     $busqueda = $conn->real_escape_string($entrada);
     // Buscamos los últimos 2 casos similares completados donde hubo intervención humana
@@ -216,6 +280,101 @@ function obtenerAprendizajeHumano($entrada, $conn) {
         }
     }
     return $ejemplos;
+}
+    */
+
+
+/**
+ * Obtiene aprendizaje humano previo y lo regresa estructurado para aplicar al precio
+ */
+function obtenerAprendizajeHumano($entrada, $conn) {
+    $busqueda = $conn->real_escape_string($entrada);
+    $es_cdmess = preg_match('/^S\d+/i', $entrada);
+    
+    // Prioridad 1: Si es CDMESS, busca exacto por cdmess_historico
+    if ($es_cdmess) {
+        $sql = "SELECT 
+                    entrada_usuario, 
+                    respuesta, 
+                    precio_usuario, 
+                    categoria_rechazo,
+                    cdmess_historico
+                FROM cola_procesamiento
+                WHERE estatus = 'completado'
+                  AND cdmess_historico = '$busqueda'
+                  AND (respuesta IS NOT NULL OR precio_usuario > 0)
+                  AND categoria_rechazo IS NOT NULL
+                  AND categoria_rechazo != 'Acepta precio IA'
+                ORDER BY id DESC 
+                LIMIT 5"; // Trae los últimos 5 feedbacks
+    } else {
+        // Prioridad 2: Si es descripción, busca por LIKE pero solo los últimos 2
+        $sql = "SELECT 
+                    entrada_usuario, 
+                    respuesta, 
+                    precio_usuario, 
+                    categoria_rechazo,
+                    cdmess_historico
+                FROM cola_procesamiento
+                WHERE estatus = 'completado'
+                  AND (respuesta IS NOT NULL OR precio_usuario > 0)
+                  AND categoria_rechazo IS NOT NULL
+                  AND categoria_rechazo != 'Acepta precio IA'
+                  AND entrada_usuario LIKE '%$busqueda%'
+                ORDER BY id DESC 
+                LIMIT 2";
+    }
+    
+    $res = $conn->query($sql);
+    
+    if (!$res || $res->num_rows == 0) {
+        return []; // No hay aprendizaje
+    }
+    
+    $aprendizaje = [
+        'total_correcciones' => $res->num_rows,
+        'precios_usuario' => [],
+        'categoria_principal' => null,
+        'nota_humana' => null,
+        'alerta_descripcion' => false,
+        'ejemplos_texto' => "\n--- APRENDIZAJE DE EXPERTOS MESS (Prioridad Alta) ---\n"
+    ];
+    
+    $categorias = [];
+    
+    while ($row = $res->fetch_assoc()) {
+        // Guarda precios para sacar promedio
+        if ($row['precio_usuario'] > 0) {
+            $aprendizaje['precios_usuario'][] = $row['precio_usuario'];
+        }
+        
+        // Cuenta qué categoría se repite más
+        $cat = $row['categoria_rechazo'];
+        $categorias[$cat] = ($categorias[$cat] ?? 0) + 1;
+        
+        // Si hay "Descripcion incorrecta", marca alerta
+        if ($cat == 'Descripcion incorrecta') {
+            $aprendizaje['alerta_descripcion'] = true;
+            $aprendizaje['nota_humana'] = $row['respuesta'] ?? 'Descripción incorrecta reportada';
+        }
+        
+        // Arma el texto para debug/logs
+        $aprendizaje['ejemplos_texto'] .= "Usuario buscó: " . $row['entrada_usuario'] . "\n";
+        $aprendizaje['ejemplos_texto'] .= "Precio corregido: $" . ($row['precio_usuario'] ?? 'N/A') . "\n";
+        $aprendizaje['ejemplos_texto'] .= "Nota: " . ($row['respuesta'] ?? 'Sin comentarios') . "\n";
+        $aprendizaje['ejemplos_texto'] .= "Categoría: " . $cat . "\n\n";
+    }
+    
+    // Determina la categoría más común
+    arsort($categorias);
+    $aprendizaje['categoria_principal'] = key($categorias);
+    
+    // Si hay precios de usuario, calcula el promedio
+    if (!empty($aprendizaje['precios_usuario'])) {
+        $aprendizaje['precio_sugerido'] = round(array_sum($aprendizaje['precios_usuario']) / count($aprendizaje['precios_usuario']), 2);
+    }
+    
+    return $aprendizaje;
 }
 
 /**

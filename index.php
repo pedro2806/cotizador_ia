@@ -197,7 +197,7 @@
                     <?php if(function_exists('verificarWorker') && verificarWorker()): ?>
                         <div class="alert alert-success border-0 py-2 d-flex align-items-center">
                             <span class="status-dot bg-success"></span>
-                            <small class="fw-bold">Worker Activo</small>
+                            <small class="fw-bold">Motor Activo</small>
                         </div>
                     <?php else: ?>
                         <div class="alert alert-danger border-0 py-2 d-flex align-items-center">
