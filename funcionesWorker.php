@@ -400,9 +400,9 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $conn) {
     $sql = "SELECT 
                 TRIM(CDMESS) as CDMESS, 
                 MAX(DESCRIPCION) as descripcion, 
-                AVG(PRECIO_VENTA / CANT) as precio_promedio
+                ROUND(AVG(PRECIO_VENTA/CANT), 2) as precio_promedio
             FROM cotizaciones_items 
-            WHERE (DESCRIPCION LIKE ? OR CDMESS LIKE ?)
+            WHERE (MATCH(DESCRIPCION) AGAINST(? IN BOOLEAN MODE) OR CDMESS = ?)
                 AND PRECIO_VENTA > 0 AND CANT > 0
                 AND CDMESS IS NOT NULL AND CDMESS != ''
             GROUP BY TRIM(CDMESS) 
