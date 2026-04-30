@@ -189,7 +189,7 @@ catch (Exception $e) {
         }
         // AQUÍ TERMINA EL TRY/CATCH
 
-        $stmt = $conn->prepare("UPDATE cola_procesamiento SET propuesta_ia = ?, estatus = ?, fecha_procesado = NOW() WHERE id = ?");
+        $stmt = $conn->prepare("UPDATE cola_procesamiento SET propuesta_ia = ?, estatus = ?, fecha_registro = NOW() WHERE id = ?");
         $stmt->bind_param("ssi", $json_final, $estado_final, $id);
         $stmt->execute();
         
