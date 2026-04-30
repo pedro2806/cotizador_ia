@@ -1,6 +1,31 @@
 //Para reiniciar el worker
 sudo systemctl restart mess-worker.service
 
+use cotizador_ia;
+
+ALTER TABLE cotizaciones_items
+ADD COLUMN TIPO ENUM('EQUIPO','SERVICIO','REFACCION','OTRO') DEFAULT 'OTRO',
+ADD FULLTEXT INDEX ft_descripcion (DESCRIPCION);
+
+SET SQL_SAFE_UPDATES = 0;
+
+UPDATE cotizaciones_items SET TIPO = 'SERVICIO'
+WHERE DESCRIPCION LIKE '%calibraci_n%'
+OR DESCRIPCION LIKE '%servicio%'
+OR DESCRIPCION LIKE '%mantenimiento%'
+OR DESCRIPCION LIKE '%medici_n%'
+OR DESCRIPCION LIKE '%verificacion%'
+OR CDMESS LIKE 'S%'
+OR CDMESS LIKE 'L%';
+
+UPDATE cotizaciones_items SET TIPO = 'EQUIPO'
+WHERE TIPO = 'OTRO' AND CDMESS NOT LIKE '%S%' AND CDMESS NOT LIKE '%L%';
+
+ALTER TABLE cotizaciones_items ADD INDEX idx_cdmess (CDMESS);
+
+
+
+
 
 ALTER TABLE cola_procesamiento ADD COLUMN cdmess_historico VARCHAR(50), ADD COLUMN descripcion_historica TEXT, ADD COLUMN precio_historico DECIMAL(10,2);
 
