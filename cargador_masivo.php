@@ -55,18 +55,50 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
                 }
                 $stmt->close();
             } else {
-                // 3. Si NO hay historial, insertamos el registro genérico como lo hacías antes
-                $stmt_nuevo = $conn->prepare("INSERT INTO cola_procesamiento (id_proyecto, entrada_usuario, estatus) VALUES (?, ?, 'pendiente')");
-                $stmt_nuevo->bind_param("ss", $id_proyecto, $linea);
-                $stmt_nuevo->execute();
-                $stmt_nuevo->close();
-                $insertados++;
+                // 3. Si NO hay historial, alerta que no se encontró nada pero igual se inserta para análisis
+                $mensaje = "No se encontraron opciones únicas para la entrada: $linea";
+
+            }
+
+            // Si se insertó al menos uno, vamos al monitor
+            if ($insertados > 0) {
+                // Redirección normal si hubo éxito
+                header("Location: monitor_precios_v2.php?proyecto=" . urlencode($id_proyecto));
+                exit;
+            } else {
+                // Mostramos SweetAlert si no hubo inserciones
+                // Usamos una estructura HTML limpia para que cargue la librería
+                echo "<!DOCTYPE html>
+                <html>
+                <head>
+                    <script src='https://cdn.jsdelivr.net/npm/sweetalert2@11'></script>
+                    <link href='https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap' rel='stylesheet'>
+                    <style>body { font-family: 'Inter', sans-serif; }</style>
+                </head>
+                <body>
+                    <script>
+                        Swal.fire({
+                            icon: 'warning',
+                            title: '¡Sin coincidencias!',
+                            html: 'No se encontraron registros en el historial para los términos ingresados.<br><br><small style=\"color: #666\">Verifica que las descripciones sean correctas o intenta con palabras clave más generales.</small>',
+                            confirmButtonText: 'Regresar',
+                            confirmButtonColor: '#d33',
+                            allowOutsideClick: false
+                        }).then((result) => {
+                            if (result.isConfirmed) {
+                                window.history.back();
+                            }
+                        });
+                    </script>
+                </body>
+                </html>";
+                exit;
             }
         }
     }
     
     // Redirección inmediata al monitor
-    header("Location: monitor_precios_v2.php?proyecto=" . urlencode($id_proyecto));
+    //header("Location: monitor_precios_v2.php?proyecto=" . urlencode($id_proyecto));
     exit;
 }
 ?>
