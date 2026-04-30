@@ -1,4 +1,9 @@
 <?php
+session_start();
+if (empty($_SESSION['usuario_id'])) {
+    header('Location: index.php');
+    exit;
+}
 include 'acciones_monitor_precios_v2.php';
 
 // Parámetros para el Sidebar (Carga inicial)
@@ -126,10 +131,10 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
                     <table class="table table-hover align-middle" id="tabla-precios">
                         <thead>
                             <tr class="x-small text-uppercase">
-                                <th style="width: 12%;">CDMESS</th>
-                                <th style="width: 30%;">Descripción Técnica (MessIAs))</th>
-                                <th style="width: 15%;" class="text-center">Rango (Min - Max)</th>
-                                <th style="width: 12%;" class="text-center">Hist. Promedio</th>
+                                <th style="width: 10%;">CDMESS</th>
+                                <th style="width: 28%;">Descripción Técnica (MessIAs)</th>
+                                <th style="width: 14%;" class="text-center">Rango (Min - Max)</th>
+                                <th style="width: 11%;" class="text-center">Hist. Promedio</th>
                                 <th style="width: 12%;" class="text-center bg-primary text-white">Sugerido por MessIAs</th>
                                 <th style="width: 19%;">Entrenamiento</th>
                             </tr>
@@ -156,6 +161,10 @@ const proyectoActual = "<?php echo $id_proyecto_activo; ?>";
 
 async function cargarDatos() {
     if (!proyectoActual) return;
+    // Pausamos el refresco solo si el usuario está escribiendo en un input/textarea de la tabla
+    const activo = document.activeElement;
+    const tag = activo ? activo.tagName : '';
+    if ((tag === 'INPUT' || tag === 'TEXTAREA') && activo.closest('#contenedor-items')) return;
     try {
         const response = await fetch(`get_proyecto_data.php?proyecto=${encodeURIComponent(proyectoActual)}`);
         const data = await response.json();
@@ -164,9 +173,9 @@ async function cargarDatos() {
         // Actualizar hora de sincronización
         document.getElementById('last-update').innerHTML = `<i class="bi bi-clock-history me-1"></i> Sync: ${new Date().toLocaleTimeString()}`;
 
-        // Actualizar contadores de cabecera
-        const total = data.length;
-        const listos = data.filter(i => i.estatus === 'completado').length;
+        // Actualizar contadores de cabecera (solo ítems originales, no sugerencias)
+        const total = data.filter(i => !i.es_sugerencia).length;
+        const listos = data.filter(i => !i.es_sugerencia && i.estatus === 'completado').length;
         const pct = total > 0 ? Math.round((listos/total)*100) : 0;
         
         document.getElementById('progreso-header').innerHTML = `
@@ -176,54 +185,77 @@ async function cargarDatos() {
             </div>
         `;
 
-        contenedor.innerHTML = data.map(item => {
+        // Separamos los ítems cargados por el usuario de los sugeridos por la IA
+        const originales  = data.filter(i => !i.es_sugerencia);
+        const sugerencias = data.filter(i =>  i.es_sugerencia);
+
+        // Función reutilizada para renderizar una fila (originales y sugerencias usan la misma estructura)
+        const renderFila = (item, esSugerencia = false) => {
             if (item.estatus !== 'completado') {
-                return `<tr><td colspan="6" class="text-center py-4 bg-light border-0">
+                return `<tr><td colspan="7" class="text-center py-4 bg-light border-0">
                     <div class="spinner-grow spinner-grow-sm text-primary me-2"></div>
                     <span class="text-muted font-small fw-bold italic">Analizando historial para: "${item.entrada_usuario}"</span>
                 </td></tr>`;
             }
 
             const ia = item.propuesta_ia || {};
-            const idReg = item.id; // Asegúrate de que el ID esté disponible
+            const idReg = item.id;
+            // Las filas sugeridas llevan fondo diferente para distinguirse visualmente
+            const rowClass = esSugerencia ? 'font-small table-warning' : 'font-small shadow-sm';
+            // fmt: redondea a 2 decimales para mostrar precios limpios
+            const fmt = v => parseFloat(v || 0).toFixed(2);
 
             return `
-                <tr class="font-small shadow-sm">
+                <tr class="${rowClass}">
                     <td class="fw-bold text-primary"><i class="bi bi-hash"></i> ${ia.cdmess || 'S/C'}</td>
                     <td>
                         <div class="fw-bold text-dark">${ia.desc || ''}</div>
                         ${ia.coincidencias ? `<div class="mt-2 p-2 bg-light border-start border-warning border-3 x-small text-muted">${ia.coincidencias}</div>` : ''}
                     </td>
                     <td class="text-center">
-                        <span class="badge badge-range">$${ia.precio_min || 0} - $${ia.precio_max || 0}</span>
+                        <span class="badge badge-range">$${fmt(ia.precio_min)} - $${fmt(ia.precio_max)}</span>
                     </td>
-                    <td class="text-center text-secondary">$${ia.precio_promedio || 0}</td>
-                    
+                    <td class="text-center text-secondary">$${fmt(ia.precio_promedio)}</td>
+
                     <td class="bg-sugerido border-start border-end" style="min-width: 120px;">
-                        <div class="x-small text-muted mb-1">Sugerido IA: $${ia.precio_ia || 0}</div>
-                        <input type="number" id="precio_u_${idReg}" class="form-control form-control-sm fw-bold text-primary" 
-                            value="${item.precio_usuario > 0 ? item.precio_usuario : (ia.precio_ia || 0)}" step="0.01">
+                        <div class="x-small text-muted mb-1">Sugerido IA: $${fmt(ia.precio_ia)}</div>
+                        <input type="number" id="precio_u_${idReg}" class="form-control form-control-sm fw-bold text-primary"
+                            value="${parseFloat(item.precio_usuario) > 0 ? fmt(item.precio_usuario) : fmt(ia.precio_ia)}" step="0.01">
                     </td>
 
                     <td>
                         <select id="cat_u_${idReg}" class="form-select form-select-sm mb-1 x-small">
-                            <option value="Acepta precio IA">Acepta precio IA</option>
-                            <option value="Precio muy bajo">Precio muy bajo</option>
-                            <option value="Precio muy alto">Precio muy alto</option>                            
+                            ${['Acepta precio IA','Precio muy bajo','Precio muy alto','Descripción incorrecta'].map(op =>
+                                `<option value="${op}" ${item.categoria_rechazo === op ? 'selected' : ''}>${op}</option>`
+                            ).join('')}
                         </select>
-                        <textarea id="resp_u_${idReg}" class="form-control form-control-sm x-small" rows="2" 
+                        <textarea id="resp_u_${idReg}" class="form-control form-control-sm x-small" rows="2"
                                 placeholder="Notas adicionales...">${item.respuesta || ''}</textarea>
                     </td>
 
                     <td class="text-center align-middle">
-                        <button class="btn btn-sm ${item.estatus === 'completado' ? 'btn-success' : 'btn-outline-primary'}" 
+                        <button class="btn btn-sm ${item.estatus === 'completado' ? 'btn-success' : 'btn-outline-primary'}"
                                 onclick="validarRegistro(${idReg})" title="Validar y Entrenar IA">
                             <i class="bi ${item.estatus === 'completado' ? 'bi-check-all' : 'bi-send-check'}"></i>
                         </button>
                     </td>
                 </tr>
             `;
-        }).join('');
+        };
+
+        // Fila divisora que aparece solo si hay sugerencias de la IA
+        const filaDivisora = sugerencias.length > 0 ? `
+            <tr class="table-secondary">
+                <td colspan="7" class="text-center py-2 x-small fw-bold text-uppercase text-muted">
+                    <i class="bi bi-stars me-1"></i> Sugerencias de MessIAs
+                </td>
+            </tr>
+        ` : '';
+
+        contenedor.innerHTML =
+            originales.map(i  => renderFila(i, false)).join('') +
+            filaDivisora +
+            sugerencias.map(i => renderFila(i, true)).join('');
 
     } catch (e) {
         console.error("Error en la carga AJAX:", e);
@@ -234,7 +266,8 @@ async function validarRegistro(id) {
     const precio = document.getElementById(`precio_u_${id}`).value;
     const respuesta = document.getElementById(`resp_u_${id}`).value;
     const categoria = document.getElementById(`cat_u_${id}`).value;
-    const idUsuario = 1; // ID del usuario actual
+    const idUsuario = <?php echo intval($_SESSION['usuario_id'] ?? 0); ?>;
+
 
     // Validación básica de SweetAlert2
     Swal.fire({
@@ -281,7 +314,7 @@ async function validarRegistro(id) {
                         // Recargar el detalle del proyecto para ver los cambios
                         const urlParams = new URLSearchParams(window.location.search);
                         if (urlParams.has('proyecto')) {
-                            cargarDetalle(urlParams.get('proyecto'));
+                            cargarDatos();
                         }
                     });
                 } else {

@@ -14,7 +14,7 @@ echo "====================================================\n";
 
 while (true) {
     // CAMBIO 1: Agregamos las nuevas columnas al SELECT
-    $res = $conn->query("SELECT id, entrada_usuario, cdmess_historico, precio_historico, descripcion_historica FROM cola_procesamiento WHERE estatus = 'pendiente' LIMIT 1");
+    $res = $conn->query("SELECT id, id_proyecto, entrada_usuario, cdmess_historico, precio_historico, descripcion_historica, es_sugerencia FROM cola_procesamiento WHERE estatus = 'pendiente' LIMIT 1");
 
     if ($res && $res->num_rows > 0) {
         $item = $res->fetch_assoc();
@@ -51,6 +51,15 @@ while (true) {
             if (empty($data['coincidencias'])) $data['coincidencias'] = $stats['alternativas'];
             if (empty($data['cdmess']) || $data['cdmess'] == "N/A") $data['cdmess'] = $stats['cdmess'];
 
+            // Si la IA devolvió precio_ia=0 pero hay aprendizaje humano previo,
+            // extraemos ese precio directamente para no perder la validación del experto.
+            if (($data['precio_ia'] ?? 0) == 0 && !empty($aprendizaje)) {
+                if (preg_match('/Precio aprobado: \$(\d+(?:\.\d+)?)/', $aprendizaje, $pm)) {
+                    $precio_humano = floatval($pm[1]);
+                    if ($precio_humano > 0) $data['precio_ia'] = $precio_humano;
+                }
+            }
+
             $json_final = json_encode($data, JSON_UNESCAPED_UNICODE);
         } else {
             $json_final = json_encode([
@@ -69,6 +78,27 @@ while (true) {
         $stmt->bind_param("si", $json_final, $id);
         $stmt->execute();
         echo "[OK] Procesado ID $id\n";
+
+        // Solo los ítems originales generan sugerencias; las sugerencias no producen más sugerencias
+        $decoded_final = json_decode($json_final, true);
+        if ((int)$item['es_sugerencia'] === 0 && !empty($decoded_final['coincidencias'])) {
+            preg_match_all('/\[([^\]]+)\]/', $decoded_final['coincidencias'], $m);
+            foreach ($m[1] as $cdmess_sug) {
+                $cdmess_sug = trim($cdmess_sug);
+                $chk = $conn->prepare("SELECT id FROM cola_procesamiento WHERE id_proyecto = ? AND cdmess_historico = ? LIMIT 1");
+                $chk->bind_param("ss", $item['id_proyecto'], $cdmess_sug);
+                $chk->execute();
+                $existe = $chk->get_result()->num_rows;
+                $chk->close();
+                if ($existe === 0) {
+                    $ins = $conn->prepare("INSERT INTO cola_procesamiento (id_proyecto, entrada_usuario, cdmess_historico, estatus, es_sugerencia) VALUES (?, ?, ?, 'pendiente', 1)");
+                    $ins->bind_param("sss", $item['id_proyecto'], $cdmess_sug, $cdmess_sug);
+                    $ins->execute();
+                    $ins->close();
+                    echo "  [+] Sugerencia insertada: $cdmess_sug\n";
+                }
+            }
+        }
     } else {
       usleep(500000);  
     //sleep(3);
