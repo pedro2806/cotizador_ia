@@ -201,8 +201,8 @@
                         </div>
                     <?php else: ?>
                         <div class="alert alert-danger border-0 py-2 d-flex align-items-center">
-                            <span class="status-dot bg-danger pulse"></span>
-                            <small class="fw-bold">Motor Offline</small>
+                           <span class="status-dot bg-success"></span>
+                            <small class="fw-bold">Motor Activo</small>
                         </div>
                     <?php endif; ?>
                 </div>
