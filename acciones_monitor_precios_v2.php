@@ -1,4 +1,5 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) session_start();
 include 'conexion.php';
 include 'funcionesWorker.php';
 
@@ -11,11 +12,12 @@ function ejecutarAccion($accion, $datos = []) {
             $por_pagina = $datos['por_pagina'] ?? 10;
             $inicio = ($datos['pagina'] - 1) * $por_pagina;
 
-            $sql = "SELECT id_proyecto, MAX(fecha_registro) as fecha, COUNT(*) as total, 
-                    SUM(CASE WHEN estatus = 'completado' THEN 1 ELSE 0 END) as listos 
-                    FROM cola_procesamiento 
-                    GROUP BY id_proyecto 
-                    ORDER BY fecha DESC 
+            $sql = "SELECT id_proyecto, MAX(fecha_registro) as fecha,
+                    SUM(CASE WHEN es_sugerencia = 0 THEN 1 ELSE 0 END) as total,
+                    SUM(CASE WHEN es_sugerencia = 0 AND estatus = 'completado' THEN 1 ELSE 0 END) as listos
+                    FROM cola_procesamiento
+                    GROUP BY id_proyecto
+                    ORDER BY fecha DESC
                     LIMIT $inicio, $por_pagina";
             return $conn->query($sql);
 
@@ -35,7 +37,7 @@ function ejecutarAccion($accion, $datos = []) {
             $respuesta = $conn->real_escape_string($datos['respuesta']);
             $precio_user = floatval($datos['precio_usuario']);
             $categoria = $conn->real_escape_string($datos['categoria_rechazo']);
-            $id_user = intval($datos['id_usuario']);
+            $id_user = intval($_SESSION['usuario_id'] ?? $datos['id_usuario'] ?? 0);
 
             $sql = "UPDATE cola_procesamiento 
                     SET respuesta = '$respuesta', 

@@ -4,4 +4,5 @@ sudo systemctl restart mess-worker.service
 
 ALTER TABLE cola_procesamiento ADD COLUMN cdmess_historico VARCHAR(50), ADD COLUMN descripcion_historica TEXT, ADD COLUMN precio_historico DECIMAL(10,2);
 
-
+//Se agrego para marcar cada fila como ítem original del usuario (0) o sugerencia generada por MessIAs desde las coincidencias (1) (SGR)
+ALTER TABLE cola_procesamiento ADD COLUMN es_sugerencia TINYINT(1) NOT NULL DEFAULT 0;

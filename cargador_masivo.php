@@ -1,4 +1,9 @@
 <?php
+session_start();
+if (empty($_SESSION['usuario_id'])) {
+    header('Location: index.php');
+    exit;
+}
 include 'conexion.php';
 include 'funcionesWorker.php';
 
@@ -18,6 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
 
             if (count($opciones) > 0) {
                 $claves_insertadas = []; // Array para controlar duplicados en este item
+                $es_primera = true; // El primer CDMESS por línea es el primario; los demás son sugerencias
 
                 foreach ($opciones as $opcion) {
                     $clave = trim($opcion['CDMESS']);
@@ -25,19 +31,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
                     // SI LA CLAVE YA EXISTE EN ESTE ITEM, LA SALTAMOS
                     if (in_array($clave, $claves_insertadas)) continue;
 
-                    $stmt = $conn->prepare("INSERT INTO cola_procesamiento 
-                        (id_proyecto, entrada_usuario, cdmess_historico, descripcion_historica, precio_historico, estatus) 
-                        VALUES (?, ?, ?, ?, ?, 'pendiente')");
-                    
-                    $stmt->bind_param("ssssd", 
-                        $id_proyecto, 
-                        $linea, 
-                        $clave, 
-                        $opcion['descripcion'], 
-                        $opcion['precio_promedio']
+                    // 0 = ítem principal del usuario, 1 = alternativa sugerida por historial
+                    $es_sugerencia = $es_primera ? 0 : 1;
+                    $es_primera = false;
+
+                    $stmt = $conn->prepare("INSERT INTO cola_procesamiento
+                        (id_proyecto, entrada_usuario, cdmess_historico, descripcion_historica, precio_historico, estatus, es_sugerencia)
+                        VALUES (?, ?, ?, ?, ?, 'pendiente', ?)");
+
+                    $stmt->bind_param("ssssdi",
+                        $id_proyecto,
+                        $linea,
+                        $clave,
+                        $opcion['descripcion'],
+                        $opcion['precio_promedio'],
+                        $es_sugerencia
                     );
                     $stmt->execute();
-                    
+
                     $claves_insertadas[] = $clave; // Registramos que ya insertamos esta clave
                     $insertados++;
                 }
