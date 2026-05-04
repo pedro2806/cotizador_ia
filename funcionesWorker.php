@@ -21,21 +21,9 @@ function obtenerHistorialMESS($busqueda) {
     $terminoCDMESS = $busqueda; //"%". str_replace(' ', '%', trim($busqueda)) . "%";
     
     $terminoDESCRIPCION = iconv('UTF-8', 'ASCII//TRANSLIT', $busqueda);
-   // $terminoDESCRIPCION = preg_replace('/[^a-zA-Z0-9\s]/', '', $terminoDESCRIPCION);
-    //$terminoDESCRIPCION = trim($terminoDESCRIPCION) . '*';
+    $terminoDESCRIPCION = preg_replace('/[^a-zA-Z0-9\s]/', '', $terminoDESCRIPCION);
+    $terminoDESCRIPCION = trim($terminoDESCRIPCION) . '*';
     
-    $terminoDESCRIPCION = preg_replace('/[^a-zA-Z0-9\s]/','', $terminoDESCRIPCION);
-    $terminoDESCRIPCION = trim($terminoDESCRIPCION);
-
-   // Si la búsqueda es muy corta, no uses MATCH
-   if (strlen($terminoDESCRIPCION) < 3) {
-       return ['avg' => 0, 'min' => 0, 'max' => 0, 'cdmess' => $busqueda, 'precios' => []];
-   }
-
-   
-
-   $terminoDESCRIPCION = $terminoDESCRIPCION . '*';
-
     $busca_servicio = (stripos($busqueda, 'servicio') !== false || 
                        stripos($busqueda, 'calibracion') !== false ||
                        stripos($busqueda, 'mantenimiento') !== false ||
@@ -52,7 +40,7 @@ function obtenerHistorialMESS($busqueda) {
             INNER JOIN (
             SELECT CDmess, DESCRIPCION, MAX(id_item) as max_id
             FROM cotizaciones_items
-            WHERE (MATCH(DESCRIPCION) AGAINST(? IN BOOLEAN MODE) OR CDMESS LIKE ?)
+            WHERE (MATCH(DESCRIPCION) AGAINST(? IN BOOLEAN MODE) OR CDMESS = ?)
             AND TIPO = ?
             AND PRECIO_VENTA > 0
             AND CANT > 0
