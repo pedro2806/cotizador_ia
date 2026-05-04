@@ -33,20 +33,20 @@ function obtenerHistorialMESS($busqueda) {
 
     // Traemos los últimos 10 para tener un buen rango y alternativas
     $sql = "SELECT
-            ci.CDmess,
+            ci.CDMESS,
             ci.DESCRIPCION,
             ROUND(AVG(ci.PRECIO_VENTA/ci.CANT), 2) AS PRECIO_VENTA
             FROM cotizaciones_items ci
             INNER JOIN (
-            SELECT CDmess, DESCRIPCION, MAX(id_item) as max_id
+            SELECT CDMESS, DESCRIPCION, MAX(id_item) as max_id
             FROM cotizaciones_items
             WHERE (MATCH(DESCRIPCION) AGAINST(? IN BOOLEAN MODE) OR CDMESS = ?)
             AND TIPO = ?
             AND PRECIO_VENTA > 0
             AND CANT > 0
-            GROUP BY CDmess, DESCRIPCION
+            GROUP BY CDMESS, DESCRIPCION
             ) ultimos ON ci.id_item = ultimos.max_id
-            GROUP BY ci.CDmess, ci.DESCRIPCION
+            GROUP BY ci.CDMESS, ci.DESCRIPCION
             LIMIT 10";
             
     $stmt = $conn->prepare($sql);
