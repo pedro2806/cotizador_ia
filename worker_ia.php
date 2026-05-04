@@ -144,7 +144,7 @@ while (true) {
         $entrada = trim($item['entrada_usuario']);
         
         $conn->query("UPDATE cola_procesamiento SET estatus = 'procesando' WHERE id = $id");
-    
+    }
   
   try {
     // 1. Obtén historial - esto ya te da el CDMESS aunque busques por texto
@@ -223,7 +223,7 @@ while (true) {
         }
         // AQUÍ TERMINA EL TRY/CATCH
 
-    }
+    
 
 
     if ($id !== null) {
