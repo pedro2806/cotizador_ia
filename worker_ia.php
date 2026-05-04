@@ -143,6 +143,17 @@ while (true) {
         $id = $item['id'];
         $entrada = trim($item['entrada_usuario']);
         
+        
+        if($entrada === '') {
+            // Si la entrada está vacía, no la proceses, márcala como error y continúa
+            $stmt = $conn->prepare("UPDATE cola_procesamiento SET propuesta_ia = ?, estatus = 'error', fecha_registro = NOW() WHERE id = ?");
+            $error_data = json_encode(["error" => true, "mensaje" => "Entrada vacía no procesable"]);
+            $stmt->bind_param("si", $error_data, $id);
+            $stmt->execute();
+            error_log("ID $id tiene entrada vacía. Marcado como error.");
+            continue;
+        }
+        
         $conn->query("UPDATE cola_procesamiento SET estatus = 'procesando' WHERE id = $id");
     }
   
