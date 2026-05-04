@@ -34,3 +34,6 @@ ALTER TABLE cola_procesamiento ADD COLUMN es_sugerencia TINYINT(1) NOT NULL DEFA
 
 //SGR 30/04/2026
 ALTER TABLE `cola_procesamiento` ADD `id_us_registro` INT NOT NULL AFTER `categoria_rechazo`;
+
+
+SELECT ci.CDMESS, ci.DESCRIPCION, ROUND(AVG(ci.PRECIO_VENTA/ci.CANT), 2) AS PRECIO_VENTA FROM cotizaciones_items ci WHERE (ci.DESCRIPCION LIKE ? OR ci.CDMESS LIKE ?) AND ci.TIPO = ? AND ci.PRECIO_VENTA > 0 AND ci.CANT > 0 GROUP BY ci.CDMESS, ci.DESCRIPCION LIMIT 10 - [S8-5] Calibración de Máquina o Instrumento medidor de fuerza. Alcance de 10kN a 100kN. Un solo sentido (tracción o compresión).Servicio con Acreditación EMA.: $290.32 - [S8-57] Calibración de Máquina o Instrumento medidor de fuerza. Alcance de 1kN a 10kN. Un solo sentido (tracción o compresión).Servicio con Acreditación Perry Johnson.: $232.34
