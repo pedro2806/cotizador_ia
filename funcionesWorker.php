@@ -81,7 +81,7 @@ function obtenerHistorialMESS($busqueda) {
         'max' => max($precios),
         'avg' => array_sum($precios) / count($precios),
         'cdmess' => $cdmess_principal,
-        'detalle' => $sql . "\n" . $detalle_ia,
+        'detalle' => $detalle_ia,
         'alternativas' => $coincidencias_str
     ];
 }
