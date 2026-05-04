@@ -40,16 +40,11 @@ $terminoCDMESS = '%' . $busqueda . '%';
             ci.CDMESS,
             ci.DESCRIPCION,
             ROUND(AVG(ci.PRECIO_VENTA/ci.CANT), 2) AS PRECIO_VENTA
-            FROM cotizaciones_items ci
-            INNER JOIN (
-            SELECT CDMESS, DESCRIPCION, MAX(id_item) as max_id
-            FROM cotizaciones_items
-            WHERE (DESCRIPCION LIKE ? OR CDMESS LIKE ?)
-            AND TIPO = ?
-            AND PRECIO_VENTA > 0
-            AND CANT > 0
-            GROUP BY CDMESS, DESCRIPCION
-            ) ultimos ON ci.id_item = ultimos.max_id
+            FROM cotizaciones_items ci            
+            WHERE (ci.DESCRIPCION LIKE ? OR ci.CDMESS LIKE ?)
+            AND ci.TIPO = ?
+            AND ci.PRECIO_VENTA > 0
+            AND ci.CANT > 0            
             GROUP BY ci.CDMESS, ci.DESCRIPCION
             LIMIT 10";
             
