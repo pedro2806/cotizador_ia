@@ -32,6 +32,10 @@ function obtenerHistorialMESS($busqueda) {
     $tipo_val = $busca_servicio ? 'SERVICIO' : 'EQUIPO';
 
     // Traemos los últimos 10 para tener un buen rango y alternativas
+
+$terminoDESCRIPCION = '%' . $busqueda . '%';
+$terminoCDMESS = '%' . $busqueda . '%';
+
     $sql = "SELECT
             ci.CDMESS,
             ci.DESCRIPCION,
