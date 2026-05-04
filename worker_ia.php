@@ -201,7 +201,7 @@ while (true) {
         "precio_promedio" => $precio_base,
         "precio_ia" => $precio_final,
         "notas" => $nota_final,
-        "coincidencias" => $stats['alternativas'] ?? [],
+        "coincidencias" => $stats['detalle'] ?? [],
         "aprendizaje_aplicado" => !empty($aprendizaje),
         "num_correcciones" => $aprendizaje['total_correcciones'] ?? 0
     ];

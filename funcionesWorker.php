@@ -18,8 +18,9 @@ function limpiarEntrada($texto) {
 
 function obtenerHistorialMESS($busqueda) {
     global $conn;
-    $terminoCDMESS = $busqueda; //"%". str_replace(' ', '%', trim($busqueda)) . "%";
-    
+    $terminoCDMESS = "%". str_replace(' ', '%', trim($busqueda)) . "%";
+    $terminoDESCRIPCION = '%' . $busqueda . '%';    
+
     $terminoDESCRIPCION = iconv('UTF-8', 'ASCII//TRANSLIT', $busqueda);
     $terminoDESCRIPCION = preg_replace('/[^a-zA-Z0-9\s]/', '', $terminoDESCRIPCION);
     $terminoDESCRIPCION = trim($terminoDESCRIPCION) . '*';
@@ -33,8 +34,6 @@ function obtenerHistorialMESS($busqueda) {
 
     // Traemos los últimos 10 para tener un buen rango y alternativas
 
-$terminoDESCRIPCION = '%' . $busqueda . '%';
-$terminoCDMESS = '%' . $busqueda . '%';
 
     $sql = "SELECT
             ci.CDMESS,
@@ -82,7 +81,7 @@ $terminoCDMESS = '%' . $busqueda . '%';
         'max' => max($precios),
         'avg' => array_sum($precios) / count($precios),
         'cdmess' => $cdmess_principal,
-        'detalle' => $detalle_ia,
+        'detalle' => $sql . "\n" . $detalle_ia,
         'alternativas' => $coincidencias_str
     ];
 }
