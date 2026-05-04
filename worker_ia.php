@@ -194,7 +194,7 @@ while (true) {
     }
 
     $data = [
-        "cdmess" => $cdmess_para_aprendizaje,
+        "cdmess" => $cdmess_para_aprendizaje ?? $respuesta_ia['cdmess'] ?? 'N/A',
         "desc" => $item['descripcion_historica'] ?? $entrada,
         "precio_min" => round($stats['min'] ?? 0, 2),
         "precio_max" => round($stats['max'] ?? 0, 2),
