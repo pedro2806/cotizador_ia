@@ -153,8 +153,8 @@ while (true) {
     // 2. CLAVE: Usa el CDMESS que regresó el historial para buscar aprendizaje
     $cdmess_para_aprendizaje = $stats['cdmess'] ?? $item['cdmess_historico'] ?? 'N/A';
     $aprendizaje = obtenerAprendizajeHumano($cdmess_para_aprendizaje, $conn);
-    
-    error_log("APRENDIZAJE PARA $cdmess_para_aprendizaje: " . json_encode($aprendizaje));
+    $respuesta_ia = preguntarOllamaConPrecios($stats, $entrada, $aprendizaje);
+    //error_log("APRENDIZAJE PARA $cdmess_para_aprendizaje: " . json_encode($aprendizaje));
 
     $precio_base = round($stats['avg'] ?? 0, 2);
     $precio_final = $precio_base;
@@ -183,6 +183,13 @@ while (true) {
         
         if ($aprendizaje['alerta_descripcion'] && $aprendizaje['categoria_principal'] != 'Descripcion incorrecta') {
             $nota_final .= " | ATENCIÓN: " . $aprendizaje['nota_humana'];
+        }
+    }
+    else {
+        // Si no hay aprendizaje, pero la IA sugirió un precio diferente al promedio, lo anotamos también
+        if (isset($respuesta_ia['precio_ia']) && $respuesta_ia['precio_ia'] != $precio_base) {
+            $precio_final = $respuesta_ia['precio_ia'];
+            $nota_final = "Precio sugerido por IA basado en análisis de datos";
         }
     }
 

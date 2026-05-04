@@ -40,7 +40,7 @@ function obtenerHistorialMESS($busqueda) {
             INNER JOIN (
             SELECT CDmess, DESCRIPCION, MAX(id_item) as max_id
             FROM cotizaciones_items
-            WHERE (MATCH(DESCRIPCION) AGAINST(? IN BOOLEAN MODE) OR CDMESS = ?)
+            WHERE (MATCH(DESCRIPCION) AGAINST(? IN BOOLEAN MODE) OR CDMESS LIKE ?)
             AND TIPO = ?
             AND PRECIO_VENTA > 0
             AND CANT > 0
@@ -402,7 +402,7 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $conn) {
                 MAX(DESCRIPCION) as descripcion, 
                 ROUND(AVG(PRECIO_VENTA/CANT), 2) as precio_promedio
             FROM cotizaciones_items 
-            WHERE (MATCH(DESCRIPCION) AGAINST(? IN BOOLEAN MODE) OR CDMESS = ?)
+            WHERE (MATCH(DESCRIPCION) AGAINST(? IN BOOLEAN MODE) OR CDMESS LIKE ?)
                 AND PRECIO_VENTA > 0 AND CANT > 0
                 AND CDMESS IS NOT NULL AND CDMESS != ''
             GROUP BY TRIM(CDMESS) 
