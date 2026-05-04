@@ -144,7 +144,7 @@ while (true) {
         $entrada = trim($item['entrada_usuario']);
         
         $conn->query("UPDATE cola_procesamiento SET estatus = 'procesando' WHERE id = $id");
-    }
+    
   
   try {
     // 1. Obtén historial - esto ya te da el CDMESS aunque busques por texto
@@ -215,6 +215,10 @@ while (true) {
             $estado_final = 'error';
         }
         // AQUÍ TERMINA EL TRY/CATCH
+
+    }
+
+
     if ($id !== null) {
         $stmt = $conn->prepare("UPDATE cola_procesamiento SET propuesta_ia = ?, estatus = ?, fecha_registro = NOW() WHERE id = ?");
         $stmt->bind_param("ssi", $json_final, $estado_final, $id);
