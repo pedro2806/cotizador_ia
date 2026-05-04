@@ -148,8 +148,13 @@ while (true) {
   
   try {
     // 1. Obtén historial - esto ya te da el CDMESS aunque busques por texto
-    $stats = obtenerHistorialMESS($item['cdmess_historico'] ?: $entrada);
-    
+   
+    //$stats = obtenerHistorialMESS($item['cdmess_historico'] ?: $entrada);
+   
+   $busqueda = ($item['cdmess_historico'] == 'S/C' || empty($item['cdmess_historico'])) ? $entrada : $item['cdmess_historico'];
+   $stats = obtenerHistorialMESS($busqueda);
+
+
     // 2. CLAVE: Usa el CDMESS que regresó el historial para buscar aprendizaje
     $cdmess_para_aprendizaje = $stats['cdmess'] ?? $item['cdmess_historico'] ?? 'N/A';
     $aprendizaje = obtenerAprendizajeHumano($cdmess_para_aprendizaje, $conn);
@@ -185,6 +190,9 @@ while (true) {
             $nota_final .= " | ATENCIÓN: " . $aprendizaje['nota_humana'];
         }
     }
+
+
+
 
     $data = [
         "cdmess" => $cdmess_para_aprendizaje,
