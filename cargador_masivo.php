@@ -18,13 +18,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
         $linea = trim($linea);
         if (!empty($linea)) {
 
-
-
-
-
-
-
-        
             // 1. Buscamos si hay opciones únicas en el historial (los 58MB)
             // Esta función debe estar en tu funcionesWorker.php
             $opciones = obtenerOpcionesUnicasHistoricas($linea, $conn);
