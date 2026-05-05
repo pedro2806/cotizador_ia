@@ -147,8 +147,9 @@ while (true) {
     
   
   try {
+
     // 1. Obtén historial - esto ya te da el CDMESS aunque busques por texto
-    $stats = obtenerHistorialMESS($item['cdmess_historico'] ?: $entrada);
+    $stats = obtenerHistorialMESS($entrada);
     
     // 2. CLAVE: Usa el CDMESS que regresó el historial para buscar aprendizaje
     $cdmess_para_aprendizaje = $stats['cdmess'] ?? $item['cdmess_historico'] ?? 'N/A';
