@@ -41,6 +41,8 @@ $busqueda = str_ireplace(['servicio de calibracion', 'calibracion de', 'mantenim
 
 
 function obtenerHistorialMESS($busqueda) {
+
+error_log(">>> MESSIAS V4 - Busqueda cruda: " . $busqueda);
     global $conn;
     $busqueda = trim($busqueda);
 
@@ -82,6 +84,9 @@ function obtenerHistorialMESS($busqueda) {
     $terminoDESCRIPCION = '%' . $busqueda . '%';
     $terminoCDMESS = '%' . str_replace(' ', '%', $busqueda) . '%';
 
+
+
+    error_log(">>> MESSIAS V4 - Buscando historial para: " . $terminoDESCRIPCION);
     // Traemos los últimos 10 para tener un buen rango y alternativas
 
     $sql = "SELECT
