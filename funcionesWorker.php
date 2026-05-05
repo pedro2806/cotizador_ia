@@ -32,8 +32,13 @@ function obtenerHistorialMESS($busqueda) {
     
     $tipo_val = $busca_servicio ? 'SERVICIO' : 'EQUIPO';
 
-    // Traemos los últimos 10 para tener un buen rango y alternativas
+IF($tipo_val == 'SERVICIO'){
 
+$busqueda = str_ireplace(['servicio', 'calibracion', 'mantenimiento'], '', $busqueda);
+}
+
+
+    // Traemos los últimos 10 para tener un buen rango y alternativas
 
     $sql = "SELECT
             ci.CDMESS,
