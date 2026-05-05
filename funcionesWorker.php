@@ -16,6 +16,7 @@ function limpiarEntrada($texto) {
  * Prioriza códigos exactos (CDMESS) antes de buscar por descripción.
  */
 
+/*
 function obtenerHistorialMESS($busqueda) {
     global $conn;
     $terminoCDMESS = "%". str_replace(' ', '%', trim($busqueda)) . "%";
@@ -36,7 +37,50 @@ IF($tipo_val == 'SERVICIO'){
 
 $busqueda = str_ireplace(['servicio de calibracion', 'calibracion de', 'mantenimiento de', 'servicio de mantenimiento', 'servicio de medicion', 'medicion de'], '', $busqueda);
 }
+*/
 
+
+function obtenerHistorialMESS($busqueda) {
+    global $conn;
+    $busqueda = trim($busqueda);
+
+    // 1. Detecta si es servicio
+    $busca_servicio = (stripos($busqueda, 'servicio') !== false || 
+                       stripos($busqueda, 'calibracion') !== false || 
+                       stripos($busqueda, 'calibración') !== false ||
+                       stripos($busqueda, 'mantenimiento') !== false);
+
+    $tipo_val = $busca_servicio ? 'SERVICIO' : 'EQUIPO';
+
+    // 2. Si es servicio, quita las frases y deja solo el equipo
+    if ($busca_servicio) {
+        $frases = [
+            'servicio de calibracion',
+            'servicio de calibración', 
+            'calibracion de',
+            'calibración de',
+            'mantenimiento de',
+            'servicio de mantenimiento',
+            'servicio de medicion',
+            'servicio de medición',
+            'medicion de',
+            'medición de',
+            'servicio de'
+        ];
+        
+        // quita sin importar mayúsculas
+        $busqueda = str_ireplace($frases, '', $busqueda);
+        
+        // quita palabras sueltas que quedaron
+        $busqueda = preg_replace('/\b(servicio|calibracion|calibración|mantenimiento|medicion|medición)\b/iu', '', $busqueda);
+        
+        // limpia espacios dobles
+        $busqueda = preg_replace('/\s+/', ' ', trim($busqueda));
+    }
+
+    // 3. Ahora sí arma los términos para LIKE (después de limpiar)
+    $terminoDESCRIPCION = '%' . $busqueda . '%';
+    $terminoCDMESS = '%' . str_replace(' ', '%', $busqueda) . '%';
 
     // Traemos los últimos 10 para tener un buen rango y alternativas
 
