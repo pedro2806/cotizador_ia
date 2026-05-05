@@ -34,7 +34,7 @@ function obtenerHistorialMESS($busqueda) {
 
 IF($tipo_val == 'SERVICIO'){
 
-$busqueda = str_ireplace(['servicio', 'calibracion', 'mantenimiento'], '', $busqueda);
+$busqueda = str_ireplace(['servicio de calibracion', 'calibracion de', 'mantenimiento de', 'servicio de mantenimiento', 'servicio de medicion', 'medicion de'], '', $busqueda);
 }
 
 
