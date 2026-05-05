@@ -16,7 +16,7 @@ function limpiarEntrada($texto) {
  * Prioriza códigos exactos (CDMESS) antes de buscar por descripción.
  */
 
-
+/*
 function obtenerHistorialMESS($busqueda) {
     global $conn;
     $terminoCDMESS = "%". str_replace(' ', '%', trim($busqueda)) . "%";
@@ -51,7 +51,53 @@ function obtenerHistorialMESS($busqueda) {
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("sss", $terminoDESCRIPCION, $terminoCDMESS, $tipo_val);
     $stmt->execute();
+    */
+
+    function obtenerHistorialMESS($busqueda) {
+    global $conn;
+    $t0 = microtime(true);
+
+    $busqueda = trim($busqueda);
+    
+    // 1. Detecta si es servicio
+    $busca_servicio = preg_match('/servicio|calibraci|mantenimiento|medicion/i', $busqueda);
+    $tipo_val = $busca_servicio ? 'SERVICIO' : 'EQUIPO';
+
+    // 2. Limpia la búsqueda si es servicio
+    if ($busca_servicio) {
+        $busqueda = preg_replace('/\b(servicio|calibracion|calibración|mantenimiento|medicion|medición|de|para|el|la|con)\b/iu', '', $busqueda);
+        $busqueda = preg_replace('/\s+/', ' ', trim($busqueda));
+    }
+
+    // 3. Crea término para FULLTEXT: +durometro* +alcance*
+    $palabras = array_filter(explode(' ', $busqueda));
+    $termino = '+' . implode('* +', $palabras) . '*';
+    if (empty($palabras)) { $termino = '+' . $busqueda . '*'; }
+
+    // 4. Query NUEVO con MATCH (usa el índice que creaste)
+    $sql = "SELECT
+        ci.CDMESS,
+        ci.DESCRIPCION,
+        ROUND(AVG(ci.PRECIO_VENTA/ci.CANT), 2) AS PRECIO_VENTA
+    FROM cotizaciones_items ci
+    WHERE MATCH(ci.DESCRIPCION, ci.CDMESS) AGAINST(? IN BOOLEAN MODE)
+      AND ci.TIPO = ?
+      AND ci.PRECIO_VENTA > 0
+      AND ci.CANT > 0
+      AND ci.fecha > DATE_SUB(NOW(), INTERVAL 3 YEAR)
+    GROUP BY ci.CDMESS, ci.DESCRIPCION
+    ORDER BY COUNT(*) DESC
+    LIMIT 10";
+
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("ss", $termino, $tipo_val);
+    $stmt->execute();
     $res = $stmt->get_result();
+
+    error_log(">>> MESSIAS V6 - termino:$termino tipo:$tipo_val tiempo:" . round(microtime(true)-$t0,4) . "s");
+
+    
+    
     
     $precios = [];
     $alternativas = [];
@@ -85,8 +131,8 @@ function obtenerHistorialMESS($busqueda) {
         'detalle' => $detalle_ia,
         'alternativas' => $coincidencias_str
     ];
-}
 
+    }
 //Nueva funcion obtenerhistorialmess optimizada.
 /*
 function obtenerHistorialMESS($busqueda) {
