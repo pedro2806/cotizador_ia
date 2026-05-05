@@ -84,7 +84,7 @@ function obtenerHistorialMESS($busqueda) {
       AND ci.TIPO = ?
       AND ci.PRECIO_VENTA > 0
       AND ci.CANT > 0
-      AND ci.fecha > DATE_SUB(NOW(), INTERVAL 3 YEAR)
+      AND ci.FECHA > DATE_SUB(NOW(), INTERVAL 3 YEAR)
     GROUP BY ci.CDMESS, ci.DESCRIPCION
     ORDER BY COUNT(*) DESC
     LIMIT 10";
