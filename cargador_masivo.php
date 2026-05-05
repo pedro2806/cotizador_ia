@@ -71,8 +71,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
             // Si se insertó al menos uno, vamos al monitor
             if ($insertados > 0) {
                 // Redirección normal si hubo éxito
-                header("Location: monitor_precios_v2.php?proyecto=" . urlencode($id_proyecto));
-                exit;
+                //header("Location: monitor_precios_v2.php?proyecto=" . urlencode($id_proyecto));
+                //exit;
             } else {
                 // Mostramos SweetAlert si no hubo inserciones
                 // Usamos una estructura HTML limpia para que cargue la librería
@@ -106,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
     }
     
     // Redirección inmediata al monitor
-    //header("Location: monitor_precios_v2.php?proyecto=" . urlencode($id_proyecto));
+    header("Location: monitor_precios_v2.php?proyecto=" . urlencode($id_proyecto));
     exit;
 }
 ?>
