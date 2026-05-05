@@ -446,6 +446,41 @@ function obtenerAprendizajeHumano($entrada, $conn) {
  * Busca opciones únicas basadas en CDMESS para evitar duplicados en la cola
  */
 function obtenerOpcionesUnicasHistoricas($busqueda, $conn) {
+
+
+// 1. Detecta si es servicio
+    $busca_servicio = (stripos($busqueda, 'servicio') !== false || 
+                       stripos($busqueda, 'calibracion') !== false || 
+                       stripos($busqueda, 'calibración') !== false ||
+                       stripos($busqueda, 'mantenimiento') !== false);
+
+    $tipo_val = $busca_servicio ? 'SERVICIO' : 'EQUIPO';
+
+    // 2. Si es servicio, quita las frases y deja solo el equipo
+    if ($busca_servicio) {
+        $frases = [
+            'servicio de calibracion',
+            'servicio de calibración', 
+            'calibracion de',
+            'calibración de',
+            'mantenimiento de',
+            'servicio de mantenimiento',
+            'servicio de medicion',
+            'servicio de medición',
+            'medicion de',
+            'medición de',
+            'servicio de'
+        ];
+        
+        // quita sin importar mayúsculas
+        $busqueda = str_ireplace($frases, '', $busqueda);
+        
+        // quita palabras sueltas que quedaron
+        $busqueda = preg_replace('/\b(servicio|calibracion|calibración|mantenimiento|medicion|medición)\b/iu', '', $busqueda);
+        
+        // limpia espacios dobles
+        $busqueda = preg_replace('/\s+/', ' ', trim($busqueda));
+    }
     $termino = "%" . $busqueda . "%";
     
     // TRUNCATE o TRIM para asegurar que 'P27-59 ' sea igual a 'P27-59'
