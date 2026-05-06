@@ -464,7 +464,7 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $conn) {
             'medición de',
             'servicio de'
         ];
-        
+    
         // quita sin importar mayúsculas
         $busqueda = str_ireplace($frases, '', $busqueda);
         
@@ -475,7 +475,6 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $conn) {
         $busqueda = preg_replace('/\s+/', ' ', trim($busqueda));
     }
     $termino = "%" . $busqueda . "%";
-
     error_log("Búsqueda procesada para opciones únicas: '$busqueda' con tipo '$tipo_val', termino: '$termino'");
     
     // TRUNCATE o TRIM para asegurar que 'P27-59 ' sea igual a 'P27-59'
@@ -485,12 +484,7 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $conn) {
     $sql = "SELECT 
                 TRIM(CDMESS) as CDMESS, 
                 MAX(DESCRIPCION) as descripcion, 
-                ROUND(AVG(PRECIO_VENTA/CANT), 2) as precio_promedio,
-                (CASE 
-                    WHEN TRIM(CDMESS) = ? THEN 1
-                    WHEN CDMESS LIKE ? THEN 2
-                    ELSE 3
-                END) as nivel_prioridad
+                ROUND(AVG(PRECIO_VENTA/CANT), 2) as precio_promedio                
             FROM cotizaciones_items 
             WHERE (MATCH(DESCRIPCION) AGAINST(? IN BOOLEAN MODE) OR CDMESS LIKE ?)
                 AND PRECIO_VENTA > 0 AND CANT > 0
