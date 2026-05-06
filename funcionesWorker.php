@@ -234,7 +234,7 @@ function preguntarOllamaConPrecios($stats, $consulta_usuario, $aprendizaje = "")
     $prompt .= "}";
 
     $data = [
-        "model" => "llama3.1:8b", // Modelo optimizado para tareas de integración de datos 3.1:8b
+        "model" => "llama3.2:1b", // Tambien disponible 3.1:8b
         "format" => "json",
         //"system" => "Eres un integrador de datos para MESS. Tu única función es devolver JSON puro con la estructura solicitada.",
         "system" => "Eres un integrador de precios para MESS. Tu prioridad número 1 es el APRENDIZAJE HUMANO. Si recibes una retroalimentación de 'Precio muy alto' o 'Precio muy bajo', ajusta el valor de 'precio_ia' inmediatamente ignorando los promedios antiguos. Tu única función es devolver JSON puro con la estructura solicitada.",
