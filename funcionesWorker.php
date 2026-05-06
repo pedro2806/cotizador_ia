@@ -16,37 +16,61 @@ function limpiarEntrada($texto) {
  * Prioriza códigos exactos (CDMESS) antes de buscar por descripción.
  */
 
-
 function obtenerHistorialMESS($busqueda) {
     global $conn;
-    $terminoCDMESS = "%". str_replace(' ', '%', trim($busqueda)) . "%";
-    $terminoDESCRIPCION = '%' . $busqueda . '%';    
-
-    $terminoDESCRIPCION = iconv('UTF-8', 'ASCII//TRANSLIT', $busqueda);
-    $terminoDESCRIPCION = preg_replace('/[^a-zA-Z0-9\s]/', '', $terminoDESCRIPCION);
-    $terminoDESCRIPCION = trim($terminoDESCRIPCION) . '*';
     
-    $busca_servicio = (stripos($busqueda, 'servicio') !== false || 
-                       stripos($busqueda, 'calibracion') !== false ||
-                       stripos($busqueda, 'mantenimiento') !== false ||
+    $conn->set_charset("utf8mb4");
+    
+    $busqueda_original = trim($busqueda);
+    
+    $busca_servicio = (stripos($busqueda, 'servicio')!== false || 
+                       stripos($busqueda, 'calibracion')!== false ||
+                       stripos($busqueda, 'calibración')!== false ||
+                       stripos($busqueda, 'mantenimiento')!== false ||
                        preg_match('/^S\d+/i', $busqueda));
     
-    $tipo_val = $busca_servicio ? 'SERVICIO' : 'EQUIPO';
-
-
+    $tipo_val = $busca_servicio? 'SERVICIO' : 'EQUIPO';
+    
+    if ($busca_servicio) {
+        $frases = [
+            'servicio de calibracion',
+            'servicio de calibración',
+            'calibracion de',
+            'calibración de',
+            'revision de',
+            'revisión de',
+            'diagnostico de',
+            'diagnóstico de',
+            'instalacion de',
+            'instalación de',
+            'capacitacion de',
+            'capacitación de',
+            'servicio de',
+            'servicio'
+        ];
+        $busqueda = str_ireplace($frases, '', $busqueda);
+        $busqueda = preg_replace('/\s+/', ' ', trim($busqueda));
+        if (empty($busqueda)) $busqueda = $busqueda_original;
+    }
+    
+    $terminoCDMESS = "%". str_replace(' ', '%', trim($busqueda)). "%";
+    $terminoDESCRIPCION = '%'. $busqueda. '%'; 
 
     // Traemos los últimos 10 para tener un buen rango y alternativas
-
     $sql = "SELECT
             ci.CDMESS,
-            ci.DESCRIPCION,
-            ROUND(AVG(ci.PRECIO_VENTA/ci.CANT), 2) AS PRECIO_VENTA
-            FROM cotizaciones_items ci            
-            WHERE (ci.DESCRIPCION LIKE ? OR ci.CDMESS LIKE ?)
-            AND ci.TIPO = ?
+            MAX(ci.DESCRIPCION) as DESCRIPCION,
+            ROUND(AVG(ci.PRECIO_VENTA/ci.CANT), 2) AS PRECIO_VENTA,
+            ROUND(MIN(ci.PRECIO_VENTA/ci.CANT), 2) AS PRECIO_MIN,
+            ROUND(MAX(ci.PRECIO_VENTA/ci.CANT), 2) AS PRECIO_MAX,
+            COUNT(*) as TOTAL_VECES
+            FROM cotizaciones_items ci 
+            WHERE (ci.DESCRIPCION LIKE? OR ci.CDMESS LIKE?)
+            AND ci.TIPO =?
             AND ci.PRECIO_VENTA > 0
-            AND ci.CANT > 0            
-            GROUP BY ci.CDMESS, ci.DESCRIPCION
+            AND ci.CANT > 0 
+            GROUP BY ci.CDMESS
+            ORDER BY TOTAL_VECES DESC, ci.CDMESS
             LIMIT 10";
             
     $stmt = $conn->prepare($sql);
@@ -54,39 +78,61 @@ function obtenerHistorialMESS($busqueda) {
     $stmt->execute();
     $res = $stmt->get_result();
     
-    $precios = [];
+    $resultados = [];
     $alternativas = [];
-    $cdmess_principal = "S/C";
     $detalle_ia = "";
 
     while ($row = $res->fetch_assoc()) {
-        $precios[] = (float)$row['PRECIO_VENTA'];
-        
-        if (empty($alternativas)) $cdmess_principal = $row['CDMESS'];
+        $resultados[] = [
+            'cdmess' => $row['CDMESS'],
+            'descripcion' => $row['DESCRIPCION'],
+            'avg' => (float)$row['PRECIO_VENTA'],
+            'min' => (float)$row['PRECIO_MIN'],
+            'max' => (float)$row['PRECIO_MAX'],
+            'total' => (int)$row['TOTAL_VECES']
+        ];
 
-        $item_str = "[" . $row['CDMESS'] . "] " . $row['DESCRIPCION'];
-        if (!in_array($item_str, $alternativas)) {
-            $alternativas[] = $item_str;
-        }
-        $detalle_ia .= "- $item_str: $" . $row['PRECIO_VENTA'] . "\n";
+        $item_str = "[". $row['CDMESS']. "] ". $row['DESCRIPCION'];
+        $alternativas[] = $item_str;
+        $detalle_ia.= "- $item_str: $". $row['PRECIO_VENTA']. " (min: $". $row['PRECIO_MIN']. ", max: $". $row['PRECIO_MAX']. ", veces: ". $row['TOTAL_VECES']. ")\n";
     }
 
-    if (empty($precios)) {
-        return ['min'=>0, 'max'=>0, 'avg'=>0, 'cdmess'=>'S/C', 'detalle'=>'Sin historial', 'alternativas'=>''];
+    if (empty($resultados)) {
+        return [
+            'min'=>0, 
+            'max'=>0, 
+            'avg'=>0, 
+            'cdmess'=>'S/C', 
+            'detalle'=>'Sin historial', 
+            'alternativas'=>'',
+            'items'=>[]
+        ];
     }
 
+    // El primero es el principal
+    $principal = $resultados[0];
+    
     // Coincidencias: todas menos la primera
     $coincidencias_str = implode(", ", array_slice($alternativas, 1, 4));
 
     return [
-        'min' => min($precios),
-        'max' => max($precios),
-        'avg' => array_sum($precios) / count($precios),
-        'cdmess' => $cdmess_principal,
+        'min' => $principal['min'],
+        'max' => $principal['max'],
+        'avg' => $principal['avg'],
+        'cdmess' => $principal['cdmess'],
         'detalle' => $detalle_ia,
-        'alternativas' => $coincidencias_str
+        'alternativas' => $coincidencias_str,
+        'items' => $resultados // CAMBIO: Ahora regresa todos los items con sus precios
     ];
 }
+
+
+
+
+
+
+
+
 
 //Nueva funcion obtenerhistorialmess optimizada.
 /*
@@ -308,14 +354,13 @@ function obtenerAprendizajeHumano($entrada, $conn) {
     if ($es_cdmess) {
         $sql = "SELECT 
                     entrada_usuario, 
-                    respuesta, 
                     precio_usuario, 
                     categoria_rechazo,
                     cdmess_historico
                 FROM cola_procesamiento
                 WHERE estatus = 'completado'
                   AND cdmess_historico = '$busqueda'
-                  AND (respuesta IS NOT NULL OR precio_usuario > 0)
+                  AND precio_usuario > 0
                   AND categoria_rechazo IS NOT NULL
                   AND categoria_rechazo != 'Acepta precio IA'
                 ORDER BY id DESC 
@@ -324,13 +369,12 @@ function obtenerAprendizajeHumano($entrada, $conn) {
         // Prioridad 2: Si es descripción, busca por LIKE pero solo los últimos 2
         $sql = "SELECT 
                     entrada_usuario, 
-                    respuesta, 
                     precio_usuario, 
                     categoria_rechazo,
                     cdmess_historico
                 FROM cola_procesamiento
                 WHERE estatus = 'completado'
-                  AND (respuesta IS NOT NULL OR precio_usuario > 0)
+                  AND precio_usuario > 0
                   AND categoria_rechazo IS NOT NULL
                   AND categoria_rechazo != 'Acepta precio IA'
                   AND entrada_usuario LIKE '%$busqueda%'
@@ -396,6 +440,7 @@ function obtenerAprendizajeHumano($entrada, $conn) {
 function obtenerOpcionesUnicasHistoricas($busqueda, $conn) {
 
 
+
 // 1. Detecta si es servicio
     $busca_servicio = (stripos($busqueda, 'servicio') !== false || 
                        stripos($busqueda, 'calibracion') !== false || 
@@ -430,8 +475,13 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $conn) {
         $busqueda = preg_replace('/\s+/', ' ', trim($busqueda));
     }
     $termino = "%" . $busqueda . "%";
+
+    error_log("Búsqueda procesada para opciones únicas: '$busqueda' con tipo '$tipo_val', termino: '$termino'");
     
     // TRUNCATE o TRIM para asegurar que 'P27-59 ' sea igual a 'P27-59'
+     $es_cdmess = preg_match('/^S\d+/i', $busqueda);
+    
+     if($es_cdmess){
     $sql = "SELECT 
                 TRIM(CDMESS) as CDMESS, 
                 MAX(DESCRIPCION) as descripcion, 
@@ -439,13 +489,36 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $conn) {
             FROM cotizaciones_items 
             WHERE (MATCH(DESCRIPCION) AGAINST(? IN BOOLEAN MODE) OR CDMESS LIKE ?)
                 AND PRECIO_VENTA > 0 AND CANT > 0
-                AND CDMESS IS NOT NULL AND CDMESS != ''
+                AND CDMESS IS NOT NULL AND CDMESS != ''   
             GROUP BY TRIM(CDMESS) 
             ORDER BY COUNT(*) DESC 
             LIMIT 5";
-            
-    $stmt = $conn->prepare($sql);
+
+             $stmt = $conn->prepare($sql);
     $stmt->bind_param("ss", $termino, $termino);
     $stmt->execute();
     return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+     }
+    else{
+ $sql = "SELECT 
+                TRIM(CDMESS) as CDMESS, 
+                MAX(DESCRIPCION) as descripcion, 
+                ROUND(AVG(PRECIO_VENTA/CANT), 2) as precio_promedio
+            FROM cotizaciones_items 
+            WHERE (MATCH(DESCRIPCION) AGAINST(? IN BOOLEAN MODE) OR CDMESS LIKE ?)
+                AND PRECIO_VENTA > 0 AND CANT > 0
+                AND CDMESS IS NOT NULL AND CDMESS != ''
+                AND TIPO = ?
+            GROUP BY TRIM(CDMESS) 
+            ORDER BY COUNT(*) DESC 
+            LIMIT 5";
+
+             $stmt = $conn->prepare($sql);
+    $stmt->bind_param("sss", $termino, $termino, $tipo_val);
+    $stmt->execute();
+    return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
+    }
+            
+   
 }
