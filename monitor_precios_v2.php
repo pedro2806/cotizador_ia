@@ -133,7 +133,7 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
                         <thead>
                             <tr class="x-small text-uppercase">
                                 <th style="width: 10%;">CDMESS</th>
-                                <th style="width: 28%;">Descripción Técnica (MessIAs)</th>
+                                <th style="width: 28%;">Descripción</th>
                                 <th style="width: 14%;" class="text-center">Rango (Min - Max)</th>
                                 <th style="width: 11%;" class="text-center">Hist. Promedio</th>
                                 <th style="width: 12%;" class="text-center bg-primary text-white">Sugerido por MessIAs</th>
@@ -216,7 +216,7 @@ async function cargarDatos() {
                     <td>
                         <div class="fw-bold text-dark">${ia.desc || ''}</div>
                         ${detalleCalculo}
-                        ${ia.coincidencias ? `<div class="mt-2 p-2 bg-light border-start border-warning border-3 x-small text-muted">${ia.coincidencias}</div>` : ''}
+                        
                     </td>
                     <td class="text-center">
                         <span class="badge badge-range">$${fmt(ia.precio_min)} - $${fmt(ia.precio_max)}</span>
