@@ -192,6 +192,19 @@ function obtenerHistorialMESS($busqueda) {
  * Función para hablar con la IA
  */
 function preguntarOllamaConPrecios($stats, $consulta_usuario, $aprendizaje = "") {
+
+$payload = [
+    'model' => 'llama3.2:1b',
+    'prompt' => $prompt,
+    'stream' => false,
+    'keep_alive' => '10m', // <-- AGREGA ESTO
+    'options' => [
+        'temperature' => 0.1,
+        'num_predict' => 50 // <-- AGREGA ESTO: limita la respuesta a 50 tokens max
+    ]
+];
+
+
     $url = "http://localhost:11434/api/generate";
     
     // 1. Preparar el contexto del historial de MESS para la IA
