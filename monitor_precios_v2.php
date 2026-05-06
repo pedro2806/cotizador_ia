@@ -58,6 +58,7 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
             font-size: 0.75rem !important;
             resize: none;
         }
+        .text-muted { color: #6c757d !important; }
     </style>
 </head>
 <body>
@@ -205,11 +206,16 @@ async function cargarDatos() {
             // fmt: redondea a 2 decimales para mostrar precios limpios
             const fmt = v => parseFloat(v || 0).toFixed(2);
 
+            // CAMBIO 1: Mostrar detalle_calculo debajo de la descripción si existe
+            const detalleCalculo = ia.detalle_calculo ? 
+                `<div class="mt-1 x-small text-muted">${ia.detalle_calculo}</div>` : '';
+
             return `
                 <tr class="${rowClass}">
                     <td class="fw-bold text-primary"><i class="bi bi-hash"></i> ${ia.cdmess || 'S/C'}</td>
                     <td>
                         <div class="fw-bold text-dark">${ia.desc || ''}</div>
+                        ${detalleCalculo}
                         ${ia.coincidencias ? `<div class="mt-2 p-2 bg-light border-start border-warning border-3 x-small text-muted">${ia.coincidencias}</div>` : ''}
                     </td>
                     <td class="text-center">
