@@ -491,46 +491,67 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $conn) {
     error_log("Búsqueda procesada para opciones únicas: '$busqueda' con tipo '$tipo_val', termino: '$termino'");
     
     // TRUNCATE o TRIM para asegurar que 'P27-59 ' sea igual a 'P27-59'
-     $es_cdmess = preg_match('/^S\d+/i', $busqueda);
+    $es_cdmess = preg_match('/^S\d+/i', $busqueda);
     
-     if($es_cdmess){
-    $sql = "SELECT 
-                TRIM(CDMESS) as CDMESS, 
-                MAX(DESCRIPCION) as descripcion, 
-                ROUND(AVG(PRECIO_VENTA/CANT), 2) as precio_promedio                
-            FROM cotizaciones_items 
-            WHERE (MATCH(DESCRIPCION) AGAINST(? IN BOOLEAN MODE) OR CDMESS LIKE ?)
-                AND PRECIO_VENTA > 0 AND CANT > 0
-                AND CDMESS IS NOT NULL AND CDMESS != ''   
-            GROUP BY TRIM(CDMESS) 
-            ORDER BY COUNT(*) DESC 
-            LIMIT 5";
+    $esvalido = validaCDMESS($busqueda, $conn); // Valida si el CDMESS existe y es válido antes de hacer la consulta principal
+    //echo "¿Es CDMESS? " . ($es_cdmess ? "Sí" : "No") . " | ¿Es válido? " . ($esvalido ? "Sí" : "No") . "<br>";
+    if($es_cdmess){
+        if(!$esvalido){
+            error_log("CDMESS '$busqueda' no es válido según tarifario activo.");
+            return $stmt ='noValido';
+        }
+        else{
+            $sql = "SELECT 
+                    TRIM(CDMESS) as CDMESS, 
+                    MAX(DESCRIPCION) as descripcion, 
+                    ROUND(AVG(PRECIO_VENTA/CANT), 2) as precio_promedio                
+                FROM cotizaciones_items 
+                WHERE (MATCH(DESCRIPCION) AGAINST(? IN BOOLEAN MODE) OR CDMESS LIKE ?)
+                    AND PRECIO_VENTA > 0 AND CANT > 0
+                    AND CDMESS IS NOT NULL AND CDMESS != ''
+                GROUP BY TRIM(CDMESS) 
+                ORDER BY COUNT(*) DESC 
+                LIMIT 5";
 
-             $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ss", $termino, $termino);
-    $stmt->execute();
-    return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-     }
+                $stmt = $conn->prepare($sql);
+                $stmt->bind_param("ss", $termino, $termino);
+                $stmt->execute();
+                return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        }
+    }
     else{
- $sql = "SELECT 
-                TRIM(CDMESS) as CDMESS, 
-                MAX(DESCRIPCION) as descripcion, 
-                ROUND(AVG(PRECIO_VENTA/CANT), 2) as precio_promedio
-            FROM cotizaciones_items 
-            WHERE (MATCH(DESCRIPCION) AGAINST(? IN BOOLEAN MODE) OR CDMESS LIKE ?)
-                AND PRECIO_VENTA > 0 AND CANT > 0
-                AND CDMESS IS NOT NULL AND CDMESS != ''
-                AND TIPO = ?
-            GROUP BY TRIM(CDMESS) 
+        $sql = "SELECT 
+                TRIM(ci.CDMESS) as CDMESS, 
+                MAX(ci.DESCRIPCION) as descripcion, 
+                ROUND(AVG(ci.PRECIO_VENTA/ci.CANT), 2) as precio_promedio,
+                t.STATUS
+            FROM cotizaciones_items ci
+            LEFT JOIN tarifario t ON ci.CDMESS = t.CDMESS 
+            WHERE (MATCH(ci.DESCRIPCION) AGAINST(? IN BOOLEAN MODE) OR ci.CDMESS LIKE ?)
+                AND ci.PRECIO_VENTA > 0 AND ci.CANT > 0
+                AND ci.CDMESS IS NOT NULL AND ci.CDMESS != ''
+                AND ci.TIPO = ?
+                AND t.STATUS = 'ACTIVE'
+            GROUP BY TRIM(ci.CDMESS) 
             ORDER BY COUNT(*) DESC 
             LIMIT 5";
 
-             $stmt = $conn->prepare($sql);
+            $stmt = $conn->prepare($sql);
     $stmt->bind_param("sss", $termino, $termino, $tipo_val);
     $stmt->execute();
     return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
     }
             
-   
+}
+
+function validaCDMESS($cdmess, $conn) {
+        $cdmess = $conn->real_escape_string($cdmess);
+        $sql = "SELECT COUNT(*) as count FROM tarifario WHERE STATUS = 'ACTIVE' AND CDMESS='$cdmess'";
+        $res = $conn->query($sql);
+        if ($res) {
+            $row = $res->fetch_assoc();
+            return $row['count'] > 0;
+        }
+        return false;
 }
