@@ -7,99 +7,93 @@ if (empty($_SESSION['usuario_id'])) {
 include 'conexion.php';
 include 'funcionesWorker.php';
 
-
 $mensaje = "";
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
     $id_proyecto = "PROY-" . date("Ymd") . "-" . rand(100, 999);
     $lineas = explode("\n", $_POST['lista_excel']);
     $insertados = 0;
+    $reporte_errores = [];
 
     foreach ($lineas as $linea) {
         $linea = trim($linea);
-        if (!empty($linea)) {
+        if (empty($linea)) continue;
 
-            // 1. Buscamos si hay opciones únicas en el historial (los 58MB)
-            // Esta función debe estar en tu funcionesWorker.php
-            $opciones = obtenerOpcionesUnicasHistoricas($linea, $conn);
+        $opciones = obtenerOpcionesUnicasHistoricas($linea, $conn);
+        
+        if ($opciones === 'noValido') {
+            $reporte_errores[] = "❌ Clave no activa: <b>$linea</b>";
+            continue; 
+        }
 
-            if (count($opciones) > 0) {
-                $claves_insertadas = []; // Array para controlar duplicados en este item
-                $es_primera = true; // El primer CDMESS por línea es el primario; los demás son sugerencias
+        if (is_array($opciones) && count($opciones) > 0) {
+            $claves_insertadas = [];
+            $es_primera = true;
 
-                foreach ($opciones as $opcion) {
-                    $clave = trim($opcion['CDMESS']);
+            foreach ($opciones as $opcion) {
+                $clave = trim($opcion['CDMESS']);
+                if (in_array($clave, $claves_insertadas)) continue;
 
-                    // SI LA CLAVE YA EXISTE EN ESTE ITEM, LA SALTAMOS
-                    if (in_array($clave, $claves_insertadas)) continue;
+                $es_sugerencia = $es_primera ? 0 : 1;
+                $es_primera = false;
 
-                    // 0 = ítem principal del usuario, 1 = alternativa sugerida por historial
-                    $es_sugerencia = $es_primera ? 0 : 1;
-                    $es_primera = false;
+                $stmt = $conn->prepare("INSERT INTO cola_procesamiento
+                    (id_proyecto, entrada_usuario, cdmess_historico, descripcion_historica, precio_historico, estatus, es_sugerencia, id_us_registro)
+                    VALUES (?, ?, ?, ?, ?, 'pendiente', ?, ?)");
 
-                    $stmt = $conn->prepare("INSERT INTO cola_procesamiento
-                        (id_proyecto, entrada_usuario, cdmess_historico, descripcion_historica, precio_historico, estatus, es_sugerencia, id_us_registro)
-                        VALUES (?, ?, ?, ?, ?, 'pendiente', ?, ?)");
-
+                if ($stmt) {
                     $stmt->bind_param("ssssdii",
-                        $id_proyecto,
-                        $linea,
-                        $clave,
-                        $opcion['descripcion'],
-                        $opcion['precio_promedio'],
-                        $es_sugerencia,
-                        $_SESSION['usuario_id']
+                        $id_proyecto, $linea, $clave, $opcion['descripcion'],
+                        $opcion['precio_promedio'], $es_sugerencia, $_SESSION['usuario_id']
                     );
                     $stmt->execute();
-
-                    $claves_insertadas[] = $clave; // Registramos que ya insertamos esta clave
+                    $stmt->close();
                     $insertados++;
+                    $claves_insertadas[] = $clave;
                 }
-                $stmt->close();
-            } else {
-                // 3. Si NO hay historial, alerta que no se encontró nada pero igual se inserta para análisis
-                $mensaje = "No se encontraron opciones únicas para la entrada: $linea";
-
             }
-
-            // Si se insertó al menos uno, vamos al monitor
-            if ($insertados > 0) {
-                // Redirección normal si hubo éxito
-                //header("Location: monitor_precios_v2.php?proyecto=" . urlencode($id_proyecto));
-                //exit;
-            } else {
-                // Mostramos SweetAlert si no hubo inserciones
-                // Usamos una estructura HTML limpia para que cargue la librería
-                echo "<!DOCTYPE html>
-                <html>
-                <head>
-                    <script src='https://cdn.jsdelivr.net/npm/sweetalert2@11'></script>
-                    <link href='https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap' rel='stylesheet'>
-                    <style>body { font-family: 'Inter', sans-serif; }</style>
-                </head>
-                <body>
-                    <script>
-                        Swal.fire({
-                            icon: 'warning',
-                            title: '¡Sin coincidencias!',
-                            html: 'No se encontraron registros en el historial para los términos ingresados.<br><br><small style=\"color: #666\">Verifica que las descripciones sean correctas o intenta con palabras clave más generales.</small>',
-                            confirmButtonText: 'Regresar',
-                            confirmButtonColor: '#d33',
-                            allowOutsideClick: false
-                        }).then((result) => {
-                            if (result.isConfirmed) {
-                                window.history.back();
-                            }
-                        });
-                    </script>
-                </body>
-                </html>";
-                exit;
-            }
+        } else {
+            $reporte_errores[] = "⚠️ Sin historial: <b>$linea</b>";
         }
     }
-    
-    // Redirección inmediata al monitor
-    header("Location: monitor_precios_v2.php?proyecto=" . urlencode($id_proyecto));
+
+    // --- SALIDA FINAL ---
+    // Si no hay errores y hubo inserciones, redirigimos directo (Limpio)
+    if ($insertados > 0 && empty($reporte_errores)) {
+        header("Location: monitor_precios_v2.php?proyecto=" . urlencode($id_proyecto));
+        exit;
+    }
+
+    // Si llegamos aquí es porque o NO insertó nada o hubo errores mixtos
+    ?>
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <script src="js/sweetalert2.all.min.js"></script>
+        <style>body { font-family: 'Inter', sans-serif; background: #f4f7f6; }</style>
+    </head>
+    <body>
+        <script>
+            <?php if ($insertados > 0 && !empty($reporte_errores)): ?>
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Proceso con observaciones',
+                    html: 'Se insertaron <?php echo $insertados; ?> registros.<br><br><div style="text-align:left; font-size:0.8em;"><?php echo implode("<br>", $reporte_errores); ?></div>',
+                    confirmButtonText: 'Ver en Monitor'
+                }).then(() => { 
+                    window.location.href = 'monitor_precios_v2.php?proyecto=<?php echo urlencode($id_proyecto); ?>'; 
+                });
+            <?php else: ?>
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'No se insertó ningún registro',
+                    html: 'No se pudo procesar ninguna línea.<br><br><div style="text-align:left; font-size:0.8em;"><?php echo implode("<br>", $reporte_errores); ?></div>',
+                    confirmButtonText: 'Regresar'
+                }).then(() => { window.history.back(); });
+            <?php endif; ?>
+        </script>
+    </body>
+    </html>
+    <?php
     exit;
 }
 ?>
@@ -111,8 +105,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/x-icon" href="fav.ico">
     <title>Cotizador | MessIAs</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link href="css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/bootstrap-icons.css">
     <style>
         :root {
             --mess-blue: #002d5a;
