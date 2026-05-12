@@ -65,8 +65,8 @@ while (true) {
             'max' => $datos_item['max'],
             'avg' => $datos_item['avg'],
             'total' => $datos_item['total'],
-            'fecha_min' => $datos_item['fecha_min'],
-            'fecha_max' => $datos_item['fecha_max']
+            'fecha_min' => null,//$datos_item['fecha_min'],
+            'fecha_max' => null //$datos_item['fecha_max']
         ];
         // Si hay aprendizaje, búscalo con el CDMESS específico del item
         $cdmess_para_aprendizaje = $cdmess_actual;
