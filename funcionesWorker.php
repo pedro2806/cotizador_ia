@@ -193,69 +193,36 @@ function obtenerHistorialMESS($busqueda) {
  * Función para hablar con la IA
  */
 function preguntarOllamaConPrecios($stats, $consulta_usuario, $aprendizaje = "") {
-
-/*
-$payload = [
-    'model' => 'llama3.2:1b',
-    'prompt' => $prompt,
-    'stream' => false,
-    'keep_alive' => '10m', // <-- AGREGA ESTO
-    'options' => [
-        'temperature' => 0.1,
-        'num_predict' => 50 // <-- AGREGA ESTO: limita la respuesta a 50 tokens max
-    ]
-];
-*/
-
     $url = "http://localhost:11434/api/generate";
     
-    // 1. Preparar el contexto del historial de MESS para la IA
-    $contexto_historico = "Datos históricos de MESS para esta búsqueda:\n";
-    $contexto_historico .= "- Precio Mínimo: $" . $stats['min'] . "\n";
-    $contexto_historico .= "- Precio Máximo: $" . $stats['max'] . "\n";
-    $contexto_historico .= "- Promedio: $" . $stats['avg'] . "\n";
-    $contexto_historico .= "- Coincidencias encontradas: " . $stats['alternativas'] . "\n";
+    // 1. Contexto MÍNIMO. No le mandes $stats['detalle'] si trae 30 líneas
+    $contexto = "CDMESS:{$stats['cdmess']} MIN:{$stats['min']} MAX:{$stats['max']} AVG:{$stats['avg']} N:{$stats['alternativas']}";
 
-    // 2. Construir el prompt (Corregido el = por .= para no borrar el historial)
-    $prompt = "Eres un experto en metrología y ventas de Grupo MESS. Tu objetivo es sugerir el mejor precio.\n\n";
-    $prompt .= "DETALLE HISTÓRICO ADICIONAL:\n" . ($stats['detalle'] ?? '') . "\n\n";
-    $prompt .= $contexto_historico . "\n";
+    // 2. Prompt corto. 150 tokens vs 800 tokens
+    $prompt = "Eres experto precios MESS. $contexto\n";
     
-    // Si hay aprendizaje (respuestas humanas previas), se lo damos como REGLA DE ORO.
+    // Solo agrega aprendizaje si existe. Cada línea extra = +0.3s
     if (!empty($aprendizaje)) {
-        $prompt .= "--- REGLAS DE ORO (CRITERIO HUMANO RECIENTE) ---\n";
-        $prompt .= "Los expertos de MESS han validado estos precios para casos similares:\n";
-        $prompt .= $aprendizaje . "\n";
-        $prompt .= "INSTRUCCIONES DE AJUSTE:\n";        
-        $prompt .= "1. Si el aprendizaje dice 'Precio muy alto', tu nuevo 'precio_ia' DEBE ser menor al precio validado anteriormente.\n";
-        $prompt .= "2. IGNORA el promedio histórico si este contradice el precio validado por el humano.\n";
-        $prompt .= "3. El valor de 'precio_ia' que generes debe reflejar esta corrección AHORA.\n\n";
-        $prompt .= "IMPORTANTE: Si los datos de 'REGLAS DE ORO' contradicen el promedio histórico, DEBES dar prioridad al criterio humano.\n\n";
+        $prompt .= "REGLA HUMANA: $aprendizaje\n";
+        $prompt .= "Prioridad: Si dice 'alto' baja precio. Si 'bajo' sube precio. Ignora AVG si contradice.\n";
     }
 
-    $prompt .= "SOLICITUD: '$consulta_usuario'\n";    
-    $prompt .= "REGLA: Genera un JSON con TODOS los campos siguientes. Si no hay datos, usa los valores por defecto proporcionados.\n\n";
-    
-    $prompt .= "FORMATO JSON OBLIGATORIO:\n";
-    $prompt .= "{\n";
-    $prompt .= "  \"cdmess\": \"{$stats['cdmess']}\",\n";
-    $prompt .= "  \"desc\": \"Descripción técnica breve\",\n";
-    $prompt .= "  \"precio_min\": {$stats['min']},\n"; // Corregido: antes era $p_min
-    $prompt .= "  \"precio_max\": {$stats['max']},\n"; // Corregido: antes era $p_max
-    $prompt .= "  \"precio_promedio\": {$stats['avg']},\n"; // Corregido: antes era $p_avg
-    $prompt .= "  \"precio_ia\": {$stats['avg']},\n"; // Usamos el promedio como base para que la IA lo ajuste
-    $prompt .= "  \"notas\": \"Justificación del precio sugerido\",\n";
-    $prompt .= "  \"coincidencias\": \"{$stats['alternativas']}\"\n";
-    $prompt .= "}";
+    $prompt .= "Usuario: '$consulta_usuario'\n";
+    $prompt .= "Responde SOLO JSON: {\"cdmess\":\"{$stats['cdmess']}\",\"desc\":\"texto breve\",\"precio_ia\":0.0,\"notas\":\"justificación corta\"}";
 
     $data = [
-        "model" => "llama3.2:1b", // Tambien disponible 3.1:8b
+        "model" => "llama3.2:1b",
         "format" => "json",
-        //"system" => "Eres un integrador de datos para MESS. Tu única función es devolver JSON puro con la estructura solicitada.",
-        "system" => "Eres un integrador de precios para MESS. Tu prioridad número 1 es el APRENDIZAJE HUMANO. Si recibes una retroalimentación de 'Precio muy alto' o 'Precio muy bajo', ajusta el valor de 'precio_ia' inmediatamente ignorando los promedios antiguos. Tu única función es devolver JSON puro con la estructura solicitada.",
+        "system" => "Devuelve JSON puro. Precio_ia ajustado por REGLA HUMANA.",
         "prompt" => $prompt,
         "stream" => false,
-        "options" => ["temperature" => 0.1]
+        "keep_alive" => "10m", // <-- CLAVE: no descarga el modelo cada vez
+        "options" => [
+            "temperature" => 0.1,
+            "num_predict" => 120, // <-- CLAVE: corta a 120 tokens max
+            "top_k" => 10,
+            "top_p" => 0.9
+        ]
     ];
 
     $ch = curl_init($url);
@@ -263,16 +230,32 @@ $payload = [
     curl_setopt($ch, CURLOPT_POST, true);
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
     curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10); // No esperes más de 10s
     
     $res = curl_exec($ch);
-    $datos_res = json_decode($res, true);
-    $respuesta_ia = $datos_res['response'] ?? '';
-
-    if (preg_match('/\{.*\}/s', $respuesta_ia, $matches)) {
-        return $matches[0];
+    $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    if ($httpcode != 200) {
+        error_log("Ollama HTTP $httpcode");
+        return json_encode(["cdmess" => $stats['cdmess'], "precio_ia" => $stats['avg'], "notas" => "Error IA"]);
     }
-    return $respuesta_ia;
+    
+    $datos_res = json_decode($res, true);
+    return $datos_res['response'] ?? json_encode(["precio_ia" => $stats['avg']]);
 }
+
+
+
+
+
+
+
+
+
+
+
+
 
 function verificarWorker() {
     // Buscamos en la lista de procesos si existe php.exe con el nombre de nuestro archivo
