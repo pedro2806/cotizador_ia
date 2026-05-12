@@ -201,11 +201,18 @@ function preguntarOllamaConPrecios($stats, $consulta_usuario, $aprendizaje = "")
     // 2. Prompt corto. 150 tokens vs 800 tokens
     $prompt = "Eres experto precios MESS. $contexto\n";
     
+
     // Solo agrega aprendizaje si existe. Cada línea extra = +0.3s
-    if (!empty($aprendizaje)) {
-        $prompt .= "REGLA HUMANA: $aprendizaje\n";
-        $prompt .= "Prioridad: Si dice 'alto' baja precio. Si 'bajo' sube precio. Ignora AVG si contradice.\n";
+if (!empty($aprendizaje)) {
+    if (is_array($aprendizaje)) {
+        $aprendizaje = implode(". ", array_slice($aprendizaje, 0, 3)); // Max 3 reglas
     }
+    $aprendizaje = substr(trim($aprendizaje), 0, 200); // Max 200 chars
+    $prompt .= "REGLA HUMANA: $aprendizaje\n";
+    $prompt .= "Prioridad: Si dice 'alto' baja precio. Si 'bajo' sube precio. Ignora AVG si contradice.\n";
+}
+
+
 
     $prompt .= "Usuario: '$consulta_usuario'\n";
     $prompt .= "Responde SOLO JSON: {\"cdmess\":\"{$stats['cdmess']}\",\"desc\":\"texto breve\",\"precio_ia\":0.0,\"notas\":\"justificación corta\"}";
@@ -219,9 +226,9 @@ function preguntarOllamaConPrecios($stats, $consulta_usuario, $aprendizaje = "")
         "keep_alive" => "10m", // <-- CLAVE: no descarga el modelo cada vez
         "options" => [
             "temperature" => 0.1,
-            "num_predict" => 120, // <-- CLAVE: corta a 120 tokens max
+            "num_predict" => 60, // <-- CLAVE: corta a 60 tokens max
             "top_k" => 10,
-            "top_p" => 0.9
+           //"top_p" => 0.9
         ]
     ];
 
