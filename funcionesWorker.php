@@ -27,7 +27,8 @@ function obtenerHistorialMESS($busqueda) {
                        stripos($busqueda, 'calibracion')!== false ||
                        stripos($busqueda, 'calibración')!== false ||
                        stripos($busqueda, 'mantenimiento')!== false ||
-                       preg_match('/^S\d+/i', $busqueda));
+                       preg_match('/^[SL]\d+/i', $busqueda));
+                       
     
     $tipo_val = $busca_servicio? 'SERVICIO' : 'EQUIPO';
     
@@ -361,7 +362,9 @@ function obtenerAprendizajeHumano($entrada, $conn) {
  */
 function obtenerAprendizajeHumano($entrada, $conn) {
     $busqueda = $conn->real_escape_string($entrada);
-    $es_cdmess = preg_match('/^S\d+/i', $entrada);
+    $es_cdmess = preg_match('/^[SL]\d+/i', $entrada);
+
+    
     
     // Prioridad 1: Si es CDMESS, busca exacto por cdmess_historico
     if ($es_cdmess) {
@@ -491,8 +494,8 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $conn) {
     error_log("Búsqueda procesada para opciones únicas: '$busqueda' con tipo '$tipo_val', termino: '$termino'");
     
     // TRUNCATE o TRIM para asegurar que 'P27-59 ' sea igual a 'P27-59'
-    $es_cdmess = preg_match('/^S\d+/i', $busqueda);
-    
+    $es_cdmess = preg_match('/^[SL]\d+/i', $busqueda);
+   
     $esvalido = validaCDMESS($busqueda, $conn); // Valida si el CDMESS existe y es válido antes de hacer la consulta principal
     //echo "¿Es CDMESS? " . ($es_cdmess ? "Sí" : "No") . " | ¿Es válido? " . ($esvalido ? "Sí" : "No") . "<br>";
     if($es_cdmess){
