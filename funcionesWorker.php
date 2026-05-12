@@ -194,6 +194,7 @@ function obtenerHistorialMESS($busqueda) {
  */
 function preguntarOllamaConPrecios($stats, $consulta_usuario, $aprendizaje = "") {
 
+/*
 $payload = [
     'model' => 'llama3.2:1b',
     'prompt' => $prompt,
@@ -204,7 +205,7 @@ $payload = [
         'num_predict' => 50 // <-- AGREGA ESTO: limita la respuesta a 50 tokens max
     ]
 ];
-
+*/
 
     $url = "http://localhost:11434/api/generate";
     
