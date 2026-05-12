@@ -223,11 +223,12 @@ if (!empty($aprendizaje)) {
         "system" => "Devuelve JSON puro. Precio_ia ajustado por REGLA HUMANA.",
         "prompt" => $prompt,
         "stream" => false,
-        "keep_alive" => "10m", // <-- CLAVE: no descarga el modelo cada vez
+        "keep_alive" => "24h", // <-- CLAVE: no descarga el modelo cada vez
         "options" => [
             "temperature" => 0.1,
-            "num_predict" => 60, // <-- CLAVE: corta a 60 tokens max
-            "top_k" => 10,
+            "num_predict" => 20, // <-- CLAVE: corta a 60 tokens max
+            "top_k" => 1,
+            "num_ctx" => 512
            //"top_p" => 0.9
         ]
     ];
