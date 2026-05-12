@@ -43,7 +43,7 @@ while (true) {
     $stats = obtenerHistorialMESS($entrada);
     
     // DEBUG: Ve qué regresó el historial
-    error_log("HISTORIAL ITEMS: ". json_encode($stats['items']?? []));
+    //error_log("HISTORIAL ITEMS: ". json_encode($stats['items']?? []));
 
     // Crear mapa CDMESS => datos para buscar precio específico del item actual
     $mapa_precios = [];
