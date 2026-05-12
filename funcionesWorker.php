@@ -204,12 +204,25 @@ function preguntarOllamaConPrecios($stats, $consulta_usuario, $aprendizaje = "")
 
     // Solo agrega aprendizaje si existe. Cada línea extra = +0.3s
 if (!empty($aprendizaje)) {
+    // Asegura que sea string antes de concatenar
     if (is_array($aprendizaje)) {
-        $aprendizaje = implode(". ", array_slice($aprendizaje, 0, 3)); // Max 3 reglas
+        // Filtra valores vacíos y asegura que sean strings
+        $aprendizaje = array_filter(array_slice($aprendizaje, 0, 3), function($v) {
+            return !is_array($v) && !is_object($v) && $v !== '' && $v !== null;
+        });
+        $aprendizaje = implode(". ", $aprendizaje); // Max 3 reglas
+    } elseif (is_object($aprendizaje)) {
+        $aprendizaje = '';
+    } else {
+        $aprendizaje = (string)$aprendizaje;
     }
+
     $aprendizaje = substr(trim($aprendizaje), 0, 200); // Max 200 chars
-    $prompt .= "REGLA HUMANA: $aprendizaje\n";
-    $prompt .= "Prioridad: Si dice 'alto' baja precio. Si 'bajo' sube precio. Ignora AVG si contradice.\n";
+    
+    if ($aprendizaje !== '') {
+        $prompt .= "REGLA HUMANA: $aprendizaje\n";
+        $prompt .= "Prioridad: Si dice 'alto' baja precio. Si 'bajo' sube precio. Ignora AVG si contradice.\n";
+    }
 }
 
 
@@ -225,10 +238,10 @@ if (!empty($aprendizaje)) {
         "stream" => false,
         "keep_alive" => "24h", // <-- CLAVE: no descarga el modelo cada vez
         "options" => [
-            "temperature" => 0.1,
+            "temperature" => 0,
             "num_predict" => 20, // <-- CLAVE: corta a 60 tokens max
             "top_k" => 1,
-            "num_ctx" => 512
+            "num_ctx" => 256
            //"top_p" => 0.9
         ]
     ];
