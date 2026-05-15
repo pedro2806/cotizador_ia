@@ -124,20 +124,25 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
                         <h4 class="fw-bold mb-0 text-dark">Detalle del Proyecto</h4>
                         <span class="text-primary fw-bold small"><?php echo htmlspecialchars($id_proyecto_activo); ?></span>
                     </div>
-                    <div id="progreso-header" class="text-end">
-                        </div>
+                    <div class="d-flex align-items-center gap-3">
+                        <button class="btn btn-success btn-sm fw-bold" onclick="exportarCSV()">
+                            <i class="bi bi-file-earmark-spreadsheet me-1"></i> Exportar seleccionados
+                        </button>
+                        <div id="progreso-header" class="text-end"></div>
+                    </div>
                 </div>
 
                 <div class="table-responsive">
                     <table class="table table-hover align-middle" id="tabla-precios">
                         <thead>
                             <tr class="x-small text-uppercase">
+                                <th style="width: 3%;" class="text-center"><input type="checkbox" id="sel-all" class="form-check-input" onclick="toggleTodos(this)" title="Seleccionar todos"></th>
                                 <th style="width: 10%;">CDMESS</th>
-                                <th style="width: 28%;">Descripción</th>
-                                <th style="width: 14%;" class="text-center">Rango (Min - Max)</th>
-                                <th style="width: 11%;" class="text-center">Hist. Promedio</th>
+                                <th style="width: 26%;">Descripción</th>
+                                <th style="width: 13%;" class="text-center">Rango (Min - Max)</th>
+                                <th style="width: 10%;" class="text-center">Hist. Promedio</th>
                                 <th style="width: 12%;" class="text-center bg-primary text-white">Sugerido por MessIAs</th>
-                                <th style="width: 19%;">Entrenamiento</th>
+                                <th style="width: 18%;">Entrenamiento</th>
                             </tr>
                         </thead>
                         <tbody id="contenedor-items">
@@ -159,6 +164,7 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
 
 <script>
 const proyectoActual = "<?php echo $id_proyecto_activo; ?>";
+let datosProyecto = [];
 
 async function cargarDatos() {
     if (!proyectoActual) return;
@@ -169,7 +175,9 @@ async function cargarDatos() {
     try {
         const response = await fetch(`get_proyecto_data.php?proyecto=${encodeURIComponent(proyectoActual)}`);
         const data = await response.json();
+        datosProyecto = data;
         const contenedor = document.getElementById('contenedor-items');
+        const prevSel = new Set([...document.querySelectorAll('.item-check:checked')].map(cb => cb.value));
         
         // Actualizar hora de sincronización
         document.getElementById('last-update').innerHTML = `<i class="bi bi-clock-history me-1"></i> Sync: ${new Date().toLocaleTimeString()}`;
@@ -193,7 +201,7 @@ async function cargarDatos() {
         // Función reutilizada para renderizar una fila (originales y sugerencias usan la misma estructura)
         const renderFila = (item, esSugerencia = false) => {
             if (item.estatus !== 'completado') {
-                return `<tr><td colspan="7" class="text-center py-4 bg-light border-0">
+                return `<tr><td colspan="8" class="text-center py-4 bg-light border-0">
                     <div class="spinner-grow spinner-grow-sm text-primary me-2"></div>
                     <span class="text-muted font-small fw-bold italic">Analizando historial para: "${item.entrada_usuario}"</span>
                 </td></tr>`;
@@ -212,6 +220,7 @@ async function cargarDatos() {
 
             return `
                 <tr class="${rowClass}">
+                    <td class="text-center align-middle"><input type="checkbox" class="form-check-input item-check" value="${idReg}"></td>
                     <td class="fw-bold text-primary"><i class="bi bi-hash"></i> ${ia.cdmess || 'S/C'}</td>
                     <td>
                         <div class="fw-bold text-dark">${ia.desc || ''}</div>
@@ -252,7 +261,7 @@ async function cargarDatos() {
         // Fila divisora que aparece solo si hay sugerencias de la IA
         const filaDivisora = sugerencias.length > 0 ? `
             <tr class="table-secondary">
-                <td colspan="7" class="text-center py-2 x-small fw-bold text-uppercase text-muted">
+                <td colspan="8" class="text-center py-2 x-small fw-bold text-uppercase text-muted">
                     <i class="bi bi-stars me-1"></i> Sugerencias de MessIAs
                 </td>
             </tr>
@@ -262,6 +271,14 @@ async function cargarDatos() {
             originales.map(i  => renderFila(i, false)).join('') +
             filaDivisora +
             sugerencias.map(i => renderFila(i, true)).join('');
+
+        // Restaurar selecciones tras re-render
+        document.querySelectorAll('.item-check').forEach(cb => {
+            if (prevSel.has(cb.value)) cb.checked = true;
+        });
+        const allChecks = document.querySelectorAll('.item-check');
+        const selAll = document.getElementById('sel-all');
+        if (selAll) selAll.checked = allChecks.length > 0 && [...allChecks].every(cb => cb.checked);
 
     } catch (e) {
         console.error("Error en la carga AJAX:", e);
@@ -333,6 +350,70 @@ async function validarRegistro(id) {
             }
         }
     });
+}
+
+function toggleTodos(cb) {
+    document.querySelectorAll('.item-check').forEach(el => el.checked = cb.checked);
+}
+
+function exportarCSV() {
+    const seleccionados = new Set([...document.querySelectorAll('.item-check:checked')].map(cb => cb.value));
+    if (seleccionados.size === 0) {
+        Swal.fire({ title: 'Sin selección', text: 'Selecciona al menos un ítem para exportar.', icon: 'warning', confirmButtonColor: '#002d5a' });
+        return;
+    }
+    const items = datosProyecto.filter(i => seleccionados.has(String(i.id)));
+    const fmt  = v => parseFloat(v || 0).toFixed(2);
+    const fmtI = v => parseInt(v || 0);
+
+    // Deriva el area_mess_code del CDMESS (ej. "P7-360" → "P7", "S3-173" → "S3")
+    const areaCode = cdmess => cdmess ? cdmess.split('-')[0] : '';
+    // Deriva entityType del prefijo del CDMESS (S... → SERVICE, resto → PRODUCT)
+    const entityType = cdmess => cdmess && cdmess.toUpperCase().startsWith('S') ? 'SERVICE' : 'PRODUCT';
+
+    const headers = [
+        'orderCode', 'service_product_mess_code', 'cant', 'item_description',
+        'MARCA', 'MODELO', 'NO_SERIE',
+        'entityType', 'mess_precio_min', 'mess_precio_max', 'mess_precio_promedio',
+        'precio_us', 'mess_precio_ia',
+        'notes', 'observations',
+        'status', 'area_mess_code', 'created', 'elaboratedby_id'
+    ];
+
+    const rows = items.map(item => {
+        const ia     = item.propuesta_ia || {};
+        const cdmess = ia.cdmess || '';
+        const fecha  = item.fecha_registro ? item.fecha_registro.split(' ')[0] : '';
+
+        return [
+            proyectoActual,
+            cdmess || 'N/A',
+            '1',
+            ia.desc || item.entrada_usuario || '',
+            '', '', '',
+            entityType(cdmess),
+            fmt(ia.precio_min),
+            fmt(ia.precio_max),
+            fmt(ia.precio_promedio),
+            fmt(item.precio_usuario),
+            fmt(ia.precio_ia),
+            item.entrada_usuario || '',
+            item.respuesta || '',
+            item.estatus || '',
+            areaCode(cdmess),
+            fecha,
+            item.id_us_registro || ''
+        ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
+    });
+
+    const csvContent = '﻿' + [headers.join(','), ...rows].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = `${proyectoActual}_cotizacion.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
 }
 
 if (proyectoActual) {
