@@ -526,13 +526,13 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $conn) {
                 ROUND(AVG(ci.PRECIO_VENTA/ci.CANT), 2) as precio_promedio,
                 t.STATUS
             FROM cotizaciones_items ci
-            LEFT JOIN tarifario t ON ci.CDMESS = t.CDMESS 
+            LEFT JOIN tarifario t ON ci.CDMESS COLLATE utf8mb4_unicode_ci = t.CDMESS COLLATE utf8mb4_unicode_ci
             WHERE (MATCH(ci.DESCRIPCION) AGAINST(? IN BOOLEAN MODE) OR ci.CDMESS LIKE ?)
                 AND ci.PRECIO_VENTA > 0 AND ci.CANT > 0
                 AND ci.CDMESS IS NOT NULL AND ci.CDMESS != ''
                 AND ci.TIPO = ?
                 AND t.STATUS = 'ACTIVE'
-            GROUP BY TRIM(ci.CDMESS) 
+            GROUP BY TRIM(ci.CDMESS)
             ORDER BY COUNT(*) DESC 
             LIMIT 5";
 
