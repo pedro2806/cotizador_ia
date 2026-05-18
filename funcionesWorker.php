@@ -56,6 +56,9 @@ function obtenerHistorialMESS($busqueda) {
     
     $terminoCDMESS = "%". str_replace(' ', '%', trim($busqueda)). "%";
     $terminoDESCRIPCION = '%'. $busqueda. '%'; 
+    $terminoMARCA = '%'. $busqueda. '%'; 
+    $terminoMODELO = '%'. $busqueda. '%'; 
+    $terminoSERIE = '%'. $busqueda. '%'; 
 
     // Traemos los últimos 10 para tener un buen rango y alternativas
     $sql = "SELECT
@@ -66,16 +69,16 @@ function obtenerHistorialMESS($busqueda) {
             ROUND(MAX(ci.PRECIO_VENTA/ci.CANT), 2) AS PRECIO_MAX,
             COUNT(*) as TOTAL_VECES
             FROM cotizaciones_items ci 
-            WHERE (ci.DESCRIPCION LIKE? OR ci.CDMESS LIKE?)
+            WHERE (ci.DESCRIPCION LIKE ? OR ci.CDMESS LIKE ? OR ci.MARCA LIKE ? OR ci.MODELO LIKE ? OR ci.SERIE LIKE ?)
             AND ci.TIPO =?
             AND ci.PRECIO_VENTA > 0
             AND ci.CANT > 0 
             GROUP BY ci.CDMESS
             ORDER BY TOTAL_VECES DESC, ci.CDMESS
             LIMIT 10";
-            
+    echo "Consulta SQL para historial: $sql con termino '$terminoDESCRIPCION', '$terminoCDMESS' y tipo '$tipo_val'";        
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("sss", $terminoDESCRIPCION, $terminoCDMESS, $tipo_val);
+    $stmt->bind_param("ssssss", $terminoDESCRIPCION, $terminoCDMESS, $terminoMARCA, $terminoMODELO, $terminoSERIE, $tipo_val);
     $stmt->execute();
     $res = $stmt->get_result();
     
@@ -542,7 +545,7 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $conn) {
                 AND ci.CDMESS IS NOT NULL AND ci.CDMESS != ''
                 AND ci.TIPO != ?
                 AND t.STATUS = 'ACTIVE'
-            GROUP BY TRIM(ci.CDMESS)
+            GROUP BY TRIM(ci.CDMESS) 
             ORDER BY COUNT(*) DESC 
             LIMIT 5";    
     //echo "Consulta SQL para CDMESS: $sql con termino '$termino' y tipo '$tipo_val'";
