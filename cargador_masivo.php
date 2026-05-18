@@ -10,19 +10,13 @@ include 'funcionesWorker.php';
 $mensaje = "";
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
 
-    //Alerta donde se indica que se esta procesando la información y que espere unos segundos
-    echo '<script src="js/sweetalert2.all.min.js"></script>';
-    echo '<script>
-        Swal.fire({
-            title: "Procesando información",
-            text: "MessIAs está analizando los datos. Esto puede tardar unos segundos...",
-            allowOutsideClick: false,
-            didOpen: () => {
-                Swal.showLoading();
-            }
-        });
-    </script>';
-    flush(); // Asegura que el mensaje se envíe al navegador antes de continuar
+    //Mensaje de procesamiento para que el usuario sepa que algo está pasando, especialmente si la lista es larga, que no sea un alert sino un mensaje en pantalla que se mantenga mientras se procesa
+    echo "<div style='position:fixed; top:20px; left:50%; transform:translateX(-50%); background:#ffc107; color:#212529; padding:15px 30px; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.1); z-index:9999; font-family:Inter, sans-serif; font-size:1.1em; display:flex; align-items:center; gap:10px;'>
+            <span class='spinner-border spinner-border-sm' role='status' aria-hidden='true'></span>
+            Procesando tu solicitud con MessIAs...
+          </div>";
+    
+
 
     $id_proyecto = "PROY-" . date("Ymd") . "-" . rand(100, 999);
     $lineas = explode("\n", $_POST['lista_excel']);
