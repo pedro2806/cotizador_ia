@@ -68,19 +68,39 @@ function obtenerHistorialMESS($busqueda) {
             ROUND(MIN(ci.PRECIO_VENTA/ci.CANT), 2) AS PRECIO_MIN,
             ROUND(MAX(ci.PRECIO_VENTA/ci.CANT), 2) AS PRECIO_MAX,
             COUNT(*) as TOTAL_VECES
-            FROM cotizaciones_items ci 
-            WHERE (ci.DESCRIPCION LIKE ? OR ci.CDMESS LIKE ? OR ci.MARCA LIKE ? OR ci.MODELO LIKE ? OR ci.SERIE LIKE ?)
-            AND ci.TIPO =?
-            AND ci.PRECIO_VENTA > 0
-            AND ci.CANT > 0 
-            GROUP BY ci.CDMESS
-            ORDER BY TOTAL_VECES DESC, ci.CDMESS
-            LIMIT 10";
-    echo "Consulta SQL para historial: $sql con termino '$terminoDESCRIPCION', '$terminoCDMESS' y tipo '$tipo_val'";        
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ssssss", $terminoDESCRIPCION, $terminoCDMESS, $terminoMARCA, $terminoMODELO, $terminoSERIE, $tipo_val);
-    $stmt->execute();
-    $res = $stmt->get_result();
+        FROM cotizaciones_items ci 
+        WHERE (ci.DESCRIPCION LIKE ? OR ci.CDMESS LIKE ? OR ci.MARCA LIKE ? OR ci.MODELO LIKE ? OR ci.SERIE LIKE ?)
+        AND ci.TIPO = ?
+        AND ci.PRECIO_VENTA > 0
+        AND ci.CANT > 0 
+        GROUP BY ci.CDMESS
+        ORDER BY TOTAL_VECES DESC, ci.CDMESS
+        LIMIT 10";
+
+        //echo "Consulta SQL para historial: $sql con termino '$terminoDESCRIPCION', '$terminoCDMESS' y tipo '$tipo_val'<br>";        
+
+        // 3. Preparar la consulta en el servidor de Base de Datos (Se hace una sola vez)
+        $stmt = $conn->prepare($sql);
+
+        // 4. PRIMER INTENTO: Asignar parámetros y ejecutar con el tipo inicial
+        $stmt->bind_param("ssssss", $terminoDESCRIPCION, $terminoCDMESS, $terminoMARCA, $terminoMODELO, $terminoSERIE, $tipo_val);
+        $stmt->execute();
+        $res = $stmt->get_result();
+
+        // 5. VALIDACIÓN: Si no hay resultados (0 filas), se ejecuta la segunda opción
+        if ($res->num_rows === 0) {
+            // Intercambiamos el valor de la variable de forma dinámica
+            $tipo_val = ($tipo_val === 'SERVICIO') ? 'EQUIPO' : 'SERVICIO';
+            
+            //echo "No se encontraron resultados con el tipo original. Reintentando búsqueda con tipo opuesto: '$tipo_val'<br>";
+            
+            // SEGUNDO INTENTO: Reutilizamos el mismo $stmt pero pasamos el nuevo $tipo_val
+            $stmt->bind_param("ssssss", $terminoDESCRIPCION, $terminoCDMESS, $terminoMARCA, $terminoMODELO, $terminoSERIE, $tipo_val);
+            $stmt->execute();
+            
+            // Sobreescribimos $res con los nuevos datos encontrados de la segunda opción
+            $res = $stmt->get_result(); 
+        }
     
     $resultados = [];
     $alternativas = [];
