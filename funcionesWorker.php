@@ -521,6 +521,8 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $conn) {
                 ORDER BY COUNT(*) DESC 
                 LIMIT 5";
 
+                //echo "Consulta SQL para CDMESS: $sql con termino '$termino' y tipo '$tipo_val'";
+    
                 $stmt = $conn->prepare($sql);
                 $stmt->bind_param("ss", $termino, $termino);
                 $stmt->execute();
@@ -534,22 +536,24 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $conn) {
                 ROUND(AVG(ci.PRECIO_VENTA/ci.CANT), 2) as precio_promedio,
                 t.STATUS
             FROM cotizaciones_items ci
-            LEFT JOIN tarifario t ON ci.CDMESS COLLATE utf8mb4_unicode_ci = t.CDMESS COLLATE utf8mb4_unicode_ci
-            WHERE (MATCH(ci.DESCRIPCION) AGAINST(? IN BOOLEAN MODE) OR ci.CDMESS LIKE ?)
+            LEFT JOIN tarifario t ON ci.CDMESS = t.CDMESS 
+            WHERE (MATCH(ci.DESCRIPCION) AGAINST(? IN BOOLEAN MODE) OR ci.CDMESS LIKE ? OR ci.MARCA LIKE ? OR ci.MODELO LIKE ? OR ci.SERIE LIKE ?)
                 AND ci.PRECIO_VENTA > 0 AND ci.CANT > 0
                 AND ci.CDMESS IS NOT NULL AND ci.CDMESS != ''
-                AND ci.TIPO = ?
+                AND ci.TIPO != ?
                 AND t.STATUS = 'ACTIVE'
             GROUP BY TRIM(ci.CDMESS)
             ORDER BY COUNT(*) DESC 
-            LIMIT 5";
-
-            $stmt = $conn->prepare($sql);
-    $stmt->bind_param("sss", $termino, $termino, $tipo_val);
-    $stmt->execute();
-    return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            LIMIT 5";    
+    //echo "Consulta SQL para CDMESS: $sql con termino '$termino' y tipo '$tipo_val'";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("ssssss", $termino, $termino, $termino, $termino, $termino, $tipo_val);
+        $stmt->execute();
+        return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
     }
+
+
             
 }
 

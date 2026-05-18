@@ -9,6 +9,21 @@ include 'funcionesWorker.php';
 
 $mensaje = "";
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
+
+    //Alerta donde se indica que se esta procesando la información y que espere unos segundos
+    echo '<script src="js/sweetalert2.all.min.js"></script>';
+    echo '<script>
+        Swal.fire({
+            title: "Procesando información",
+            text: "MessIAs está analizando los datos. Esto puede tardar unos segundos...",
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+    </script>';
+    flush(); // Asegura que el mensaje se envíe al navegador antes de continuar
+
     $id_proyecto = "PROY-" . date("Ymd") . "-" . rand(100, 999);
     $lineas = explode("\n", $_POST['lista_excel']);
     $insertados = 0;
