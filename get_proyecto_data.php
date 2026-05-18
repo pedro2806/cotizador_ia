@@ -23,7 +23,7 @@ $id_proyecto_safe = $conn->real_escape_string($id_proyecto);
 // 2. Ejecutamos la consulta para traer los ítems de ese proyecto
 // Traemos la entrada original, el estatus y el JSON de la propuesta
 // Incluimos precio_usuario y respuesta para que el monitor muestre valores ya validados tras un refresco
-$sql = "SELECT id, entrada_usuario, estatus, propuesta_ia, es_sugerencia, precio_usuario, respuesta, categoria_rechazo
+$sql = "SELECT id, entrada_usuario, estatus, propuesta_ia, es_sugerencia, precio_usuario, respuesta, categoria_rechazo, fecha_registro, id_us_registro
         FROM cola_procesamiento
         WHERE id_proyecto = '$id_proyecto_safe'
         ORDER BY es_sugerencia ASC, id ASC";
@@ -38,13 +38,15 @@ if ($res) {
         $propuesta = json_decode($row['propuesta_ia'], true);
         
         $resultado[] = [
-            "id"             => $row['id'],
-            "entrada_usuario"=> $row['entrada_usuario'],
-            "estatus"        => $row['estatus'],
+            "id"                => $row['id'],
+            "entrada_usuario"   => $row['entrada_usuario'],
+            "estatus"           => $row['estatus'],
             "es_sugerencia"     => (int)$row['es_sugerencia'],
             "precio_usuario"    => $row['precio_usuario'],
             "respuesta"         => $row['respuesta'],
             "categoria_rechazo" => $row['categoria_rechazo'],
+            "fecha_registro"    => $row['fecha_registro'],
+            "id_us_registro"    => $row['id_us_registro'],
             "propuesta_ia"      => $propuesta
         ];
     }

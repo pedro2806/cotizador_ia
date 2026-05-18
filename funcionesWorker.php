@@ -542,7 +542,7 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $conn) {
                 AND ci.CDMESS IS NOT NULL AND ci.CDMESS != ''
                 AND ci.TIPO != ?
                 AND t.STATUS = 'ACTIVE'
-            GROUP BY TRIM(ci.CDMESS) 
+            GROUP BY TRIM(ci.CDMESS)
             ORDER BY COUNT(*) DESC 
             LIMIT 5";    
     //echo "Consulta SQL para CDMESS: $sql con termino '$termino' y tipo '$tipo_val'";
