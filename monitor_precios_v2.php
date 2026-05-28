@@ -221,7 +221,7 @@ async function cargarDatos() {
             return `
                 <tr class="${rowClass}">
                     <td class="text-center align-middle"><input type="checkbox" class="form-check-input item-check" value="${idReg}"></td>
-                    <td class="fw-bold text-primary"><i class="bi bi-hash"></i> ${ia.cdmess || 'S/C'}</td>
+                    <td class="fw-bold text-primary"><p style="font-size: x-small; color: #000;">Sugerencia para:<br>${item.entrada_usuario}</p><i class="bi bi-hash"></i> ${ia.cdmess || 'S/C'}</td>
                     <td>
                         <div class="fw-bold text-dark">${ia.desc || ''}</div>
                         ${detalleCalculo}
