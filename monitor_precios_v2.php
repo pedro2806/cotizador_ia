@@ -139,7 +139,7 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
                                 <th style="width: 3%;" class="text-center"><input type="checkbox" id="sel-all" class="form-check-input" onclick="toggleTodos(this)" title="Seleccionar todos"></th>
                                 <th style="width: 10%;">CDMESS</th>
                                 <th style="width: 18%;">Descripción</th>
-                                <th style="width: 8%;">Folio</th>
+                                <th style="width: 8%;">Ultima Cot.</th>
                                 <th style="width: 13%;" class="text-center">Rango (Min - Max)</th>
                                 <th style="width: 10%;" class="text-center">Hist. Promedio</th>
                                 <th style="width: 12%;" class="text-center bg-primary text-white">Sugerido por MessIAs</th>
