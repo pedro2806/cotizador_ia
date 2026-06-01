@@ -138,7 +138,8 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
                             <tr class="x-small text-uppercase">
                                 <th style="width: 3%;" class="text-center"><input type="checkbox" id="sel-all" class="form-check-input" onclick="toggleTodos(this)" title="Seleccionar todos"></th>
                                 <th style="width: 10%;">CDMESS</th>
-                                <th style="width: 26%;">Descripción</th>
+                                <th style="width: 18%;">Descripción</th>
+                                <th style="width: 8%;">Ultima Cot.</th>
                                 <th style="width: 13%;" class="text-center">Rango (Min - Max)</th>
                                 <th style="width: 10%;" class="text-center">Hist. Promedio</th>
                                 <th style="width: 12%;" class="text-center bg-primary text-white">Sugerido por MessIAs</th>
@@ -201,7 +202,7 @@ async function cargarDatos() {
         // Función reutilizada para renderizar una fila (originales y sugerencias usan la misma estructura)
         const renderFila = (item, esSugerencia = false) => {
             if (item.estatus !== 'completado') {
-                return `<tr><td colspan="8" class="text-center py-4 bg-light border-0">
+                return `<tr><td colspan="9" class="text-center py-4 bg-light border-0">
                     <div class="spinner-grow spinner-grow-sm text-primary me-2"></div>
                     <span class="text-muted font-small fw-bold italic">Analizando historial para: "${item.entrada_usuario}"</span>
                 </td></tr>`;
@@ -225,7 +226,12 @@ async function cargarDatos() {
                     <td>
                         <div class="fw-bold text-dark">${ia.desc || ''}</div>
                         ${detalleCalculo}
-                        
+
+                    </td>
+                    <td class="align-middle x-small">
+                        ${ia.folio
+                            ? `<span class="fw-bold text-dark">${ia.folio}</span><br><span class="text-muted">${ia.fecha ? ia.fecha.substring(0, 10) : ''}</span>`
+                            : '<span class="text-muted">—</span>'}
                     </td>
                     <td class="text-center">
                         <span class="badge badge-range">$${fmt(ia.precio_min)} - $${fmt(ia.precio_max)}</span>
@@ -261,7 +267,7 @@ async function cargarDatos() {
         // Fila divisora que aparece solo si hay sugerencias de la IA
         const filaDivisora = sugerencias.length > 0 ? `
             <tr class="table-secondary">
-                <td colspan="8" class="text-center py-2 x-small fw-bold text-uppercase text-muted">
+                <td colspan="9" class="text-center py-2 x-small fw-bold text-uppercase text-muted">
                     <i class="bi bi-stars me-1"></i> Sugerencias de MessIAs
                 </td>
             </tr>
