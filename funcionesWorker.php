@@ -77,7 +77,7 @@ function obtenerHistorialMESS($busqueda) {
         ORDER BY TOTAL_VECES DESC, ci.CDMESS
         LIMIT 10";
 
-        //echo "Consulta SQL para historial: $sql con termino '$terminoDESCRIPCION', '$terminoCDMESS' y tipo '$tipo_val'<br>";        
+        echo "Consulta SQL para historial con termino '$terminoDESCRIPCION', '$terminoCDMESS' y tipo '$tipo_val'<br>";        
 
         // 3. Preparar la consulta en el servidor de Base de Datos (Se hace una sola vez)
         $stmt = $conn->prepare($sql);
@@ -92,7 +92,7 @@ function obtenerHistorialMESS($busqueda) {
             // Intercambiamos el valor de la variable de forma dinámica
             $tipo_val = ($tipo_val === 'SERVICIO') ? 'EQUIPO' : 'SERVICIO';
             
-            //echo "No se encontraron resultados con el tipo original. Reintentando búsqueda con tipo opuesto: '$tipo_val'<br>";
+            echo "No se encontraron resultados con el tipo original. Reintentando búsqueda con tipo opuesto: '$tipo_val'<br>";
             
             // SEGUNDO INTENTO: Reutilizamos el mismo $stmt pero pasamos el nuevo $tipo_val
             $stmt->bind_param("ssssss", $terminoDESCRIPCION, $terminoCDMESS, $terminoMARCA, $terminoMODELO, $terminoSERIE, $tipo_val);

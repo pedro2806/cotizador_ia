@@ -1,46 +1,17 @@
--- phpMyAdmin SQL Dump
--- version 5.2.2
--- https://www.phpmyadmin.net/
---
--- Servidor: 127.0.0.1:3306
--- Tiempo de generación: 06-05-2026 a las 18:50:46
--- Versión del servidor: 8.0.42
--- Versión de PHP: 8.2.26
-
-SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
-START TRANSACTION;
-SET time_zone = "+00:00";
-
-
-/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
-/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
-/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
-/*!40101 SET NAMES utf8mb4 */;
-
---
--- Base de datos: `cotizador_ia`
---
-
--- --------------------------------------------------------
-
---
--- Estructura de tabla para la tabla `tarifario`
---
-
 DROP TABLE IF EXISTS `tarifario`;
 CREATE TABLE IF NOT EXISTS `tarifario` (
-  `CDMESS` varchar(12) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `PS` varchar(3) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `SUBAREA` varchar(37) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `AREA` varchar(35) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `MARCA` varchar(21) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `PRECIO` varchar(8) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `DIVISA` varchar(6) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `STATUS` varchar(8) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `DESCRIPCION` varchar(1084) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `DETALLE` varchar(25) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `CDMESS` varchar(12) NOT NULL,
+  `PS` varchar(3) DEFAULT NULL,
+  `SUBAREA` varchar(37) DEFAULT NULL,
+  `AREA` varchar(35) DEFAULT NULL,
+  `MARCA` varchar(21) DEFAULT NULL,
+  `PRECIO` varchar(8) DEFAULT NULL,
+  `DIVISA` varchar(6) DEFAULT NULL,
+  `STATUS` varchar(8) DEFAULT NULL,
+  `DESCRIPCION` varchar(1084) DEFAULT NULL,
+  `DETALLE` varchar(25) DEFAULT NULL,
   PRIMARY KEY (`CDMESS`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB;
 
 --
 -- Volcado de datos para la tabla `tarifario`
@@ -25052,8 +25023,3 @@ INSERT INTO `tarifario` (`CDMESS`, `PS`, `SUBAREA`, `AREA`, `MARCA`, `PRECIO`, `
 ('P23-294', 'P', 'Accesorios', 'Ventas Nikon', 'Nikon', '966.88', 'USD', 'ACTIVE', 'P-RN2 SMZ1270/800N Manual Dual Objective Nosepiece', 'SMZ800N'),
 ('P23-295', 'P', 'Accesorios', 'Ventas Nikon', 'Nikon', '711.62', 'USD', 'ACTIVE', 'P-PS32 Plain Stand-NC- Larger Slim Design Base-180mm-32mm Dia Post', 'SMZ800N'),
 ('P23-296', 'P', 'Accesorios', 'Ventas Nikon', 'Nikon', '618.8', 'USD', 'ACTIVE', 'C-FMCN Focus Mount-NC with coaxial coarse & fine focusing knobs-for 32mm Column post', 'SMZ800N');
-COMMIT;
-
-/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
-/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
-/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
