@@ -590,3 +590,28 @@ function validaCDMESS($cdmess, $conn) {
         }
         return false;
 }
+
+/**
+ * Obtiene el folio (IDCOTIZA) y la fecha de la cotización más reciente
+ * que se usó como base para un CDMESS dado. 
+*/
+function obtenerFolioBase($cdmess, $conn) {
+    if (empty($cdmess)) return ['folio' => '', 'fecha' => ''];
+
+    $sql = "SELECT ci.IDCOTIZA AS folio, c.FECHA AS fecha
+            FROM cotizaciones_items ci
+            LEFT JOIN cotizaciones c ON ci.IDCOTIZA = c.IDCOTIZA
+            WHERE ci.CDMESS = ? AND ci.PRECIO_VENTA > 0 AND ci.CANT > 0
+            ORDER BY ci.id_item DESC
+            LIMIT 1";
+
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("s", $cdmess);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+
+    return [
+        'folio' => $row['folio'] ?? '',
+        'fecha' => $row['fecha'] ?? ''
+    ];
+}

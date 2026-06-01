@@ -82,6 +82,10 @@ while (true) {
         ];
     }
 
+    // Folio y fecha de la cotización que se usó como base (la más reciente del CDMESS)
+    $cdmess_folio = !empty($cdmess_actual) ? $cdmess_actual : ($stats['cdmess'] ?? '');
+    $folio_base   = obtenerFolioBase($cdmess_folio, $conn);
+
     $aprendizaje = obtenerAprendizajeHumano($cdmess_para_aprendizaje, $conn);
     $respuesta_ia = preguntarOllamaConPrecios($stats, $entrada, $aprendizaje);
     //error_log("APRENDIZAJE PARA $cdmess_para_aprendizaje: ". json_encode($aprendizaje));
@@ -150,6 +154,8 @@ while (true) {
     $data = [
         "cdmess" => $item['cdmess_historico'],
         "desc" => $item['descripcion_historica']?? $entrada,
+        "folio" => $folio_base['folio'],
+        "fecha" => $folio_base['fecha'],
         "detalle_calculo" => $detalle_calculo,
         "precio_min" => round($stats_item['min']?? 0, 2),
         "precio_max" => round($stats_item['max']?? 0, 2),
