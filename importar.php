@@ -3,10 +3,12 @@
  * Importador optimizado para cotizador_ia
  * Mejora: Transacciones, Sentencias Preparadas y Monitor de Carga.
  */
+ini_set('memory_limit','512M');
+
 
 $host = "localhost";
-$user = "root";
-$pass = "";
+$user = "messias_admin";
+$pass = "Pipmytrade123";
 $db   = "cotizador_ia";
 
 // 1. Conexión optimizada
