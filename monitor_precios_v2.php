@@ -65,8 +65,8 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
 
 <nav class="navbar navbar-dark navbar-custom mb-4 shadow-sm">
     <div class="container-fluid px-4">
-        <a class="navbar-brand fw-bold d-flex align-items-center" href="index.php">
-            <img src="logo.png" alt="MESS" height="35" class="me-3">
+        <a class="navbar-brand d-flex align-items-center" href="#">
+            <img src="img/desarrollo-tecnologia.png" alt="Logo MESS" style="height: 55px; background: white; padding: 5px; border-radius: 8px;">
             <span class="border-start ps-3">Monitor de cotizaciones realizadas por el modelo MessIAs</span>
         </a>
         <div class="d-flex align-items-center gap-3">

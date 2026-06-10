@@ -122,9 +122,11 @@
 
 <nav class="navbar navbar-expand-lg navbar-dark shadow">
     <div class="container-fluid">
-        <a class="navbar-brand" href="#">
-            <img src="logo.png" alt="Grupo MESS Logo" height="45">
+        <!-- Logo de la empresa con fondo blanco -->
+        <a class="navbar-brand d-flex align-items-center" href="#">
+            <img src="img/desarrollo-tecnologia.png" alt="Logo MESS" style="height: 55px; background: white; padding: 5px; border-radius: 8px;">            
         </a>
+        
         <div class="d-flex text-white align-items-center">
             <?php if ($logueado): ?>
                 <div class="text-end me-3 d-none d-sm-block">
@@ -139,7 +141,7 @@
     </div>
 </nav>
 
-<div class="container mt-4">
+<div class="container mt-2">
     <div class="row g-4">
         
         <div class="col-lg-8">
@@ -255,8 +257,8 @@
     <div class="container">
         <hr class="opacity-10 mb-4">
         <p class="mb-1 fw-bold">Mess Servicios Metrológicos, S. de R.L. de C.V.</p>
-        <p class="small mb-0">Desarrollo y Sistematización | MessIAs&copy;</p>
-        <small class="opacity-50">Versión 2.1 - <?php echo date('Y'); ?></small>
+        <p class="small mb-0">Business intelligence | MessIAs&copy;</p>
+        <small class="opacity-50"><?php echo date('Y'); ?></small>
     </div>
 </footer>
 <script src="js/sweetalert2.all.min.js"></script>

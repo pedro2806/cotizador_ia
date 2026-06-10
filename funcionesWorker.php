@@ -150,68 +150,6 @@ function obtenerHistorialMESS($busqueda) {
     ];
 }
 
-
-
-
-
-
-
-
-
-//Nueva funcion obtenerhistorialmess optimizada.
-/*
-function obtenerHistorialMESS($busqueda) {
-    global $conn;
-    
-    $busca_servicio = (stripos($busqueda, 'servicio') !== false || 
-                       stripos($busqueda, 'calibracion') !== false ||
-                       stripos($busqueda, 'mantenimiento') !== false ||
-                       preg_match('/^S\d+/i', $busqueda));
-    
-    $tipo_val = $busca_servicio ? 'SERVICIO' : 'EQUIPO';
-    
-    $termino = iconv('UTF-8', 'ASCII//TRANSLIT', $busqueda);
-    $termino = preg_replace('/[^a-zA-Z0-9\s]/', '', $termino);
-    $termino = trim($termino) . '*';
-    
-    // Subquery para traer solo el id_item más reciente por cada CDmess + DESCRIPCION
-    $stmt = $conn->prepare("
-        SELECT 
-            ci.CDmess, 
-            ci.DESCRIPCION, 
-            ROUND(AVG(ci.PRECIO_VENTA/ci.CANT), 2) AS PRECIO_VENTA
-        FROM cotizaciones_items ci
-        INNER JOIN (
-            SELECT CDmess, DESCRIPCION, MAX(id_item) as max_id
-            FROM cotizaciones_items
-            WHERE MATCH(DESCRIPCION) AGAINST(? IN BOOLEAN MODE)
-              AND TIPO = ?
-              AND PRECIO_VENTA > 0 
-              AND CANT > 0
-            GROUP BY CDmess, DESCRIPCION
-        ) ultimos ON ci.id_item = ultimos.max_id
-        GROUP BY ci.CDmess, ci.DESCRIPCION
-        LIMIT 10
-    ");
-    $stmt->bind_param("ss", $termino, $tipo_val);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $rows = $result->fetch_all(MYSQLI_ASSOC);
-    
-    if (empty($rows)) {
-        return ['min' => 0, 'max' => 0, 'avg' => 0, 'cdmess' => 'N/A', 'alternativas' => []];
-    }
-    
-    $precios = array_column($rows, 'PRECIO_VENTA');
-    return [
-        'min' => round(min($precios), 2),
-        'max' => round(max($precios), 2),
-        'avg' => round(array_sum($precios) / count($precios), 2),
-        'cdmess' => $rows[0]['CDmess'],
-        'alternativas' => array_slice(array_column($rows, 'DESCRIPCION'), 0, 3)
-    ];
-}
-*/
 /**
  * Función para hablar con la IA
  */

@@ -10,7 +10,12 @@ include 'funcionesWorker.php';
 $mensaje = "";
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
 
-    $id_proyecto = "PROY-" . date("Ymd") . "-" . rand(100, 999);
+    //se crea id de proyecto en base al ultimo id autoincremental registrado en la tabla de proyectos y se suuma 1 para el nuevo proyecto
+    $res = $conn->query("SELECT MAX(id) as max_id FROM cola_procesamiento");
+    $row = $res->fetch_assoc(); 
+    $ultimoP = $row['max_id'] + 1;
+
+    $id_proyecto = "PROY-" . date("Ymd") . "-" . str_pad($ultimoP, 4, "0", STR_PAD_LEFT);
     $lineas = explode("\n", $_POST['lista_excel']);
     $insertados = 0;
     $reporte_errores = [];
@@ -154,16 +159,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
         }
 
         .step-badge {
-            width: 30px;
-            height: 30px;
+            width: 35px;
+            height: 35px;
             background: var(--mess-blue);
             color: white;
-            border-radius: 50%;
+            border-radius: 50%;                         
+            flex-shrink: 0;             
+            box-sizing: border-box;             
             display: inline-flex;
             align-items: center;
             justify-content: center;
             font-weight: bold;
-            margin-right: 10px;
+            margin-right: 5px;
+            font-size: 14px; 
+            line-height: 1;
         }
 
         .btn-upload {
@@ -188,9 +197,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
 
 <nav class="navbar navbar-dark navbar-custom mb-5 shadow">
     <div class="container">
-        <a class="navbar-brand d-flex align-items-center" href="index.php">
-            <img src="logo.png" alt="MESS" height="40" class="me-3">
-            <span class="fw-bold border-start ps-3">MessIAs | Smart Pricing</span>
+        <a class="navbar-brand d-flex align-items-center" href="#">
+            <img src="img/desarrollo-tecnologia.png" alt="Logo MESS" style="height: 55px; background: white; padding: 5px; border-radius: 8px;">            
         </a>
         <a href="index.php" class="btn btn-outline-light btn-sm rounded-pill">
             <i class="bi bi-arrow-left"></i> Volver a Inicio
@@ -198,18 +206,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
     </div>
 </nav>
 
-<div class="container mb-5">
+<div class="container mb-2">
     <div class="row justify-content-center">
-        <div class="col-lg-10">
+        <div class="col-lg-12">
             
             <div class="card card-upload">
                 <div class="card-header-mess">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h4 class="fw-bold mb-1 text-dark">Nueva Carga de Proyecto</h4>
+                            <h5 class="fw-bold mb-1 text-dark">Nueva Carga de Proyecto</h5>
                             <p class="text-muted mb-0 small">Carga descripciones o códigos CDMESS para análisis con referencias en el histórico de cotizaciones y sugerencias de MessIAs.</p>
                         </div>
-                        <i class="bi bi-cloud-arrow-up text-primary fs-1 opacity-25"></i>
+                        <a href="monitor_precios_v2.php" class="text-decoration-none text-secondary small fw-bold">
+                            <i class="bi bi-view-list me-1"></i> Ir al monitor de proyectos activos
+                        </a>                        
                     </div>
                 </div>
                 
@@ -258,26 +268,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <div class="row mt-5 text-center">
-                <div class="col-md-6 mx-auto">
-                    <a href="monitor_precios_v2.php" class="text-decoration-none text-secondary small fw-bold">
-                        <i class="bi bi-view-list me-1"></i> Ir al monitor de proyectos activos
-                    </a>
-                </div>
-            </div>
-
+            </div>            
         </div>
     </div>
 </div>
 
-<footer class="py-4 text-center text-muted border-top bg-white mt-auto">
-      <div class="container">
-       <hr class="opacity-10 mb-4">
+<footer class="py-2 text-center text-muted border-top bg-white mt-auto">
+      <div class="container">       
         <p class="mb-1 fw-bold">Mess Servicios Metrológicos, S. de R.L. de C.V.</p>
-        <p class="small mb-0">Desarrollo y Sistematización | MessIAs&copy;</p>
-        <small class="opacity-50">Versión 2.1 - 2026</small>
+        <p class="small mb-0">Business intelligence | MessIAs&copy;</p>
+        <small class="opacity-50">2026</small>
     </div>
 </footer>
 
