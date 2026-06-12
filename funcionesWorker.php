@@ -467,7 +467,7 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $tipoBusqueda, $conn) {
 
     $stmt = null; // Inicializamos la variable $stmt para evitar errores de alcance
     if($es_cdmess){
-        if(!$esvalido){
+        if(!$esvalido && ($tipoBusqueda != 'noSerie' && $tipoBusqueda != 'modelo')){ // Si es CDMESS pero no es válido, y no estamos buscando por serie o modelo, entonces no hacemos la consulta
             error_log("CDMESS '$busqueda' no es válido según tarifario activo.");
             return $stmt ='noValido';
         }
@@ -505,10 +505,9 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $tipoBusqueda, $conn) {
             WHERE (MATCH(ci.DESCRIPCION) AGAINST(? IN BOOLEAN MODE) OR ci.CDMESS LIKE ? OR ci.MARCA LIKE ? OR ci.MODELO LIKE ? OR ci.SERIE LIKE ?)
                 AND ci.PRECIO_VENTA > 0 AND ci.CANT > 0
                 AND ci.CDMESS IS NOT NULL AND ci.CDMESS != ''
-                AND ci.TIPO != ?
+                AND ci.TIPO = ?
                 AND t.STATUS = 'ACTIVE'
-            GROUP BY TRIM(ci.CDMESS) 
-            ORDER BY ci.DESCRIPCION ASC 
+            GROUP BY TRIM(ci.CDMESS), t.STATUS   ORDER BY descripcion ASC
             LIMIT 5";
 
             $stmt = $conn->prepare($sql);
@@ -527,9 +526,8 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $tipoBusqueda, $conn) {
             WHERE ci.DESCRIPCION LIKE ?
                 AND ci.PRECIO_VENTA > 0 AND ci.CANT > 0
                 AND ci.CDMESS IS NOT NULL AND ci.CDMESS != ''
-            AND ci.TIPO != ?
-            GROUP BY TRIM(ci.CDMESS) 
-            ORDER BY ci.DESCRIPCION ASC 
+            AND ci.TIPO = ?
+            GROUP BY TRIM(ci.CDMESS), t.STATUS   ORDER BY descripcion ASC
             LIMIT 5";
             //ECHO $tipo_val;
             $stmt = $conn->prepare($sql);
@@ -547,14 +545,13 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $tipoBusqueda, $conn) {
             LEFT JOIN tarifario t ON ci.CDMESS = t.CDMESS 
             WHERE ci.MODELO LIKE ?
                 AND ci.PRECIO_VENTA > 0 AND ci.CANT > 0
-                AND ci.CDMESS IS NOT NULL AND ci.CDMESS != ''
-                AND ci.TIPO != ?
+                AND ci.CDMESS IS NOT NULL AND ci.CDMESS != ''                
                 AND t.STATUS = 'ACTIVE'
             GROUP BY TRIM(ci.CDMESS) 
             ORDER BY COUNT(*) DESC 
             LIMIT 5";
             $stmt = $conn->prepare($sql);
-            $stmt->bind_param("ss", $termino, $tipo_val);
+            $stmt->bind_param("s", $termino);
             $stmt->execute();
             return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         }
@@ -568,14 +565,13 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $tipoBusqueda, $conn) {
             LEFT JOIN tarifario t ON ci.CDMESS = t.CDMESS 
             WHERE ci.SERIE LIKE ?
                 AND ci.PRECIO_VENTA > 0 AND ci.CANT > 0
-                AND ci.CDMESS IS NOT NULL AND ci.CDMESS != ''
-                AND ci.TIPO != ?
+                AND ci.CDMESS IS NOT NULL AND ci.CDMESS != ''                
                 AND t.STATUS = 'ACTIVE'
             GROUP BY TRIM(ci.CDMESS) 
             ORDER BY COUNT(*) DESC 
             LIMIT 5";
             $stmt = $conn->prepare($sql);
-            $stmt->bind_param("ss", $termino, $tipo_val);
+            $stmt->bind_param("s", $termino);
             $stmt->execute();
             return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         }             
