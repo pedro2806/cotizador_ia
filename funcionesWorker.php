@@ -419,7 +419,7 @@ function obtenerAprendizajeHumano($entrada, $conn) {
 /**
  * Busca opciones únicas basadas en CDMESS para evitar duplicados en la cola
  */
-function obtenerOpcionesUnicasHistoricas($busqueda, $conn) {
+function obtenerOpcionesUnicasHistoricas($busqueda, $tipoBusqueda, $conn) {
 
 
 
@@ -464,6 +464,8 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $conn) {
    
     $esvalido = validaCDMESS($busqueda, $conn); // Valida si el CDMESS existe y es válido antes de hacer la consulta principal
     //echo "¿Es CDMESS? " . ($es_cdmess ? "Sí" : "No") . " | ¿Es válido? " . ($esvalido ? "Sí" : "No") . "<br>";
+
+    $stmt = null; // Inicializamos la variable $stmt para evitar errores de alcance
     if($es_cdmess){
         if(!$esvalido){
             error_log("CDMESS '$busqueda' no es válido según tarifario activo.");
@@ -491,7 +493,9 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $conn) {
         }
     }
     else{
-        $sql = "SELECT 
+
+        if($tipoBusqueda == 'todas'){
+            $sql = "SELECT 
                 TRIM(ci.CDMESS) as CDMESS, 
                 MAX(ci.DESCRIPCION) as descripcion, 
                 ROUND(AVG(ci.PRECIO_VENTA/ci.CANT), 2) as precio_promedio,
@@ -504,13 +508,78 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $conn) {
                 AND ci.TIPO != ?
                 AND t.STATUS = 'ACTIVE'
             GROUP BY TRIM(ci.CDMESS) 
+            ORDER BY ci.DESCRIPCION ASC 
+            LIMIT 5";
+
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param("ssssss", $busqueda, $termino, $termino, $termino, $termino, $tipo_val);
+            $stmt->execute();
+            return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        }
+        else if($tipoBusqueda == 'descripciones'){
+            $sql = "SELECT 
+                TRIM(ci.CDMESS) as CDMESS, 
+                MAX(ci.DESCRIPCION) as descripcion, 
+                ROUND(AVG(ci.PRECIO_VENTA/ci.CANT), 2) as precio_promedio,
+                t.STATUS
+            FROM cotizaciones_items ci
+            LEFT JOIN tarifario t ON ci.CDMESS = t.CDMESS 
+            WHERE ci.DESCRIPCION LIKE ?
+                AND ci.PRECIO_VENTA > 0 AND ci.CANT > 0
+                AND ci.CDMESS IS NOT NULL AND ci.CDMESS != ''
+            AND ci.TIPO != ?
+            GROUP BY TRIM(ci.CDMESS) 
+            ORDER BY ci.DESCRIPCION ASC 
+            LIMIT 5";
+            //ECHO $tipo_val;
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param("ss", $termino, $tipo_val);
+            $stmt->execute();
+            return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        }
+        else if($tipoBusqueda == 'modelo'){
+            $sql = "SELECT 
+                TRIM(ci.CDMESS) as CDMESS, 
+                MAX(ci.DESCRIPCION) as descripcion, 
+                ROUND(AVG(ci.PRECIO_VENTA/ci.CANT), 2) as precio_promedio,
+                t.STATUS
+            FROM cotizaciones_items ci
+            LEFT JOIN tarifario t ON ci.CDMESS = t.CDMESS 
+            WHERE ci.MODELO LIKE ?
+                AND ci.PRECIO_VENTA > 0 AND ci.CANT > 0
+                AND ci.CDMESS IS NOT NULL AND ci.CDMESS != ''
+                AND ci.TIPO != ?
+                AND t.STATUS = 'ACTIVE'
+            GROUP BY TRIM(ci.CDMESS) 
             ORDER BY COUNT(*) DESC 
-            LIMIT 5";    
-    //echo "Consulta SQL para CDMESS: $sql con termino '$termino' y tipo '$tipo_val'";
-        $stmt = $conn->prepare($sql);
-        $stmt->bind_param("ssssss", $termino, $termino, $termino, $termino, $termino, $tipo_val);
-        $stmt->execute();
-        return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            LIMIT 5";
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param("ss", $termino, $tipo_val);
+            $stmt->execute();
+            return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        }
+        else if($tipoBusqueda == 'noSerie'){
+            $sql = "SELECT 
+                TRIM(ci.CDMESS) as CDMESS, 
+                MAX(ci.DESCRIPCION) as descripcion, 
+                ROUND(AVG(ci.PRECIO_VENTA/ci.CANT), 2) as precio_promedio,
+                t.STATUS
+            FROM cotizaciones_items ci
+            LEFT JOIN tarifario t ON ci.CDMESS = t.CDMESS 
+            WHERE ci.SERIE LIKE ?
+                AND ci.PRECIO_VENTA > 0 AND ci.CANT > 0
+                AND ci.CDMESS IS NOT NULL AND ci.CDMESS != ''
+                AND ci.TIPO != ?
+                AND t.STATUS = 'ACTIVE'
+            GROUP BY TRIM(ci.CDMESS) 
+            ORDER BY COUNT(*) DESC 
+            LIMIT 5";
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param("ss", $termino, $tipo_val);
+            $stmt->execute();
+            return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        }             
+        
 
     }
 

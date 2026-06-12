@@ -123,7 +123,7 @@
 <nav class="navbar navbar-expand-lg navbar-dark shadow">
     <div class="container-fluid">
         <!-- Logo de la empresa con fondo blanco -->
-        <a class="navbar-brand d-flex align-items-center" href="#">
+        <a class="navbar-brand d-flex align-items-center" href="index.php">
             <img src="img/desarrollo-tecnologia.png" alt="Logo MESS" style="height: 55px; background: white; padding: 5px; border-radius: 8px;">            
         </a>
         
@@ -142,26 +142,26 @@
 </nav>
 
 <div class="container mt-2">
-    <div class="row g-4">
+    <div class="row g-0">
         
         <div class="col-lg-8">
             <div class="hero-welcome">
-                <h1 class="display-6 fw-bold">MessIAs <span class="fw-light">| Smart Pricing</span></h1>
+                <h2 class="display-6 fw-bold">MessIAs <span class="fw-light">| Smart Pricing</span></h2>    
                 <p class="opacity-75">Optimización de cotizaciones basada en inteligencia analítica y registros históricos.</p>
-                <div class="d-flex gap-4 mt-4">
+                <div class="d-flex gap-4 mt-0">
                     <div>
                         <div class="text-uppercase small opacity-50">Proyectos</div>
-                        <div class="h3 mb-0"><?php echo $total_proyectos; ?></div>
+                        <div class="h4 mb-0"><?php echo $total_proyectos; ?></div>
                     </div>
                     <div style="width: 1px; background: rgba(255,255,255,0.2);"></div>
                     <div>
                         <div class="text-uppercase small opacity-50">Items Procesados</div>
-                        <div class="h3 mb-0"><?php echo $total_items; ?></div>
+                        <div class="h4 mb-0"><?php echo $total_items; ?></div>
                     </div>
                 </div>
             </div>
             
-            <div class="row g-4">
+            <div class="row g-0">
                 <div class="col-md-6">
                     <div class="card card-menu h-100 p-4<?php echo $logueado ? '' : ' opacity-50 pe-none'; ?>"
                          <?php if ($logueado): ?>onclick="location.href='cargador_masivo.php'"<?php endif; ?>>
@@ -191,8 +191,8 @@
         </div>
 
         <div class="col-lg-4">
-            <div class="login-card mb-4">
-                <h5 class="fw-bold mb-4 text-dark border-bottom pb-2">Sistema de Control</h5>
+            <div class="login-card mb-1">
+                <h5 class="fw-bold mb-1 text-dark border-bottom pb-2">Sistema de Control</h5>
                 
                 <div class="mb-4">
                     <label class="small text-muted d-block mb-2">Estatus del Motor</label>
@@ -210,7 +210,7 @@
                 </div>
 
                 <?php if (!$logueado): ?>
-                <div class="auth-section mt-4 bg-light p-3 rounded-4">
+                <div class="auth-section mt-1 bg-light p-3 rounded-4">
                     <h6 class="small fw-bold text-uppercase text-muted mb-3">Autenticación</h6>
 
                     <?php if ($login_error): ?>

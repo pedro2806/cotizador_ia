@@ -19,12 +19,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
     $lineas = explode("\n", $_POST['lista_excel']);
     $insertados = 0;
     $reporte_errores = [];
-
+    $tipoBusqueda = $_POST['tipoBusqueda'];
     foreach ($lineas as $linea) {
         $linea = trim($linea);
         if (empty($linea)) continue;
 
-        $opciones = obtenerOpcionesUnicasHistoricas($linea, $conn);
+        $opciones = obtenerOpcionesUnicasHistoricas($linea, $tipoBusqueda, $conn);
         
         if ($opciones === 'noValido') {
             $reporte_errores[] = "❌ Clave no activa: <b>$linea</b>";
@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
     // --- SALIDA FINAL ---
     // Si no hay errores y hubo inserciones, redirigimos directo (Limpio)
     if ($insertados > 0 && empty($reporte_errores)) {
-        header("Location: monitor_precios_v2.php?proyecto=" . urlencode($id_proyecto));
+        header("Location: monitor_precios_v2.php?proyecto=" . urlencode($id_proyecto). "&tipoBusqueda=" . urlencode($tipoBusqueda));
         exit;
     }
 
@@ -86,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
                     html: 'Se insertaron <?php echo $insertados; ?> registros.<br><br><div style="text-align:left; font-size:0.8em;"><?php echo implode("<br>", $reporte_errores); ?></div>',
                     confirmButtonText: 'Ver en Monitor'
                 }).then(() => { 
-                    window.location.href = 'monitor_precios_v2.php?proyecto=<?php echo urlencode($id_proyecto); ?>'; 
+                    window.location.href = 'monitor_precios_v2.php?proyecto=<?php echo urlencode($id_proyecto); ?>&tipoBusqueda=<?php echo urlencode($tipoBusqueda); ?>'; 
                 });
             <?php else: ?>
                 Swal.fire({
@@ -197,7 +197,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
 
 <nav class="navbar navbar-dark navbar-custom mb-5 shadow">
     <div class="container">
-        <a class="navbar-brand d-flex align-items-center" href="#">
+        <a class="navbar-brand d-flex align-items-center" href="index.php">
             <img src="img/desarrollo-tecnologia.png" alt="Logo MESS" style="height: 55px; background: white; padding: 5px; border-radius: 8px;">            
         </a>
         <a href="index.php" class="btn btn-outline-light btn-sm rounded-pill">
@@ -222,8 +222,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
                         </a>                        
                     </div>
                 </div>
-                
+<form method="POST">                
                 <div class="card-body p-4 p-md-5">
+                    <div class="row g-5">
+                        <div class="col-md-4 align-right">
+                            <label for="tipoBusqueda" class="form-label">Tipo de búsqueda</label>
+                        </div>                        
+                        <div class="col-md-8">
+                            <select name="tipoBusqueda" id="tipoBusqueda" class="form-select">
+                                <option value="todas" selected>Mixto(Todas las opciones)</option>
+                                <option value="descripciones">Descripciones</option>
+                                <option value="codigos">Clave MESS</option>
+                                <!--<option value="idcliente">ID Cliente</option>
+                                <option value="messtag">MESSTAG</option>-->
+                                <option value="modelo">Modelo</option>
+                                <option value="noSerie">Número de Serie</option>
+                            </select>
+                        </div>
+                    </div> 
                     <div class="row g-5">
                         <div class="col-md-4">
                             <h6 class="fw-bold text-uppercase small text-muted mb-4">Instrucciones</h6>
@@ -249,7 +265,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
                         </div>
 
                         <div class="col-md-8">
-                            <form method="POST">
+                            
                                 <div class="mb-4">
                                     <label class="form-label fw-bold small">Items de la cotización</label>
                                     <textarea name="lista_excel" class="form-control textarea-console" rows="12" 

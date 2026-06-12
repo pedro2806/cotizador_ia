@@ -8,6 +8,7 @@ include 'acciones_monitor_precios_v2.php';
 
 // Parámetros para el Sidebar (Carga inicial)
 $id_proyecto_activo = $_GET['proyecto'] ?? '';
+$tipoBusqueda = $_GET['tipoBusqueda'] ?? 'todo';
 $p_pag = isset($_GET['p_pag']) ? (int)$_GET['p_pag'] : 1;
 $por_pagina = 12;
 
@@ -250,8 +251,10 @@ async function cargarDatos() {
                                 `<option value="${op}" ${item.categoria_rechazo === op ? 'selected' : ''}>${op}</option>`
                             ).join('')}
                         </select>
-                        <textarea id="resp_u_${idReg}" class="form-control form-control-sm x-small" rows="2"
-                                placeholder="Notas adicionales...">${item.respuesta || ''}</textarea>
+                        <div style="display: none;">
+                            <textarea id="resp_u_${idReg}" class="form-control form-control-sm x-small" rows="2"
+                                    placeholder="Notas adicionales...">${item.respuesta || ''}</textarea>
+                        </div>
                     </td>
 
                     <td class="text-center align-middle">
