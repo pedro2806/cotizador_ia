@@ -223,14 +223,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['lista_excel'])) {
                     </div>
                 </div>
 <form method="POST">                
-                <div class="card-body p-4 p-md-5">
-                    <div class="row g-5">
+                <div class="card-body p-4 p-md-2">
+                    <div class="row">
                         <div class="col-md-4 align-right">
-                            <label for="tipoBusqueda" class="form-label">Tipo de búsqueda</label>
-                        </div>                        
+                        </div>
                         <div class="col-md-8">
+                            <label for="tipoBusqueda" class="form-label">Tipo de búsqueda</label>
                             <select name="tipoBusqueda" id="tipoBusqueda" class="form-select">
-                                <option value="todas" selected>Mixto(Todas las opciones)</option>
+                                <option value="todas" selected>Mixto (Todas las opciones)</option>
                                 <option value="descripciones">Descripciones</option>
                                 <option value="codigos">Clave MESS</option>
                                 <!--<option value="idcliente">ID Cliente</option>
