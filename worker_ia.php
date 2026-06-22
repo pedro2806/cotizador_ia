@@ -65,6 +65,10 @@ while (true) {
             'max' => $datos_item['max'],
             'avg' => $datos_item['avg'],
             'total' => $datos_item['total'],
+            'min_mxn' => $datos_item['min_mxn'],
+            'max_mxn' => $datos_item['max_mxn'],
+            'avg_mxn' => $datos_item['avg_mxn'],
+            'total_mxn' => $datos_item['total'], // Asumiendo que el conteo de veces es el mismo para ambos
             'fecha_min' => null,//$datos_item['fecha_min'],
             'fecha_max' => null //$datos_item['fecha_max']
         ];
@@ -77,6 +81,10 @@ while (true) {
             'max' => $stats['max']?? 0,
             'avg' => $stats['avg']?? 0,
             'total' => 0,
+            'min_mxn' => 0,
+            'max_mxn' => 0,
+            'avg_mxn' => 0,
+            'total_mxn' => 0,
             'fecha_min' => null,
             'fecha_max' => null
         ];
@@ -92,21 +100,26 @@ while (true) {
 
     $precio_base = round($stats_item['avg']?? 0, 2);
     $precio_final = $precio_base;
+    $precio_base_mxn = round($stats_item['avg_mxn']?? 0, 2);
+    $precio_final_mxn = $precio_base_mxn;
     $nota_final = "Basado en histórico de cotizaciones_items";
     
     // 3. APLICAR APRENDIZAJE SI EXISTE
     if (!empty($aprendizaje)) {
         if (!empty($aprendizaje['precio_sugerido'])) {
             $precio_final = $aprendizaje['precio_sugerido'];
+            $precio_final_mxn = round($aprendizaje['precio_sugerido_mxn']?? 0, 2);
             $nota_final = "Precio corregido por {$aprendizaje['total_correcciones']} revisiones humanas";
         } else {
             switch ($aprendizaje['categoria_principal']) {
                 case 'Precio muy alto':
                     $precio_final = round($precio_base * 0.85, 2);
+                    $precio_final_mxn = round($precio_base_mxn * 0.85, 2);
                     $nota_final = "Reducido 15% por reportes de 'precio muy alto'";
                     break;
                 case 'Precio muy bajo':
                     $precio_final = round($precio_base * 1.15, 2);
+                    $precio_final_mxn = round($precio_base_mxn * 1.15, 2);
                     $nota_final = "Aumentado 15% por reportes de 'precio muy bajo'";
                     break;
                 case 'Descripcion incorrecta':
@@ -123,6 +136,7 @@ while (true) {
         // Si no hay aprendizaje, pero la IA sugirió un precio diferente al promedio, lo anotamos también
         if (isset($respuesta_ia['precio_ia']) && $respuesta_ia['precio_ia']!= $precio_base) {
             $precio_final = $respuesta_ia['precio_ia'];
+            $precio_final_mxn = $respuesta_ia['precio_ia_mxn'];
             $nota_final = "Precio sugerido por IA basado en análisis de datos";
         }
     }
@@ -138,12 +152,15 @@ while (true) {
         }
         
         $detalle_calculo = sprintf(
-            "Calculado con %d cotizaciones%s | Min: $%.2f | Max: $%.2f | Promedio: $%.2f",
+            "Calculado con %d cotizaciones%s | Min: $%.2f usd| Max: $%.2f usd| Promedio: $%.2f usd | Min: $%.2f mxn| Max: $%.2f mxn| Promedio: $%.2f mxn",
             $stats_item['total'],
             $fecha_rango,
             $stats_item['min'],
             $stats_item['max'],
-            $stats_item['avg']
+            $stats_item['avg'],
+            $stats_item['min_mxn'],
+            $stats_item['max_mxn'],
+            $stats_item['avg_mxn']
         );
         
         if (!empty($aprendizaje) && $aprendizaje['total_correcciones'] > 0) {
@@ -161,6 +178,10 @@ while (true) {
         "precio_max" => round($stats_item['max']?? 0, 2),
         "precio_promedio" => $precio_base,
         "precio_ia" => $precio_final,
+        "precio_min_mxn" => round($stats_item['min_mxn']?? 0, 2),
+        "precio_max_mxn" => round($stats_item['max_mxn']?? 0, 2),
+        "precio_promedio_mxn" => $precio_base_mxn,
+        "precio_ia_mxn" => $precio_final_mxn,
         "notas" => $nota_final,
         "coincidencias" => $stats['alternativas']?? '',
         "aprendizaje_aplicado" =>!empty($aprendizaje),

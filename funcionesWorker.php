@@ -67,6 +67,9 @@ function obtenerHistorialMESS($busqueda) {
             ROUND(AVG(ci.PRECIO_VENTA/ci.CANT), 2) AS PRECIO_VENTA,
             ROUND(MIN(ci.PRECIO_VENTA/ci.CANT), 2) AS PRECIO_MIN,
             ROUND(MAX(ci.PRECIO_VENTA/ci.CANT), 2) AS PRECIO_MAX,
+            ROUND(AVG(ci.PRECIO_VENTA_MXN/ci.CANT), 2) AS PRECIO_VENTA_MXN,
+            ROUND(MIN(ci.PRECIO_VENTA_MXN/ci.CANT), 2) AS PRECIO_VENTA_MXN_MIN,
+            ROUND(MAX(ci.PRECIO_VENTA_MXN/ci.CANT), 2) AS PRECIO_VENTA_MXN_MAX,
             COUNT(*) as TOTAL_VECES
         FROM cotizaciones_items ci 
         WHERE (ci.DESCRIPCION LIKE ? OR ci.CDMESS LIKE ? OR ci.MARCA LIKE ? OR ci.MODELO LIKE ? OR ci.SERIE LIKE ?)
@@ -113,19 +116,25 @@ function obtenerHistorialMESS($busqueda) {
             'avg' => (float)$row['PRECIO_VENTA'],
             'min' => (float)$row['PRECIO_MIN'],
             'max' => (float)$row['PRECIO_MAX'],
+            'avg_mxn' => (float)$row['PRECIO_VENTA_MXN'],
+            'min_mxn' => (float)$row['PRECIO_VENTA_MXN_MIN'],
+            'max_mxn' => (float)$row['PRECIO_VENTA_MXN_MAX'],
             'total' => (int)$row['TOTAL_VECES']
         ];
 
         $item_str = "[". $row['CDMESS']. "] ". $row['DESCRIPCION'];
         $alternativas[] = $item_str;
-        $detalle_ia.= "- $item_str: $". $row['PRECIO_VENTA']. " (min: $". $row['PRECIO_MIN']. ", max: $". $row['PRECIO_MAX']. ", veces: ". $row['TOTAL_VECES']. ")\n";
+        $detalle_ia.= "- $item_str: USD$". $row['PRECIO_VENTA']. " (min: $". $row['PRECIO_MIN']. ", max: $". $row['PRECIO_MAX']. ", veces: ". $row['TOTAL_VECES']. ") - MXN$". $row['PRECIO_VENTA_MXN']. " (min: $". $row['PRECIO_VENTA_MXN_MIN']. ", max: $". $row['PRECIO_VENTA_MXN_MAX']. ")\n";
     }
 
     if (empty($resultados)) {
         return [
             'min'=>0, 
             'max'=>0, 
-            'avg'=>0, 
+            'avg'=>0,
+            'min_mxn'=>0,
+            'max_mxn'=>0,
+            'avg_mxn'=>0, 
             'cdmess'=>'S/C', 
             'detalle'=>'Sin historial', 
             'alternativas'=>'',
@@ -143,6 +152,9 @@ function obtenerHistorialMESS($busqueda) {
         'min' => $principal['min'],
         'max' => $principal['max'],
         'avg' => $principal['avg'],
+        'min_mxn' => $principal['min_mxn'],
+        'max_mxn' => $principal['max_mxn'],
+        'avg_mxn' => $principal['avg_mxn'],
         'cdmess' => $principal['cdmess'],
         'detalle' => $detalle_ia,
         'alternativas' => $coincidencias_str,
@@ -467,7 +479,7 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $tipoBusqueda, $conn) {
 
     $stmt = null; // Inicializamos la variable $stmt para evitar errores de alcance
     if($es_cdmess){
-        if(!$esvalido && ($tipoBusqueda != 'noSerie' && $tipoBusqueda != 'modelo')){ // Si es CDMESS pero no es válido, y no estamos buscando por serie o modelo, entonces no hacemos la consulta
+        if(!$esvalido && ($tipoBusqueda != 'noSerie' && $tipoBusqueda != 'modelo' && $tipoBusqueda != 'messTag')){ // Si es CDMESS pero no es válido, y no estamos buscando por serie o modelo, entonces no hacemos la consulta
             error_log("CDMESS '$busqueda' no es válido según tarifario activo.");
             return $stmt ='noValido';
         }
@@ -574,7 +586,48 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $tipoBusqueda, $conn) {
             $stmt->bind_param("s", $termino);
             $stmt->execute();
             return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-        }             
+        }
+        else if ($tipoBusqueda == 'messTag'){
+            $sql = "SELECT 
+                TRIM(ci.CDMESS) as CDMESS, 
+                MAX(ci.DESCRIPCION) as descripcion, 
+                ROUND(AVG(ci.PRECIO_VENTA/ci.CANT), 2) as precio_promedio,
+                t.STATUS
+            FROM cotizaciones_items ci
+            LEFT JOIN tarifario t ON ci.CDMESS = t.CDMESS 
+            WHERE ci.MESSTAG LIKE ?
+                AND ci.PRECIO_VENTA > 0 AND ci.CANT > 0
+                AND ci.CDMESS IS NOT NULL AND ci.CDMESS != ''                
+                AND t.STATUS = 'ACTIVE'
+            GROUP BY TRIM(ci.CDMESS) 
+            ORDER BY COUNT(*) DESC 
+            LIMIT 5";
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param("s", $termino);
+            $stmt->execute();
+            return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
+        }   
+        else if ($tipoBusqueda == 'IdEquipoCliente'){
+            $sql = "SELECT 
+                TRIM(ci.CDMESS) as CDMESS, 
+                MAX(ci.DESCRIPCION) as descripcion, 
+                ROUND(AVG(ci.PRECIO_VENTA/ci.CANT), 2) as precio_promedio,
+                t.STATUS
+            FROM cotizaciones_items ci
+            LEFT JOIN tarifario t ON ci.CDMESS = t.CDMESS 
+            WHERE ci.ID_EQ_CLIENTE LIKE ?
+                AND ci.PRECIO_VENTA > 0 AND ci.CANT > 0
+                AND ci.CDMESS IS NOT NULL AND ci.CDMESS != ''                
+                AND t.STATUS = 'ACTIVE'
+            GROUP BY TRIM(ci.CDMESS) 
+            ORDER BY COUNT(*) DESC 
+            LIMIT 5";
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param("s", $termino);
+            $stmt->execute();
+            return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        }        
         
 
     }

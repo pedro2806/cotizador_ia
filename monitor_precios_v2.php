@@ -235,9 +235,13 @@ async function cargarDatos() {
                             : '<span class="text-muted">—</span>'}
                     </td>
                     <td class="text-center">
-                        <span class="badge badge-range">$${fmt(ia.precio_min)} - $${fmt(ia.precio_max)}</span>
+                        <span class="badge badge-range">$${fmt(ia.precio_min)} - $${fmt(ia.precio_max)} USD</span>
+                        <span class="badge badge-range">$${fmt(ia.precio_min_mxn)} - $${fmt(ia.precio_max_mxn)} MXN</span>
                     </td>
-                    <td class="text-center text-secondary">$${fmt(ia.precio_promedio)}</td>
+                    <td class="text-center text-secondary">
+                        <span class="badge badge-range">$${fmt(ia.precio_promedio)} USD</span>
+                        <span class="badge badge-range">$${fmt(ia.precio_promedio_mxn)} MXN</span>                                                
+                    </td>
 
                     <td class="bg-sugerido border-start border-end" style="min-width: 120px;">
                         <div class="x-small text-muted mb-1">Sugerido IA: $${fmt(ia.precio_ia)}</div>

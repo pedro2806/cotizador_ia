@@ -1,0 +1,52 @@
+//Para reiniciar el worker
+sudo systemctl restart mess-worker.service
+
+use cotizador_ia;
+
+ALTER TABLE cotizaciones_items
+ADD COLUMN TIPO ENUM('EQUIPO','SERVICIO','REFACCION','OTRO') DEFAULT 'OTRO',
+ADD FULLTEXT INDEX ft_descripcion (DESCRIPCION);
+
+SET SQL_SAFE_UPDATES = 0;
+
+UPDATE cotizaciones_items SET TIPO = 'SERVICIO'
+WHERE DESCRIPCION LIKE '%calibraci_n%'
+OR DESCRIPCION LIKE '%servicio%'
+OR DESCRIPCION LIKE '%mantenimiento%'
+OR DESCRIPCION LIKE '%medici_n%'
+OR DESCRIPCION LIKE '%verificacion%'
+OR CDMESS LIKE 'S%'
+OR CDMESS LIKE 'L%';
+
+UPDATE cotizaciones_items SET TIPO = 'EQUIPO'
+WHERE TIPO = 'OTRO' AND CDMESS NOT LIKE '%S%' AND CDMESS NOT LIKE '%L%';
+
+ALTER TABLE cotizaciones_items ADD INDEX idx_cdmess (CDMESS);
+
+
+
+
+
+ALTER TABLE cola_procesamiento ADD COLUMN cdmess_historico VARCHAR(50), ADD COLUMN descripcion_historica TEXT, ADD COLUMN precio_historico DECIMAL(10,2);
+
+//Se agrego para marcar cada fila como ítem original del usuario (0) o sugerencia generada por MessIAs desde las coincidencias (1) (SGR)
+ALTER TABLE cola_procesamiento ADD COLUMN es_sugerencia TINYINT(1) NOT NULL DEFAULT 0;
+
+//SGR 30/04/2026
+ALTER TABLE `cola_procesamiento` ADD `id_us_registro` INT NOT NULL AFTER `categoria_rechazo`;
+
+
+SELECT ci.CDMESS, ci.DESCRIPCION, ROUND(AVG(ci.PRECIO_VENTA/ci.CANT), 2) AS PRECIO_VENTA FROM cotizaciones_items ci WHERE (ci.DESCRIPCION LIKE ? OR ci.CDMESS LIKE ?) AND ci.TIPO = ? AND ci.PRECIO_VENTA > 0 AND ci.CANT > 0 GROUP BY ci.CDMESS, ci.DESCRIPCION LIMIT 10 - [S8-5] Calibración de Máquina o Instrumento medidor de fuerza. Alcance de 10kN a 100kN. Un solo sentido (tracción o compresión).Servicio con Acreditación EMA.: $290.32 - [S8-57] Calibración de Máquina o Instrumento medidor de fuerza. Alcance de 1kN a 10kN. Un solo sentido (tracción o compresión).Servicio con Acreditación Perry Johnson.: $232.34
+
+//pmp 05-05-2026
+ALTER TABLE cotizaciones_items ADD FULLTEXT(DESCRIPCION);
+
+
+
+//alo 06/05/2026
+UPDATE tarifario SET DETALLE = REPLACE(DETALLE, 'Ã³', 'ó');
+UPDATE tarifario SET DETALLE = REPLACE(DETALLE, 'Ã¡', 'á');
+UPDATE tarifario SET DETALLE = REPLACE(DETALLE, 'Ã©', 'é');
+UPDATE tarifario SET DETALLE = REPLACE(DETALLE, 'Ã­', 'í');
+UPDATE tarifario SET DETALLE = REPLACE(DETALLE, 'Ãº', 'ú');
+UPDATE tarifario SET DETALLE = REPLACE(DETALLE, 'Ã±', 'ñ');
