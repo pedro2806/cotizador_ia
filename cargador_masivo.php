@@ -160,8 +160,7 @@ if (empty($_SESSION['usuario_id'])) {
                             <div class="col-md-8">
                                 <div class="mb-4">
                                     <label class="form-label fw-bold small">Items de la cotización</label>
-                                    <textarea name="lista_excel" id="lista_excel" class="form-control textarea-console" rows="12" required
-                                        placeholder="S8-5&#10;Calibración de CMM con acreditación EMA&#10;Durómetro Vickers HV5..."></textarea>
+                                    <textarea name="lista_excel" id="lista_excel" class="form-control textarea-console" rows="12" required placeholder="S8-5&#10;Calibración de CMM con acreditación EMA&#10;Durómetro Vickers HV5..."></textarea>
                                 </div>
                                 
                                 <div class="d-grid">

@@ -59,6 +59,8 @@ function obtenerHistorialMESS($busqueda) {
     $terminoMARCA = '%'. $busqueda. '%'; 
     $terminoMODELO = '%'. $busqueda. '%'; 
     $terminoSERIE = '%'. $busqueda. '%'; 
+    $terminoMESSTAG = '%'. $busqueda. '%'; 
+    $terminoIDCLIENTE = '%'. $busqueda. '%'; 
 
     // Traemos los últimos 10 para tener un buen rango y alternativas
     $sql = "SELECT
@@ -72,7 +74,7 @@ function obtenerHistorialMESS($busqueda) {
             ROUND(MAX(ci.PRECIO_VENTA_MXN/ci.CANT), 2) AS PRECIO_VENTA_MXN_MAX,
             COUNT(*) as TOTAL_VECES
         FROM cotizaciones_items ci 
-        WHERE (ci.DESCRIPCION LIKE ? OR ci.CDMESS LIKE ? OR ci.MARCA LIKE ? OR ci.MODELO LIKE ? OR ci.SERIE LIKE ?)
+        WHERE (ci.DESCRIPCION LIKE ? OR ci.CDMESS LIKE ? OR ci.MARCA LIKE ? OR ci.MODELO LIKE ? OR ci.SERIE LIKE ? OR ci.MESSTAG LIKE ? OR ci.ID_EQ_CLIENTE LIKE ?)
         AND ci.TIPO = ?
         AND ci.PRECIO_VENTA > 0
         AND ci.CANT > 0 
@@ -86,7 +88,7 @@ function obtenerHistorialMESS($busqueda) {
         $stmt = $conn->prepare($sql);
 
         // 4. PRIMER INTENTO: Asignar parámetros y ejecutar con el tipo inicial
-        $stmt->bind_param("ssssss", $terminoDESCRIPCION, $terminoCDMESS, $terminoMARCA, $terminoMODELO, $terminoSERIE, $tipo_val);
+        $stmt->bind_param("ssssssss", $terminoDESCRIPCION, $terminoCDMESS, $terminoMARCA, $terminoMODELO, $terminoSERIE,  $terminoMESSTAG, $terminoIDCLIENTE, $tipo_val);
         $stmt->execute();
         $res = $stmt->get_result();
 
