@@ -54,7 +54,8 @@ function obtenerHistorialMESS($busqueda) {
         if (empty($busqueda)) $busqueda = $busqueda_original;
     }
     
-    $terminoCDMESS = "%". str_replace(' ', '%', trim($busqueda)). "%";
+    //$terminoCDMESS = "%". str_replace(' ', '%', trim($busqueda)). "%";
+    $terminoCDMESS = '%'. $busqueda. '%';
     $terminoDESCRIPCION = '%'. $busqueda. '%'; 
     $terminoMARCA = '%'. $busqueda. '%'; 
     $terminoMODELO = '%'. $busqueda. '%'; 
@@ -100,7 +101,7 @@ function obtenerHistorialMESS($busqueda) {
             echo "No se encontraron resultados con el tipo original. Reintentando búsqueda con tipo opuesto: '$tipo_val'<br>";
             
             // SEGUNDO INTENTO: Reutilizamos el mismo $stmt pero pasamos el nuevo $tipo_val
-            $stmt->bind_param("ssssss", $terminoDESCRIPCION, $terminoCDMESS, $terminoMARCA, $terminoMODELO, $terminoSERIE, $tipo_val);
+            $stmt->bind_param("ssssssss", $terminoDESCRIPCION, $terminoCDMESS, $terminoMARCA, $terminoMODELO, $terminoSERIE,  $terminoMESSTAG, $terminoIDCLIENTE, $tipo_val);
             $stmt->execute();
             
             // Sobreescribimos $res con los nuevos datos encontrados de la segunda opción
