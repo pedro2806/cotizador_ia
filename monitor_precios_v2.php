@@ -60,6 +60,53 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
             resize: none;
         }
         .text-muted { color: #6c757d !important; }
+
+        /* Mejora general de la tabla */
+        .table-container {
+            background: white; 
+            border-radius: 15px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
+            padding: 20px;
+        }
+
+        #tabla-precios {
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        /* Encabezados con mejor contraste y espaciado */
+        #tabla-precios thead th {
+            background-color: var(--mess-blue) !important;
+            color: white;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            padding: 12px 10px;
+            border-top: none;
+        }
+
+        /* Filas con efecto de tarjeta limpia */
+        .font-small { font-size: 0.85rem; }
+        .table-hover tbody tr:hover { background-color: #f8fbff; }
+
+        /* Inputs y Selects integrados (sin bordes pesados) */
+        .form-control-sm, .form-select-sm {
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        .form-control-sm:focus { border-color: var(--mess-blue); box-shadow: none; }
+
+        /* Etiquetas de rango más sutiles */
+        .badge-range {
+            background: #f1f3f5;
+            color: #495057;
+            font-weight: 500;
+            font-size: 0.70rem;
+            display: block;
+            margin-bottom: 2px;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
@@ -79,7 +126,7 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
 
 <div class="container-fluid px-4">
     <div class="row">
-        <div class="col-md-3">
+        <div class="col-md-2">
             <div class="card sidebar-card shadow-sm">
                 <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
                     <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-collection-fill me-2"></i>Proyectos</h6>
@@ -117,7 +164,7 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
             </div>
         </div>
 
-        <div class="col-md-9">
+        <div class="col-md-10">
             <?php if ($id_proyecto_activo): ?>
             <div class="table-container p-4">
                 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -129,6 +176,9 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
                         <button class="btn btn-success btn-sm fw-bold" onclick="exportarCSV()">
                             <i class="bi bi-file-earmark-spreadsheet me-1"></i> Exportar seleccionados
                         </button>
+                        <!-- <button class="btn btn-outline-danger btn-sm fw-bold" onclick="cargarDatos(true)">
+                            <i class="bi bi-exclamation-triangle"></i> Ver solo desviaciones > 15%
+                        </button> -->
                         <div id="progreso-header" class="text-end"></div>
                     </div>
                 </div>
@@ -137,14 +187,14 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
                     <table class="table table-hover align-middle" id="tabla-precios">
                         <thead>
                             <tr class="x-small text-uppercase">
-                                <th style="width: 3%;" class="text-center"><input type="checkbox" id="sel-all" class="form-check-input" onclick="toggleTodos(this)" title="Seleccionar todos"></th>
+                                <th style="width: 3%;" class="text-center"><input type="checkbox" id="sel-all" class="form-check-input" onclick="toggleTodos(this)"></th>
                                 <th style="width: 10%;">CDMESS</th>
-                                <th style="width: 18%;">Descripción</th>
-                                <th style="width: 8%;">Ultima Cot.</th>
-                                <th style="width: 13%;" class="text-center">Rango (Min - Max)</th>
-                                <th style="width: 10%;" class="text-center">Hist. Promedio</th>
-                                <th style="width: 12%;" class="text-center bg-primary text-white">Sugerido por MessIAs</th>
-                                <th style="width: 18%;">Entrenamiento</th>
+                                <th style="width: 20%;">Descripción</th>
+                                <th style="width: 10%;">Última Cot.</th>
+                                <th style="width: 13%;">Rango (Min - Max)</th>
+                                <th style="width: 10%;">Hist. Promedio</th>
+                                <th style="width: 14%;">Sugerido MessIAs</th>
+                                <th style="width: 20%;">Entrenamiento</th>
                             </tr>
                         </thead>
                         <tbody id="contenedor-items">
@@ -165,28 +215,104 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
 <script src="js/sweetalert2.all.min.js"></script>
 
 <script>
+/**
+ * ========================================================================
+ * ESTADO GLOBAL Y CONFIGURACIÓN
+ * ========================================================================
+ */
 const proyectoActual = "<?php echo $id_proyecto_activo; ?>";
 let datosProyecto = [];
 
-async function cargarDatos() {
+/**
+ * ========================================================================
+ * MOTOR DE RENDERIZADO (UI)
+ * Separado del ciclo de carga para optimizar memoria
+ * ========================================================================
+ */
+const fmt = v => parseFloat(v || 0).toFixed(2);
+
+const renderFila = (item, esSugerencia = false) => {
+    if (item.estatus !== 'completado') return `<tr><td colspan="8" class="text-center py-3 text-muted x-small italic">Analizando...</td></tr>`;
+
+    const ia = item.propuesta_ia || {};
+    const rowClass = esSugerencia ? 'table-warning font-small' : 'font-small';
+    const fmt = v => parseFloat(v || 0).toFixed(2);
+
+    return `
+        <tr class="${rowClass}">
+            <td class="text-center align-middle"><input type="checkbox" class="form-check-input item-check" value="${item.id}"></td>
+            <td class="fw-bold text-primary align-middle">
+                ${ia.cdmess || 'S/C'}                
+                ${item.entrada_usuario ? `<br><span class="x-small text-muted">Sugerencia para: ${item.entrada_usuario}</span>` : ''}
+            </td>
+            <td class="align-middle">
+                <div class="fw-bold">${ia.desc || ''}</div>
+                ${ia.detalle_calculo ? `<div class="x-small text-muted">${ia.detalle_calculo}</div>` : ''}
+            </td>
+            <td class="align-middle x-small">
+                ${ia.folio ? `<b>${ia.folio}</b><br>${ia.fecha?.substring(0,10) || ''}` : '-'}
+            </td>
+            <td class="align-middle text-center x-small">
+                <div class="text-muted">USD: $${fmt(ia.precio_min)} - $${fmt(ia.precio_max)}</div>
+                <div class="text-muted">MXN: $${fmt(ia.precio_min_mxn)} - $${fmt(ia.precio_max_mxn)}</div>
+            </td>
+            <td class="align-middle text-center x-small">
+                <div><b>USD:</b> $${fmt(ia.precio_promedio)}</div>
+                <div><b>MXN:</b> $${fmt(ia.precio_promedio_mxn)}</div>
+            </td>
+            <td class="align-middle bg-light">
+                <div class="x-small text-primary mb-1">Sugerido: $${fmt(ia.precio_ia)}</div>
+                <input type="number" id="precio_u_${item.id}" class="form-control form-control-sm fw-bold" value="${parseFloat(item.precio_usuario) > 0 ? fmt(item.precio_usuario) : fmt(ia.precio_ia)}">
+            </td>
+            <td class="align-middle">
+                <select id="cat_u_${item.id}" class="form-select form-select-sm mb-1 x-small">
+                    ${['Acepta precio IA','Precio muy bajo','Precio muy alto','Descripción incorrecta'].map(op =>
+                        `<option value="${op}" ${item.categoria_rechazo === op ? 'selected' : ''}>${op}</option>`
+                    ).join('')}
+                </select>
+                <button class="btn btn-sm w-100 ${item.estatus === 'completado' ? 'btn-success' : 'btn-outline-primary'}" onclick="validarRegistro(${item.id})">
+                    <i class="bi ${item.estatus === 'completado' ? 'bi-check-all' : 'bi-send'}"></i> Validar
+                </button>
+            </td>
+        </tr>
+    `;
+};
+
+/**
+ * ========================================================================
+ * CONTROLADORES LÓGICOS (API y Eventos)
+ * ========================================================================
+ */
+async function cargarDatos(soloDesviaciones = false) {
     if (!proyectoActual) return;
-    // Pausamos el refresco solo si el usuario está escribiendo en un input/textarea de la tabla
-    const activo = document.activeElement;
-    const tag = activo ? activo.tagName : '';
-    if ((tag === 'INPUT' || tag === 'TEXTAREA') && activo.closest('#contenedor-items')) return;
+    
+    // Cambiamos la URL de fetch dinámicamente
+    const endpoint = soloDesviaciones ? 'acciones_monitor_precios_v2.php' : `get_proyecto_data.php?proyecto=${encodeURIComponent(proyectoActual)}`;
+    
+    // Si es desviación, preparamos el FormData
+    let options = { method: 'GET' };
+    if (soloDesviaciones) {
+        const formData = new FormData();
+        formData.append('accion', 'OBTENER_DESVIACIONES');
+        formData.append('id_proyecto', proyectoActual);
+        options = { method: 'POST', body: formData };
+    }
+
     try {
-        const response = await fetch(`get_proyecto_data.php?proyecto=${encodeURIComponent(proyectoActual)}`);
+        const response = await fetch(endpoint, options);
         const data = await response.json();
         datosProyecto = data;
+        
         const contenedor = document.getElementById('contenedor-items');
         const prevSel = new Set([...document.querySelectorAll('.item-check:checked')].map(cb => cb.value));
         
-        // Actualizar hora de sincronización
         document.getElementById('last-update').innerHTML = `<i class="bi bi-clock-history me-1"></i> Sync: ${new Date().toLocaleTimeString()}`;
 
-        // Actualizar contadores de cabecera (solo ítems originales, no sugerencias)
-        const total = data.filter(i => !i.es_sugerencia).length;
-        const listos = data.filter(i => !i.es_sugerencia && i.estatus === 'completado').length;
+        const originales = data.filter(i => !i.es_sugerencia);
+        const sugerencias = data.filter(i => i.es_sugerencia);
+        
+        const total = originales.length;
+        const listos = originales.filter(i => i.estatus === 'completado').length;
         const pct = total > 0 ? Math.round((listos/total)*100) : 0;
         
         document.getElementById('progreso-header').innerHTML = `
@@ -196,82 +322,6 @@ async function cargarDatos() {
             </div>
         `;
 
-        // Separamos los ítems cargados por el usuario de los sugeridos por la IA
-        const originales  = data.filter(i => !i.es_sugerencia);
-        const sugerencias = data.filter(i =>  i.es_sugerencia);
-
-        // Función reutilizada para renderizar una fila (originales y sugerencias usan la misma estructura)
-        const renderFila = (item, esSugerencia = false) => {
-            if (item.estatus !== 'completado') {
-                return `<tr><td colspan="9" class="text-center py-4 bg-light border-0">
-                    <div class="spinner-grow spinner-grow-sm text-primary me-2"></div>
-                    <span class="text-muted font-small fw-bold italic">Analizando historial para: "${item.entrada_usuario}"</span>
-                </td></tr>`;
-            }
-
-            const ia = item.propuesta_ia || {};
-            const idReg = item.id;
-            // Las filas sugeridas llevan fondo diferente para distinguirse visualmente
-            const rowClass = esSugerencia ? 'font-small table-warning' : 'font-small shadow-sm';
-            // fmt: redondea a 2 decimales para mostrar precios limpios
-            const fmt = v => parseFloat(v || 0).toFixed(2);
-
-            // CAMBIO 1: Mostrar detalle_calculo debajo de la descripción si existe
-            const detalleCalculo = ia.detalle_calculo ? 
-                `<div class="mt-1 x-small text-muted">${ia.detalle_calculo}</div>` : '';
-
-            return `
-                <tr class="${rowClass}">
-                    <td class="text-center align-middle"><input type="checkbox" class="form-check-input item-check" value="${idReg}"></td>
-                    <td class="fw-bold text-primary"><p style="font-size: x-small; color: #000;">Sugerencia para:<br>${item.entrada_usuario}</p><i class="bi bi-hash"></i> ${ia.cdmess || 'S/C'}</td>
-                    <td>
-                        <div class="fw-bold text-dark">${ia.desc || ''}</div>
-                        ${detalleCalculo}
-
-                    </td>
-                    <td class="align-middle x-small">
-                        ${ia.folio
-                            ? `<span class="fw-bold text-dark">${ia.folio}</span><br><span class="text-muted">${ia.fecha ? ia.fecha.substring(0, 10) : ''}</span>`
-                            : '<span class="text-muted">—</span>'}
-                    </td>
-                    <td class="text-center">
-                        <span class="badge badge-range">$${fmt(ia.precio_min)} - $${fmt(ia.precio_max)} USD</span>
-                        <span class="badge badge-range">$${fmt(ia.precio_min_mxn)} - $${fmt(ia.precio_max_mxn)} MXN</span>
-                    </td>
-                    <td class="text-center text-secondary">
-                        <span class="badge badge-range">$${fmt(ia.precio_promedio)} USD</span>
-                        <span class="badge badge-range">$${fmt(ia.precio_promedio_mxn)} MXN</span>                                                
-                    </td>
-
-                    <td class="bg-sugerido border-start border-end" style="min-width: 120px;">
-                        <div class="x-small text-muted mb-1">Sugerido IA: $${fmt(ia.precio_ia)}</div>
-                        <input type="number" id="precio_u_${idReg}" class="form-control form-control-sm fw-bold text-primary"
-                            value="${parseFloat(item.precio_usuario) > 0 ? fmt(item.precio_usuario) : fmt(ia.precio_ia)}" step="0.01">
-                    </td>
-
-                    <td>
-                        <select id="cat_u_${idReg}" class="form-select form-select-sm mb-1 x-small">
-                            ${['Acepta precio IA','Precio muy bajo','Precio muy alto','Descripción incorrecta'].map(op =>
-                                `<option value="${op}" ${item.categoria_rechazo === op ? 'selected' : ''}>${op}</option>`
-                            ).join('')}
-                        </select>
-                        <div style="display: none;">
-                            <textarea id="resp_u_${idReg}" class="form-control form-control-sm x-small" rows="2"
-                                    placeholder="Notas adicionales...">${item.respuesta || ''}</textarea>
-                        </div>
-                    </td>
-
-                    <td class="text-center align-middle">
-                        <button class="btn btn-sm ${item.estatus === 'completado' ? 'btn-success' : 'btn-outline-primary'}"
-                                onclick="validarRegistro(${idReg})" title="Validar y Entrenar IA">
-                            <i class="bi ${item.estatus === 'completado' ? 'bi-check-all' : 'bi-send-check'}"></i>
-                        </button>
-                    </td>
-                </tr>
-            `;
-        };
-
-        // Fila divisora que aparece solo si hay sugerencias de la IA
         const filaDivisora = sugerencias.length > 0 ? `
             <tr class="table-secondary">
                 <td colspan="9" class="text-center py-2 x-small fw-bold text-uppercase text-muted">
@@ -281,11 +331,11 @@ async function cargarDatos() {
         ` : '';
 
         contenedor.innerHTML =
-            originales.map(i  => renderFila(i, false)).join('') +
+            originales.map(i => renderFila(i, false)).join('') +
             filaDivisora +
             sugerencias.map(i => renderFila(i, true)).join('');
 
-        // Restaurar selecciones tras re-render
+        // Restaurar checks previos
         document.querySelectorAll('.item-check').forEach(cb => {
             if (prevSel.has(cb.value)) cb.checked = true;
         });
@@ -304,21 +354,18 @@ async function validarRegistro(id) {
     const categoria = document.getElementById(`cat_u_${id}`).value;
     const idUsuario = <?php echo intval($_SESSION['usuario_id'] ?? 0); ?>;
 
-
-    // Validación básica de SweetAlert2
     Swal.fire({
         title: '¿Confirmar validación?',
         text: "El precio y nota se guardarán como aprendizaje para la IA.",
         icon: 'question',
         showCancelButton: true,
-        confirmButtonColor: '#002d5a', // Azul MESS
+        confirmButtonColor: '#002d5a', 
         cancelButtonColor: '#d33',
         confirmButtonText: '<i class="bi bi-check-lg"></i> Sí, validar',
         cancelButtonText: 'Cancelar'
     }).then(async (result) => {
         if (result.isConfirmed) {
             try {
-                // Mostrar un cargando mientras se procesa
                 Swal.fire({
                     title: 'Procesando...',
                     didOpen: () => { Swal.showLoading() },
@@ -347,7 +394,6 @@ async function validarRegistro(id) {
                         icon: 'success',
                         confirmButtonColor: '#002d5a'
                     }).then(() => {
-                        // Recargar el detalle del proyecto para ver los cambios
                         const urlParams = new URLSearchParams(window.location.search);
                         if (urlParams.has('proyecto')) {
                             cargarDatos();
@@ -356,7 +402,6 @@ async function validarRegistro(id) {
                 } else {
                     throw new Error('Error en la respuesta del servidor');
                 }
-
             } catch (error) {
                 console.error("Error al validar:", error);
                 Swal.fire('Error', 'No se pudo conectar con el servidor físico.', 'error');
@@ -365,6 +410,11 @@ async function validarRegistro(id) {
     });
 }
 
+/**
+ * ========================================================================
+ * UTILIDADES (Exportación y UI)
+ * ========================================================================
+ */
 function toggleTodos(cb) {
     document.querySelectorAll('.item-check').forEach(el => el.checked = cb.checked);
 }
@@ -375,13 +425,11 @@ function exportarCSV() {
         Swal.fire({ title: 'Sin selección', text: 'Selecciona al menos un ítem para exportar.', icon: 'warning', confirmButtonColor: '#002d5a' });
         return;
     }
+    
     const items = datosProyecto.filter(i => seleccionados.has(String(i.id)));
-    const fmt  = v => parseFloat(v || 0).toFixed(2);
-    const fmtI = v => parseInt(v || 0);
-
-    // Deriva el area_mess_code del CDMESS (ej. "P7-360" → "P7", "S3-173" → "S3")
+    const fmt = v => parseFloat(v || 0).toFixed(2);
+    
     const areaCode = cdmess => cdmess ? cdmess.split('-')[0] : '';
-    // Deriva entityType del prefijo del CDMESS (S... → SERVICE, resto → PRODUCT)
     const entityType = cdmess => cdmess && cdmess.toUpperCase().startsWith('S') ? 'SERVICE' : 'PRODUCT';
 
     const headers = [
@@ -394,9 +442,9 @@ function exportarCSV() {
     ];
 
     const rows = items.map(item => {
-        const ia     = item.propuesta_ia || {};
+        const ia = item.propuesta_ia || {};
         const cdmess = ia.cdmess || '';
-        const fecha  = item.fecha_registro ? item.fecha_registro.split(' ')[0] : '';
+        const fecha = item.fecha_registro ? item.fecha_registro.split(' ')[0] : '';
 
         return [
             proyectoActual,
@@ -419,19 +467,20 @@ function exportarCSV() {
         ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
     });
 
-    const csvContent = '﻿' + [headers.join(','), ...rows].join('\r\n');
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\r\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
     a.href = url;
     a.download = `${proyectoActual}_cotizacion.csv`;
     a.click();
     URL.revokeObjectURL(url);
 }
 
+// Inicialización del proceso
 if (proyectoActual) {
     cargarDatos();
-    setInterval(cargarDatos, 20000);// Refrescar cada 20 segundos para mantener datos actualizados
+    setInterval(cargarDatos, 20000); // Refresco asíncrono
 }
 </script>
 
