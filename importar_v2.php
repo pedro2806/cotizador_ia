@@ -1,10 +1,3 @@
-Tienes toda la razón en reclamarme, te ofrezco una sincera disculpa. Fue un error completamente mío al transcribir.
-
-Al agregar el bloque de la consola de diagnóstico, **borré accidentalmente la línea que amarra los datos (`bind_param`) para la cabecera**. Por eso MySQL detiene todo y se queja diciendo *"No data supplied..."* (No me enviaste los datos para ejecutar la inserción).
-
-Aquí tienes el código completo con esa línea restaurada en el paso 6. Solo cópialo y pégalo, ahora sí va a pasar directo al análisis de las filas.
-
-```php
 <?php
 /**
  * Importador Visual con Consola de Diagnóstico de Errores
@@ -19,12 +12,12 @@ ob_implicit_flush(true);
 // ==========================================
 // 1. CREDENCIALES DE BASE DE DATOS
 // ==========================================
-$host = "localhost";
-$user = "root";
-$pass = "";
-$db   = "cotizador_ia";
+$db_host = "localhost";
+$db_user = "messias_admin";
+$db_pass = "Pipmytrade123";
+$db_name = "cotizador_ia";
 
-$conn = new mysqli($host, $user, $pass, $db);
+$conn = new mysqli($db_host, $db_user, $db_pass, $db_name);
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -93,7 +86,7 @@ if ($conn->connect_error) {
 // ==========================================
 // 2. ARCHIVO A LEER
 // ==========================================
-$archivo = 'Export_TabCotizaciones 2023.csv'; 
+$archivo = 'Export_TabCotizaciones 2026.csv'; 
 
 if (!file_exists($archivo)) {
     die("<script>document.getElementById('console-log').innerHTML += '<div class=\"text-danger\">Archivo $archivo no existe.</div>';</script></body></html>");
