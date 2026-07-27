@@ -480,7 +480,7 @@ function exportarCSV() {
 // Inicialización del proceso
 if (proyectoActual) {
     cargarDatos();
-    setInterval(cargarDatos, 20000); // Refresco asíncrono
+    setInterval(cargarDatos, 10000); // Refresco asíncrono
 }
 </script>
 

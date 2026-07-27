@@ -32,6 +32,7 @@ try {
         $insertados = 0;
         $reporte_errores = [];
         $tipoBusqueda = $_POST['tipoBusqueda'] ?? 'todas';
+        $cliente = $_POST['cliente'] ?? null;
 
         // 2. Preparamos la consulta UNA SOLA VEZ fuera del bucle (Optimización de rendimiento)
         $query_insert = "INSERT INTO cola_procesamiento 
@@ -43,7 +44,7 @@ try {
             $linea = trim($linea);
             if (empty($linea)) continue;
 
-            $opciones = obtenerOpcionesUnicasHistoricas($linea, $tipoBusqueda, $conn);
+            $opciones = obtenerOpcionesUnicasHistoricas($linea, $tipoBusqueda, $cliente, $conn);
             
             if ($opciones === 'noValido') {
                 $reporte_errores[] = "❌ Clave no activa: <b>$linea</b>";

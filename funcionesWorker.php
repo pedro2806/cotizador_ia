@@ -23,44 +23,33 @@ function limpiarEntrada($texto) {
 function procesarContextoBusqueda($busqueda) {
     $busqueda_original = trim($busqueda);
     
-    $busca_servicio = (stripos($busqueda, 'servicio') !== false || 
-                       stripos($busqueda, 'calibracion') !== false || 
-                       stripos($busqueda, 'calibración') !== false ||
-                       stripos($busqueda, 'mantenimiento') !== false ||
-                       stripos($busqueda, 'medicion') !== false ||
-                       stripos($busqueda, 'medición') !== false ||
-                       preg_match('/^[SL]\d+/i', $busqueda));
+    // 1. Detectamos el tipo (SERVICIO o EQUIPO)
+    $busca_servicio = (stripos($busqueda_original, 'servicio') !== false || 
+                       stripos($busqueda_original, 'calibracion') !== false || 
+                       stripos($busqueda_original, 'calibración') !== false ||
+                       stripos($busqueda_original, 'mantenimiento') !== false ||
+                       preg_match('/^[SL]\d+/i', $busqueda_original));
                        
     $tipo_val = $busca_servicio ? 'SERVICIO' : 'EQUIPO';
     
-    if ($busca_servicio) {
-        $frases = [
-            'servicio de calibracion', 'servicio de calibración', 
-            'calibracion de', 'calibración de', 
-            'mantenimiento de', 'servicio de mantenimiento',
-            'servicio de medicion', 'servicio de medición',
-            'medicion de', 'medición de',
-            'revision de', 'revisión de',
-            'diagnostico de', 'diagnóstico de',
-            'instalacion de', 'instalación de',
-            'capacitacion de', 'capacitación de',
-            'servicio de', 'servicio'
-        ];
-        
-        $busqueda = str_ireplace($frases, '', $busqueda);
-        $busqueda = preg_replace('/\b(servicio|calibracion|calibración|mantenimiento|medicion|medición)\b/iu', '', $busqueda);
-        $busqueda = preg_replace('/\s+/', ' ', trim($busqueda));
-        
-        if (empty($busqueda)) {
-            $busqueda = $busqueda_original;
-        }
-    }
+    // 2. BORRAMOS EL RUIDO (Esto es lo que hace que funcione)
+    $palabras_quitar = [
+        'calibracion de', 'calibración de', 'calibracion ', 'calibración ',
+        'servicio de', 'servicio ', 'mantenimiento de', 'mantenimiento '
+    ];
+    $busqueda_limpia = str_ireplace($palabras_quitar, '', $busqueda_original);
     
+    // 3. Limpiamos caracteres extraños (Respetando el guion para s8-5)
+    $busqueda_limpia = str_replace([',', ';', ':', '(', ')', '.'], ' ', $busqueda_limpia);
+    
+    // 4. Quitamos espacios en blanco sobrantes
+    $busqueda_limpia = preg_replace('/\s+/', ' ', trim($busqueda_limpia));
+
     return [
-        'busqueda_limpia' => $busqueda,
-        'termino' => "%" . $busqueda . "%",
+        'busqueda_limpia' => $busqueda_limpia,
+        'termino' => "%" . str_replace(' ', '%', $busqueda_limpia) . "%",
         'tipo' => $tipo_val,
-        'es_cdmess' => preg_match('/^[SL]\d+/i', $busqueda)
+        'es_cdmess' => preg_match('/^[SL]\d+/i', $busqueda_original)
     ];
 }
 
@@ -82,103 +71,205 @@ function validaCDMESS($cdmess, $conn) {
  * ========================================================================
  */
 
-function obtenerOpcionesUnicasHistoricas($busqueda, $tipoBusqueda, $conn) {
+/**
+ * Analiza el arreglo de resultados usando Ollama para seleccionar los 5 más relevantes.
+ */
+function filtrarOpcionesConOllama($busqueda_usuario, $resultados_sql) {
+    // Si SQL arrojó 5 o menos resultados, no gastamos tiempo en IA
+    if (count($resultados_sql) <= 5) {
+        return array_slice($resultados_sql, 0, 5);
+    }
+
+// 1. Preparamos un mapa para la IA (¡Ahora incluimos el precio promedio!)
+    $candidatos_ia = [];
+    foreach ($resultados_sql as $index => $fila) {
+        $candidatos_ia[] = [
+            'id' => $index,
+            'cdmess' => trim($fila['CDMESS']),
+            'descripcion' => $fila['descripcion'],
+            'precio_historico' => $fila['precio_promedio'] // Fundamental para la decisión comercial
+        ];
+    }
+
+    $json_candidatos = json_encode($candidatos_ia, JSON_UNESCAPED_UNICODE);
+    
+    // 2. Prompt con doble perfil: Técnico y Comercial (Business Intelligence)
+    $prompt = "Eres un estratega comercial y experto técnico en metrología.
+    El cliente está buscando cotizar: '$busqueda_usuario'.
+    
+    Aquí tienes el historial de candidatos encontrados con sus precios promedio en JSON:
+    $json_candidatos
+    
+    INSTRUCCIONES DE SELECCIÓN:
+    1. Filtro Técnico: Descarta cualquier opción que no coincida con la naturaleza del equipo o servicio solicitado.
+    2. Filtro Comercial: Evalúa la viabilidad de los precios históricos. Prioriza opciones con precios coherentes y consistentes. Si ves anomalías evidentes (precios absurdamente bajos o altos sin justificación en la descripción), penalízalos en tu elección.
+    3. Equilibrio: Selecciona los mejores candidatos (máximo 5) que representen la oferta más sólida tanto a nivel técnico como financiero.
+    4. Formato: Devuelve ESTRICTAMENTE un JSON con un arreglo llamado 'mejores_ids' que contenga solo los números de 'id' seleccionados.
+    
+    Ejemplo de salida: {\"mejores_ids\": [0, 3, 4, 1, 7]}";
+
+    $data = [
+        "model" => "llama3.2:1b", // Tu modelo local en WAMP
+        "format" => "json",
+        "prompt" => $prompt,
+        "stream" => false,
+        "options" => [
+            "temperature" => 0.3, // Menor temperatura para respuestas más determinísticas
+            "num_predict" => 150  // Respuesta ultracorta para máxima velocidad
+        ]
+    ];
+
+    $ch = curl_init("http://localhost:11434/api/generate");
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 6); // Límite de 6 segundos
+    
+    $res = curl_exec($ch);
+    curl_close($ch);
+    
+    // Procesamos la respuesta
+    if ($res) {
+        $json_res = json_decode($res, true);
+        $respuesta_ia = json_decode($json_res['response'] ?? '{}', true);
+        
+        if (isset($respuesta_ia['mejores_ids']) && is_array($respuesta_ia['mejores_ids'])) {
+            $resultados_finales = [];
+            foreach ($respuesta_ia['mejores_ids'] as $id) {
+                if (isset($resultados_sql[$id])) {
+                    $resultados_finales[] = $resultados_sql[$id];
+                }
+                if (count($resultados_finales) == 5) break; 
+            }
+            
+            if (count($resultados_finales) > 0) {
+                return $resultados_finales;
+            }
+        }
+    }
+    
+    // Fallback: Si Ollama no responde o falla, regresamos los 5 primeros del SQL
+    return array_slice($resultados_sql, 0, 5);
+}
+
+/**
+ * Función principal para obtener el historial con filtro holgado y análisis IA.
+ */
+function obtenerOpcionesUnicasHistoricas($busqueda, $tipoBusqueda, $cliente, $conn) {
     $contexto = procesarContextoBusqueda($busqueda);
     $busqueda_limpia = $contexto['busqueda_limpia'];
     $termino = $contexto['termino'];
-    $tipo_val = $contexto['tipo'];
     
-    error_log("Búsqueda procesada para opciones únicas: '$busqueda_limpia' con tipo '$tipo_val', termino: '$termino'");
+    // Validamos el cliente
+    $filtrar_cliente = (!empty($cliente) && $cliente !== 'todos');
+    $cliente_limpio = $filtrar_cliente ? $conn->real_escape_string($cliente) : null;
     
     // Validación de CDMESS estricto
     if ($contexto['es_cdmess']) {
         $esvalido = validaCDMESS($busqueda_limpia, $conn);
         if (!$esvalido && !in_array($tipoBusqueda, ['noSerie', 'modelo', 'messTag'])) {
-            error_log("CDMESS '$busqueda_limpia' no es válido según tarifario activo.");
             return 'noValido';
         }
         
         if ($esvalido) {
             $sql = "SELECT TRIM(CDMESS) as CDMESS, MAX(DESCRIPCION) as descripcion, ROUND(AVG(PRECIO_VENTA/CANT), 2) as precio_promedio                
-                    FROM cotizaciones_items 
+                    FROM cotizaciones_items
+                    INNER JOIN cotizaciones ON cotizaciones_items.IDCOTIZA = cotizaciones.IDCOTIZA                     
                     WHERE (MATCH(DESCRIPCION) AGAINST(? IN BOOLEAN MODE) OR CDMESS LIKE ?)
                         AND PRECIO_VENTA > 0 AND CANT > 0
-                        AND CDMESS IS NOT NULL AND CDMESS != ''
-                    GROUP BY TRIM(CDMESS) ORDER BY COUNT(*) DESC LIMIT 5";
+                        AND CDMESS IS NOT NULL AND CDMESS != ''";
+            
+            $params = [$termino, $termino];
+            $types = "ss";
+
+            if ($filtrar_cliente) {
+                $sql .= " AND cotizaciones.IDCLTE = ? ";
+                $params[] = $cliente_limpio;
+                $types .= "s";
+            }
+
+            // Ampliamos a LIMIT 15 para dar opciones a la IA
+            $sql .= " GROUP BY TRIM(CDMESS) ORDER BY COUNT(*) DESC LIMIT 15";
             
             $stmt = $conn->prepare($sql);
-            $stmt->bind_param("ss", $termino, $termino);
+            $stmt->bind_param($types, ...$params);
             $stmt->execute();
-            return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $resultados_crudos = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            
+            return filtrarOpcionesConOllama($busqueda_limpia, $resultados_crudos);
         }
     }
 
-    // Constructor dinámico para consultas generales (Evita repetir código SQL 6 veces)
+    // Constructor dinámico para consultas generales
     $sql_base = "SELECT TRIM(ci.CDMESS) as CDMESS, MAX(ci.DESCRIPCION) as descripcion, ROUND(AVG(ci.PRECIO_VENTA/ci.CANT), 2) as precio_promedio, t.STATUS
                  FROM cotizaciones_items ci
-                 LEFT JOIN tarifario t ON ci.CDMESS = t.CDMESS ";
+                 LEFT JOIN tarifario t ON ci.CDMESS = t.CDMESS 
+                 INNER JOIN cotizaciones c ON ci.IDCOTIZA = c.IDCOTIZA ";
                  
     $condiciones_globales = " AND ci.PRECIO_VENTA > 0 AND ci.CANT > 0 AND ci.CDMESS IS NOT NULL AND ci.CDMESS != '' AND t.STATUS = 'ACTIVE' ";
-    $group_order = " GROUP BY TRIM(ci.CDMESS), t.STATUS ORDER BY descripcion ASC LIMIT 5";
+    
+    // Ampliamos a LIMIT 15
+    $group_order = " GROUP BY TRIM(ci.CDMESS), t.STATUS ORDER BY COUNT(*) DESC LIMIT 15";
     
     $where_clause = "";
     $params = [];
     $types = "";
 
+    // Switch sin la barrera de "ci.TIPO = ?" para que encuentre equipos aunque parezcan servicios
     switch ($tipoBusqueda) {
         case 'todas':
-            $where_clause = "WHERE (MATCH(ci.DESCRIPCION) AGAINST(? IN BOOLEAN MODE) OR ci.CDMESS LIKE ? OR ci.MARCA LIKE ? OR ci.MODELO LIKE ? OR ci.SERIE LIKE ?) AND ci.TIPO = ?";
-            $params = [$busqueda_limpia, $termino, $termino, $termino, $termino, $tipo_val];
-            $types = "ssssss";
+            $where_clause = "WHERE (MATCH(ci.DESCRIPCION) AGAINST(? IN BOOLEAN MODE) OR ci.CDMESS LIKE ? OR ci.MARCA LIKE ? OR ci.MODELO LIKE ? OR ci.SERIE LIKE ?)";
+            $params = [$busqueda_limpia, $termino, $termino, $termino, $termino];
+            $types = "sssss";
             break;
         case 'descripciones':
-            $where_clause = "WHERE ci.DESCRIPCION LIKE ? AND ci.TIPO = ?";
-            $params = [$termino, $tipo_val];
-            $types = "ss";
+            $where_clause = "WHERE ci.DESCRIPCION LIKE ?";
+            $params = [$termino];
+            $types = "s";
             break;
         case 'modelo':
             $where_clause = "WHERE ci.MODELO LIKE ?";
             $params = [$termino];
             $types = "s";
-            $group_order = " GROUP BY TRIM(ci.CDMESS) ORDER BY COUNT(*) DESC LIMIT 5";
             break;
         case 'noSerie':
             $where_clause = "WHERE ci.SERIE LIKE ?";
             $params = [$termino];
             $types = "s";
-            $group_order = " GROUP BY TRIM(ci.CDMESS) ORDER BY COUNT(*) DESC LIMIT 5";
             break;
         case 'messTag':
             $where_clause = "WHERE ci.MESSTAG LIKE ?";
             $params = [$termino];
             $types = "s";
-            $group_order = " GROUP BY TRIM(ci.CDMESS) ORDER BY COUNT(*) DESC LIMIT 5";
             break;
         case 'IdEquipoCliente':
             $where_clause = "WHERE ci.ID_EQ_CLIENTE LIKE ?";
             $params = [$termino];
             $types = "s";
-            $group_order = " GROUP BY TRIM(ci.CDMESS) ORDER BY COUNT(*) DESC LIMIT 5";
+            break;
         case 'codigos':
             $where_clause = "WHERE ci.CDMESS LIKE ?";
             $params = [$termino];
             $types = "s";
-            
             break;
     }
 
-    $sql_final = $sql_base . $where_clause . $condiciones_globales . $group_order;
-    //imprimimos sql en cmd para debug
-    // console_log("SQL dinámico generado: $sql_final");    
+    if ($filtrar_cliente) {
+        $condiciones_globales .= " AND c.IDCLTE = ? ";
+        $params[] = $cliente_limpio;
+        $types .= "s";
+    }
 
-    $stmt = $conn->prepare($sql_final);
+    $sql_final = $sql_base . $where_clause . $condiciones_globales . $group_order;
     
-    // Usamos el splat operator de PHP 8.x para pasar argumentos dinámicos de forma limpia
+    $stmt = $conn->prepare($sql_final);
     $stmt->bind_param($types, ...$params);
     $stmt->execute();
-    return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-}
+    $resultados_crudos = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
+    return filtrarOpcionesConOllama($busqueda_limpia, $resultados_crudos);
+}
 
 function obtenerHistorialMESS($busqueda) {
     global $conn;

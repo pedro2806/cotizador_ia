@@ -170,7 +170,7 @@ if (empty($_SESSION['usuario_id'])) {
                                             </select>
                                         </div>
                                     </div>
-                                    <div class="col-md-8" style="display: none;">
+                                    <div class="col-md-8">
                                         <div class="mb-3">
                                             <label for="cliente" class="form-label fw-bold small text-dark">Cliente</label>
                                             <select name="cliente" id="cliente" class="form-select border-secondary-subtle shadow-sm" style="width: 100%;">
