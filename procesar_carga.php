@@ -1,6 +1,8 @@
 <?php
+require_once __DIR__ . '/core/json_api.php';
+iniciarRespuestaJSON();
+
 session_start();
-header('Content-Type: application/json; charset=utf-8');
 
 // 1. Validar sesión activa
 if (empty($_SESSION['usuario_id'])) {
@@ -22,12 +24,17 @@ try {
         // 1. Iniciamos la transacción para proteger los datos
         $conn->begin_transaction();
 
-        // Calcular el consecutivo del proyecto de forma dinámica
+        // Calcular el consecutivo del proyecto de forma dinámica.
+        // GET_LOCK evita que dos cargas simultáneas calculen el mismo
+        // MAX(id)+1 y terminen generando el mismo id_proyecto (antes esto
+        // era una condición de carrera real bajo uso concurrente).
+        $conn->query("SELECT GET_LOCK('cotizador_id_proyecto', 5)");
         $res = $conn->query("SELECT MAX(id) as max_id FROM cola_procesamiento");
-        $row = $res->fetch_assoc(); 
+        $row = $res->fetch_assoc();
         $ultimoP = $row['max_id'] + 1;
-
         $id_proyecto = "PROY-" . date("Ymd") . "-" . str_pad($ultimoP, 4, "0", STR_PAD_LEFT);
+        $conn->query("SELECT RELEASE_LOCK('cotizador_id_proyecto')");
+
         $lineas = explode("\n", $_POST['lista_excel']);
         $insertados = 0;
         $reporte_errores = [];
@@ -47,7 +54,10 @@ try {
             $opciones = obtenerOpcionesUnicasHistoricas($linea, $tipoBusqueda, $cliente, $conn);
             
             if ($opciones === 'noValido') {
-                $reporte_errores[] = "❌ Clave no activa: <b>$linea</b>";
+                // htmlspecialchars: $linea la escribe el usuario y este texto se
+                // inyecta luego con innerHTML en el SweetAlert del frontend, así
+                // que sin escapar era una puerta abierta a XSS reflejado.
+                $reporte_errores[] = "❌ Clave no activa: <b>" . htmlspecialchars($linea, ENT_QUOTES, 'UTF-8') . "</b>";
                 continue; 
             }
 
@@ -73,7 +83,7 @@ try {
                     $claves_insertadas[] = $clave;
                 }
             } else {
-                $reporte_errores[] = "⚠️ Sin historial: <b>$linea</b>";
+                $reporte_errores[] = "⚠️ Sin historial: <b>" . htmlspecialchars($linea, ENT_QUOTES, 'UTF-8') . "</b>";
             }
         }
 
@@ -95,10 +105,13 @@ try {
     } catch (Exception $e) {
         // 5. Si algo falla a nivel de código o base de datos, abortamos todo el lote
         $conn->rollback();
-        
+        // Por si el error ocurrió antes de llegar al RELEASE_LOCK normal.
+        $conn->query("SELECT RELEASE_LOCK('cotizador_id_proyecto')");
+
+        error_log('procesar_carga.php: ' . $e->getMessage());
         echo json_encode([
             'success' => false,
-            'error'   => 'Error interno en el procesamiento: ' . $e->getMessage()
+            'error'   => 'Error interno en el procesamiento. Contacta al administrador si el problema persiste.'
         ]);
     }
 exit;

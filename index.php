@@ -202,9 +202,13 @@
                             <small class="fw-bold">Motor Activo</small>
                         </div>
                     <?php else: ?>
-                        <div class="alert alert-success border-0 py-2 d-flex align-items-center">
-                           <span class="status-dot bg-success"></span>
-                            <small class="fw-bold">Motor Activo</small>
+                        <!-- Antes esta rama también mostraba "Motor Activo": el estatus
+                             nunca reflejaba la realidad porque verificarWorker() dependía
+                             de "wmic" (solo Windows) y el resultado se ignoraba. Ahora sí
+                             se distingue cuando worker_ia.php no está corriendo. -->
+                        <div class="alert alert-danger border-0 py-2 d-flex align-items-center">
+                           <span class="status-dot bg-danger"></span>
+                            <small class="fw-bold">Motor Inactivo</small>
                         </div>
                     <?php endif; ?>
                 </div>

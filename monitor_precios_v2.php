@@ -261,7 +261,10 @@ const renderFila = (item, esSugerencia = false) => {
                 <div><b>MXN:</b> $${fmt(ia.precio_promedio_mxn)}</div>
             </td>
             <td class="align-middle bg-light">
-                <div class="x-small text-primary mb-1">Sugerido: $${fmt(ia.precio_ia)}</div>
+                <div class="x-small text-primary mb-1 d-flex align-items-center justify-content-between">
+                    <span>Sugerido: $${fmt(ia.precio_ia)}</span>
+                    ${ia.veredicto_ia ? `<button type="button" class="btn btn-link btn-sm p-0 ms-1" title="Ver veredicto de MessIAs" onclick='mostrarVeredicto(${JSON.stringify(item.id)})'><i class="bi bi-chat-square-quote-fill"></i></button>` : ''}
+                </div>
                 <input type="number" id="precio_u_${item.id}" class="form-control form-control-sm fw-bold" value="${parseFloat(item.precio_usuario) > 0 ? fmt(item.precio_usuario) : fmt(ia.precio_ia)}">
             </td>
             <td class="align-middle">
@@ -346,6 +349,50 @@ async function cargarDatos(soloDesviaciones = false) {
     } catch (e) {
         console.error("Error en la carga AJAX:", e);
     }
+}
+
+/**
+ * Muestra en un modal el "veredicto" que la IA justificó para un ítem:
+ * su recomendación de precio/descripción explicada en palabras, comparando
+ * contra las coincidencias históricas que encontró (si las hubo). El texto
+ * viene de propuesta_ia.veredicto_ia, generado por preguntarOllamaConPrecios()
+ * en el worker.
+ */
+function mostrarVeredicto(id) {
+    const item = datosProyecto.find(i => String(i.id) === String(id));
+    if (!item) return;
+
+    const ia = item.propuesta_ia || {};
+    const veredicto = ia.veredicto_ia || 'Sin veredicto disponible para este ítem.';
+
+    const coincidenciasHtml = ia.coincidencias
+        ? `<div class="text-start mt-3">
+             <div class="x-small text-uppercase text-muted fw-bold mb-1">Otras coincidencias históricas consideradas</div>
+             <div class="x-small text-secondary">${ia.coincidencias.replace(/</g, '&lt;')}</div>
+           </div>`
+        : '';
+
+    const rangoHtml = (ia.precio_ia_min !== undefined && ia.precio_ia_max !== undefined && parseFloat(ia.precio_ia_max) > parseFloat(ia.precio_ia_min))
+        ? `<div class="text-center x-small text-muted mt-1">Rango sugerido: $${parseFloat(ia.precio_ia_min).toFixed(2)} &ndash; $${parseFloat(ia.precio_ia_max).toFixed(2)}</div>`
+        : '';
+
+    Swal.fire({
+        title: 'Veredicto de MessIAs',
+        confirmButtonColor: '#002d5a',
+        confirmButtonText: 'Entendido',
+        html: `
+            <div class="text-start">
+                <div class="fw-bold text-primary mb-1">${ia.cdmess || 'S/C'} &mdash; ${ia.desc || item.entrada_usuario || ''}</div>
+                <div class="alert alert-light border mt-2 mb-2 text-start" style="white-space: pre-line;">${veredicto.replace(/</g, '&lt;')}</div>
+                <div class="d-flex justify-content-between x-small text-muted">
+                    <span>Precio sugerido: <b class="text-dark">$${parseFloat(ia.precio_ia || 0).toFixed(2)}</b></span>
+                    <span>Promedio histórico: $${parseFloat(ia.precio_promedio || 0).toFixed(2)}</span>
+                </div>
+                ${rangoHtml}
+            </div>
+            ${coincidenciasHtml}
+        `
+    });
 }
 
 async function validarRegistro(id) {
