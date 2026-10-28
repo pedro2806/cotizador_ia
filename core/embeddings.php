@@ -94,12 +94,39 @@ function similitudCoseno(array $a, array $b) {
  *
  * $umbral_minimo filtra ruido: por debajo de ~0.5-0.55 de similitud coseno
  * el "parecido" ya no suele ser confiable con nomic-embed-text.
+ *
+ * Con $idclte, solo se consideran claves que ese cliente ya cotizó, el
+ * precio promedio sale únicamente de sus cotizaciones y el umbral sube a 0.60.
  */
-function buscarSemanticamente($busqueda, $conn, $top_n = 10, $umbral_minimo = 0.55) {
+function buscarSemanticamente($busqueda, $conn, $idclte = null, $top_n = 10, $umbral_minimo = 0.55) {
     try {
         $emb_busqueda = obtenerEmbedding($busqueda);
         if ($emb_busqueda === null) {
             return [];
+        }
+
+        // Se filtra ANTES de calcular similitud y recortar a $top_n: si se
+        // filtrara después, los 10 más parecidos podrían ser todos de claves
+        // que el cliente nunca cotizó y no quedaría ninguno.
+        $claves_cliente = null;
+        if ($idclte !== null) {
+            $stmt = $conn->prepare(
+                "SELECT DISTINCT TRIM(ci.CDMESS) AS CDMESS
+                 FROM cotizaciones_items ci
+                 INNER JOIN cotizaciones c ON ci.IDCOTIZA = c.IDCOTIZA
+                 WHERE c.IDCLTE = ? AND ci.PRECIO_VENTA > 0 AND ci.CANT > 0"
+            );
+            $stmt->bind_param('i', $idclte);
+            $stmt->execute();
+            $claves_cliente = array_flip(array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'CDMESS'));
+            $stmt->close();
+            if (empty($claves_cliente)) return [];
+
+            // Umbral más estricto con cliente: si nunca cotizó algo realmente
+            // parecido, buscando solo entre sus claves salían coincidencias
+            // débiles que sin filtro quedaban tapadas por mejores (ej. "CMM
+            // Zeiss DuraMax" para "durómetro", con 0.578).
+            $umbral_minimo = max($umbral_minimo, 0.60);
         }
 
         $res = $conn->query("SELECT cdmess, descripcion, embedding FROM embeddings_historial");
@@ -107,6 +134,8 @@ function buscarSemanticamente($busqueda, $conn, $top_n = 10, $umbral_minimo = 0.
 
         $candidatos = [];
         while ($row = $res->fetch_assoc()) {
+            if ($claves_cliente !== null && !isset($claves_cliente[trim($row['cdmess'])])) continue;
+
             $vector = json_decode($row['embedding'], true);
             if (!is_array($vector)) continue;
 
@@ -130,14 +159,24 @@ function buscarSemanticamente($busqueda, $conn, $top_n = 10, $umbral_minimo = 0.
         // cotizaciones_items para los CDMESS que sí encontramos por significado.
         $cdmess_list = array_column($candidatos, 'cdmess');
         $placeholders = implode(',', array_fill(0, count($cdmess_list), '?'));
+        $params = $cdmess_list;
         $types = str_repeat('s', count($cdmess_list));
 
-        $sql = "SELECT TRIM(CDMESS) as CDMESS, ROUND(AVG(PRECIO_VENTA/CANT), 2) as precio_promedio
-                FROM cotizaciones_items
-                WHERE TRIM(CDMESS) IN ($placeholders) AND PRECIO_VENTA > 0 AND CANT > 0
-                GROUP BY TRIM(CDMESS)";
+        $join_cliente = '';
+        $filtro_cliente = '';
+        if ($idclte !== null) {
+            $join_cliente = ' INNER JOIN cotizaciones c ON ci.IDCOTIZA = c.IDCOTIZA';
+            $filtro_cliente = ' AND c.IDCLTE = ?';
+            $params[] = $idclte;
+            $types .= 'i';
+        }
+
+        $sql = "SELECT TRIM(ci.CDMESS) as CDMESS, ROUND(AVG(ci.PRECIO_VENTA/ci.CANT), 2) as precio_promedio
+                FROM cotizaciones_items ci{$join_cliente}
+                WHERE TRIM(ci.CDMESS) IN ($placeholders) AND ci.PRECIO_VENTA > 0 AND ci.CANT > 0{$filtro_cliente}
+                GROUP BY TRIM(ci.CDMESS)";
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param($types, ...$cdmess_list);
+        $stmt->bind_param($types, ...$params);
         $stmt->execute();
 
         $precios = [];

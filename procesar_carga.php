@@ -39,19 +39,24 @@ try {
         $insertados = 0;
         $reporte_errores = [];
         $tipoBusqueda = $_POST['tipoBusqueda'] ?? 'todas';
-        $cliente = $_POST['cliente'] ?? null;
+        // 'todos' (o vacío, si se limpió el select) = sin filtro de cliente.
+        // Se guarda en la cola para que el worker calcule rango/promedio/folio
+        // solo con las cotizaciones de ese cliente, no con el histórico global.
+        $cliente = $_POST['cliente'] ?? '';
+        $idclte = ($cliente === '' || $cliente === 'todos') ? null : (int) $cliente;
 
         // 2. Preparamos la consulta UNA SOLA VEZ fuera del bucle (Optimización de rendimiento)
-        $query_insert = "INSERT INTO cola_procesamiento 
-            (id_proyecto, entrada_usuario, cdmess_historico, descripcion_historica, precio_historico, estatus, es_sugerencia, id_us_registro) 
-            VALUES (?, ?, ?, ?, ?, 'pendiente', ?, ?)";
+        // Requiere: ALTER TABLE cola_procesamiento ADD COLUMN idclte INT NULL AFTER id_proyecto, ADD KEY idx_idclte (idclte);
+        $query_insert = "INSERT INTO cola_procesamiento
+            (id_proyecto, idclte, entrada_usuario, cdmess_historico, descripcion_historica, precio_historico, estatus, es_sugerencia, id_us_registro)
+            VALUES (?, ?, ?, ?, ?, ?, 'pendiente', ?, ?)";
         $stmt = $conn->prepare($query_insert);
 
         foreach ($lineas as $linea) {
             $linea = trim($linea);
             if (empty($linea)) continue;
 
-            $opciones = obtenerOpcionesUnicasHistoricas($linea, $tipoBusqueda, $cliente, $conn);
+            $opciones = obtenerOpcionesUnicasHistoricas($linea, $tipoBusqueda, $idclte, $conn);
             
             if ($opciones === 'noValido') {
                 // htmlspecialchars: $linea la escribe el usuario y este texto se
@@ -73,8 +78,8 @@ try {
                     $es_primera = false;
 
                     // 3. Solo vinculamos parámetros y ejecutamos de forma rápida
-                    $stmt->bind_param("ssssdii",
-                        $id_proyecto, $linea, $clave, $opcion['descripcion'],
+                    $stmt->bind_param("sisssdii",
+                        $id_proyecto, $idclte, $linea, $clave, $opcion['descripcion'],
                         $opcion['precio_promedio'], $es_sugerencia, $_SESSION['usuario_id']
                     );
                     $stmt->execute();
