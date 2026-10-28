@@ -84,8 +84,8 @@ function procesarSiguientePendiente() {
     // (que solo existe en Windows y ya está deprecado ahí también).
     @file_put_contents(WORKER_HEARTBEAT_FILE, (string) time());
 
-    $res = $conn->query("SELECT id, entrada_usuario, cdmess_historico, precio_historico, descripcion_historica 
-                         FROM cola_procesamiento 
+    $res = $conn->query("SELECT id, idclte, entrada_usuario, cdmess_historico, precio_historico, descripcion_historica
+                         FROM cola_procesamiento
                          WHERE estatus = 'pendiente' 
                          LIMIT 1");
 
@@ -99,39 +99,25 @@ function procesarSiguientePendiente() {
   
   try {
 
+    // Cliente elegido en el cargador (NULL = "Todos los clientes"). Con
+    // cliente, historial, rango, promedio y folio salen SOLO de sus cotizaciones.
+    $idclte = $item['idclte'] !== null ? (int) $item['idclte'] : null;
+
     // 1. Obtén historial - esto ya te da el CDMESS aunque busques por texto
-    $stats = obtenerHistorialMESS($entrada);
-    
+    $stats = obtenerHistorialMESS($entrada, $idclte);
+
     // DEBUG: Ve qué regresó el historial
     //error_log("HISTORIAL ITEMS: ". json_encode($stats['items']?? []));
-
-    // Crear mapa CDMESS => datos para buscar precio específico del item actual
-    $mapa_precios = [];
-    if (!empty($stats['items'])) {
-        foreach ($stats['items'] as $hist) {
-            $mapa_precios[$hist['cdmess']] = $hist;
-        }
-    }
 
     // 2. CLAVE: Usa el CDMESS que regresó el historial para buscar aprendizaje
     $cdmess_para_aprendizaje = $stats['cdmess']?? $item['cdmess_historico']?? 'N/A';
 
-    // Si el item actual tiene cdmess_historico y existe en el mapa, usa sus datos específicos
+    // Si el item actual tiene cdmess_historico, sus estadísticas se calculan
+    // directo por esa clave exacta (antes se buscaban en el top 10 por texto
+    // de obtenerHistorialMESS y, si no aparecía, se usaban datos de otra clave)
     $cdmess_actual = $item['cdmess_historico'];
-    if (!empty($cdmess_actual) && isset($mapa_precios[$cdmess_actual])) {
-        $datos_item = $mapa_precios[$cdmess_actual];
-        $stats_item = [
-            'min' => $datos_item['min'],
-            'max' => $datos_item['max'],
-            'avg' => $datos_item['avg'],
-            'total' => $datos_item['total'],
-            'min_mxn' => $datos_item['min_mxn'],
-            'max_mxn' => $datos_item['max_mxn'],
-            'avg_mxn' => $datos_item['avg_mxn'],
-            'total_mxn' => $datos_item['total'], // Asumiendo que el conteo de veces es el mismo para ambos
-            'fecha_min' => null,//$datos_item['fecha_min'],
-            'fecha_max' => null //$datos_item['fecha_max']
-        ];
+    if (!empty($cdmess_actual)) {
+        $stats_item = obtenerEstadisticasCDMESS($cdmess_actual, $conn, $idclte);
         // Si hay aprendizaje, búscalo con el CDMESS específico del item
         $cdmess_para_aprendizaje = $cdmess_actual;
     } else {
@@ -152,7 +138,7 @@ function procesarSiguientePendiente() {
 
     // Folio y fecha de la cotización que se usó como base (la más reciente del CDMESS)
     $cdmess_folio = !empty($cdmess_actual) ? $cdmess_actual : ($stats['cdmess'] ?? '');
-    $folio_base   = obtenerFolioBase($cdmess_folio, $conn);
+    $folio_base   = obtenerFolioBase($cdmess_folio, $conn, $idclte);
 
     $aprendizaje = obtenerAprendizajeHumano($cdmess_para_aprendizaje, $conn);
 
@@ -257,8 +243,9 @@ function procesarSiguientePendiente() {
         }
         
         $detalle_calculo = sprintf(
-            "Calculado con %d cotizaciones%s | Min: $%.2f usd| Max: $%.2f usd| Promedio: $%.2f usd | Min: $%.2f mxn| Max: $%.2f mxn| Promedio: $%.2f mxn",
+            "Calculado con %d cotizaciones%s%s | Min: $%.2f usd| Max: $%.2f usd| Promedio: $%.2f usd | Min: $%.2f mxn| Max: $%.2f mxn| Promedio: $%.2f mxn",
             $stats_item['total'],
+            $idclte !== null ? ' del cliente' : '',
             $fecha_rango,
             $stats_item['min'],
             $stats_item['max'],

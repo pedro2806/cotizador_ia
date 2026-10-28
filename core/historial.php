@@ -50,7 +50,13 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $tipoBusqueda, $cliente, $co
             // Antes LIMIT 15: se sube a 25 para darle a la IA un pool más
             // amplio de candidatos entre los que elegir (más libertad real
             // de opciones, no solo margen para redactar).
-            $sql .= ' GROUP BY TRIM(CDMESS) ORDER BY COUNT(*) DESC LIMIT 25';
+            // La clave exacta va primero: el LIKE '%L1-9%' también trae
+            // L1-90..L1-99, y sin esto la principal (es_sugerencia = 0) era la
+            // más frecuente en vez de la que escribió el usuario. Va dentro de
+            // MAX() para que sea válido con ONLY_FULL_GROUP_BY.
+            $sql .= ' GROUP BY TRIM(CDMESS) ORDER BY MAX(TRIM(CDMESS) = ?) DESC, COUNT(*) DESC LIMIT 25';
+            $params[] = $busqueda_limpia;
+            $types .= 's';
 
             $stmt = $conn->prepare($sql);
             $stmt->bind_param($types, ...$params);
@@ -135,7 +141,7 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $tipoBusqueda, $cliente, $co
     // etc. el usuario ya sabe qué está buscando literalmente, y "parecido
     // en significado" no aporta ahí (y podría meter ruido).
     if (in_array($tipoBusqueda, ['todas', 'descripciones'], true)) {
-        $semanticos = buscarSemanticamente($busqueda_limpia, $conn);
+        $semanticos = buscarSemanticamente($busqueda_limpia, $conn, $cliente_limpio);
         $resultados_crudos = mezclarCandidatos($resultados_crudos, $semanticos);
     }
 
@@ -145,14 +151,27 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $tipoBusqueda, $cliente, $co
 /**
  * Trae estadísticas (min/max/avg en USD y MXN) del historial para un texto
  * de búsqueda dado. Usado por worker_ia.php como contexto principal para Ollama.
+ * Con $idclte, solo considera cotizaciones de ese cliente (así las
+ * coincidencias que ve la IA también son del cliente seleccionado).
  */
-function obtenerHistorialMESS($busqueda) {
+function obtenerHistorialMESS($busqueda, $idclte = null) {
     global $conn;
 
     $contexto = procesarContextoBusqueda($busqueda);
     $busqueda_limpia = $contexto['busqueda_limpia'];
     $tipo_val = $contexto['tipo'];
     $termino = $contexto['termino'];
+
+    $params = [$termino, $termino, $termino, $termino, $termino, $termino, $termino, $tipo_val];
+    $types = 'ssssssss';
+    $join_cliente = '';
+    $filtro_cliente = '';
+    if ($idclte !== null) {
+        $join_cliente = ' INNER JOIN cotizaciones c ON ci.IDCOTIZA = c.IDCOTIZA';
+        $filtro_cliente = ' AND c.IDCLTE = ?';
+        $params[] = $idclte;
+        $types .= 'i';
+    }
 
     $sql = "SELECT ci.CDMESS, MAX(ci.DESCRIPCION) as DESCRIPCION,
             ROUND(AVG(ci.PRECIO_VENTA/ci.CANT), 2) AS PRECIO_VENTA,
@@ -162,20 +181,21 @@ function obtenerHistorialMESS($busqueda) {
             ROUND(MIN(ci.PRECIO_VENTA_MXN/ci.CANT), 2) AS PRECIO_VENTA_MXN_MIN,
             ROUND(MAX(ci.PRECIO_VENTA_MXN/ci.CANT), 2) AS PRECIO_VENTA_MXN_MAX,
             COUNT(*) as TOTAL_VECES
-        FROM cotizaciones_items ci
+        FROM cotizaciones_items ci{$join_cliente}
         WHERE (ci.DESCRIPCION LIKE ? OR ci.CDMESS LIKE ? OR ci.MARCA LIKE ? OR ci.MODELO LIKE ? OR ci.SERIE LIKE ? OR ci.MESSTAG LIKE ? OR ci.ID_EQ_CLIENTE LIKE ?)
-        AND ci.TIPO = ? AND ci.PRECIO_VENTA > 0 AND ci.CANT > 0
+        AND ci.TIPO = ? AND ci.PRECIO_VENTA > 0 AND ci.CANT > 0{$filtro_cliente}
         GROUP BY ci.CDMESS ORDER BY TOTAL_VECES DESC, ci.CDMESS LIMIT 10";
 
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param('ssssssss', $termino, $termino, $termino, $termino, $termino, $termino, $termino, $tipo_val);
+    $stmt->bind_param($types, ...$params);
     $stmt->execute();
     $res = $stmt->get_result();
 
     // Reintento dinámico si no encuentra resultados con el tipo original
     if ($res->num_rows === 0) {
         $tipo_val = ($tipo_val === 'SERVICIO') ? 'EQUIPO' : 'SERVICIO';
-        $stmt->bind_param('ssssssss', $termino, $termino, $termino, $termino, $termino, $termino, $termino, $tipo_val);
+        $params[7] = $tipo_val;
+        $stmt->bind_param($types, ...$params);
         $stmt->execute();
         $res = $stmt->get_result();
     }
@@ -299,19 +319,84 @@ function obtenerAprendizajeHumano($entrada, $conn) {
 }
 
 /**
- * Folio y fecha de la cotización más reciente que sirvió de base para un CDMESS.
+ * Estadísticas de precio de UNA clave CDMESS exacta (no búsqueda por texto).
+ * Con $idclte, solo cuenta cotizaciones de ese cliente. Es lo que worker_ia.php
+ * muestra como rango/promedio/conteo de cada ítem del proyecto.
+ *
+ * Antes el worker sacaba esto de obtenerHistorialMESS() (búsqueda por texto,
+ * top 10): si la clave del ítem no quedaba en ese top, caía a datos de otra
+ * clave con total 0, y nunca respetaba el cliente seleccionado.
  */
-function obtenerFolioBase($cdmess, $conn) {
+function obtenerEstadisticasCDMESS($cdmess, $conn, $idclte = null) {
+    // FECHA > '1900-01-01' deja fuera fechas en cero ('0000-00-00'), que
+    // si no saldrían como año "-0001" en el detalle del cálculo.
+    $sql = "SELECT ROUND(AVG(ci.PRECIO_VENTA/ci.CANT), 2) AS avg_usd,
+                   ROUND(MIN(ci.PRECIO_VENTA/ci.CANT), 2) AS min_usd,
+                   ROUND(MAX(ci.PRECIO_VENTA/ci.CANT), 2) AS max_usd,
+                   ROUND(AVG(ci.PRECIO_VENTA_MXN/ci.CANT), 2) AS avg_mxn,
+                   ROUND(MIN(ci.PRECIO_VENTA_MXN/ci.CANT), 2) AS min_mxn,
+                   ROUND(MAX(ci.PRECIO_VENTA_MXN/ci.CANT), 2) AS max_mxn,
+                   COUNT(*) AS total,
+                   MIN(CASE WHEN c.FECHA > '1900-01-01' THEN c.FECHA END) AS fecha_min,
+                   MAX(CASE WHEN c.FECHA > '1900-01-01' THEN c.FECHA END) AS fecha_max
+            FROM cotizaciones_items ci
+            INNER JOIN cotizaciones c ON ci.IDCOTIZA = c.IDCOTIZA
+            WHERE ci.CDMESS = ? AND ci.PRECIO_VENTA > 0 AND ci.CANT > 0";
+    $params = [trim($cdmess)];
+    $types = 's';
+
+    if ($idclte !== null) {
+        $sql .= ' AND c.IDCLTE = ?';
+        $params[] = $idclte;
+        $types .= 'i';
+    }
+
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    $total = (int) ($row['total'] ?? 0);
+
+    return [
+        'min' => (float) ($row['min_usd'] ?? 0),
+        'max' => (float) ($row['max_usd'] ?? 0),
+        'avg' => (float) ($row['avg_usd'] ?? 0),
+        'total' => $total,
+        'min_mxn' => (float) ($row['min_mxn'] ?? 0),
+        'max_mxn' => (float) ($row['max_mxn'] ?? 0),
+        'avg_mxn' => (float) ($row['avg_mxn'] ?? 0),
+        'total_mxn' => $total,
+        'fecha_min' => $row['fecha_min'] ?? null,
+        'fecha_max' => $row['fecha_max'] ?? null
+    ];
+}
+
+/**
+ * Folio y fecha de la cotización más reciente que sirvió de base para un CDMESS.
+ * Con $idclte, la más reciente de ese cliente.
+ */
+function obtenerFolioBase($cdmess, $conn, $idclte = null) {
     if (empty($cdmess)) return ['folio' => '', 'fecha' => ''];
 
     $sql = "SELECT ci.IDCOTIZA AS folio, c.FECHA AS fecha
             FROM cotizaciones_items ci
             LEFT JOIN cotizaciones c ON ci.IDCOTIZA = c.IDCOTIZA
-            WHERE ci.CDMESS = ? AND ci.PRECIO_VENTA > 0 AND ci.CANT > 0
-            ORDER BY ci.id_item DESC LIMIT 1";
+            WHERE ci.CDMESS = ? AND ci.PRECIO_VENTA > 0 AND ci.CANT > 0";
+    $params = [$cdmess];
+    $types = 's';
+
+    if ($idclte !== null) {
+        $sql .= ' AND c.IDCLTE = ?';
+        $params[] = $idclte;
+        $types .= 'i';
+    }
+
+    $sql .= ' ORDER BY ci.id_item DESC LIMIT 1';
 
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param('s', $cdmess);
+    $stmt->bind_param($types, ...$params);
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc();
     $stmt->close();
