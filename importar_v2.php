@@ -9,15 +9,7 @@ set_time_limit(0);
 if (ob_get_level()) ob_end_clean();
 ob_implicit_flush(true);
 
-// ==========================================
-// 1. CREDENCIALES DE BASE DE DATOS
-// ==========================================
-$db_host = "localhost";
-$db_user = "messias_admin";
-$db_pass = "Pipmytrade123";
-$db_name = "cotizador_ia";
-
-$conn = new mysqli($db_host, $db_user, $db_pass, $db_name);
+require_once __DIR__ . '/conexion.php';
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -36,14 +28,23 @@ $conn = new mysqli($db_host, $db_user, $db_pass, $db_name);
         #console-log div { border-bottom: 1px solid #343a40; padding: 4px 0; }
     </style>
 </head>
-<body class="d-flex align-items-center justify-content-center vh-100">
+<body class="d-flex align-items-center justify-content-center min-vh-100 py-4">
     
     <div class="container" style="max-width: 700px;">
         <div class="card card-import p-4 p-md-5">
             <div class="text-center mb-4">
                 <h4 class="fw-bold text-dark"><i class="bi bi-cloud-arrow-up-fill text-primary me-2"></i>Procesando Archivo CSV</h4>
-                <p class="text-muted small mb-0" id="status-text">Iniciando lectura...</p>
+                <p class="text-muted small mb-0" id="status-text"><?php echo $_SERVER['REQUEST_METHOD'] === 'POST' ? 'Preparando importación...' : 'Selecciona el archivo CSV que deseas importar.'; ?></p>
             </div>
+
+            <form method="post" enctype="multipart/form-data" class="mb-4">
+                <label for="csv_file" class="form-label fw-semibold">Archivo CSV</label>
+                <input class="form-control mb-3" type="file" id="csv_file" name="csv_file" accept=".csv,text/csv" required>
+                <div class="form-text mb-3">Tamaño máximo permitido: 100 MB.</div>
+                <button class="btn btn-primary w-100" type="submit">
+                    <i class="bi bi-upload me-1"></i>Importar archivo
+                </button>
+            </form>
             
             <div class="progress mb-4 shadow-sm">
                 <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
@@ -79,24 +80,112 @@ $conn = new mysqli($db_host, $db_user, $db_pass, $db_name);
     </div>
 
 <?php
-if ($conn->connect_error) {
-    die("<script>document.getElementById('console-log').innerHTML += '<div class=\"text-danger\">Error conexión: " . $conn->connect_error . "</div>';</script></body></html>");
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    echo '</body></html>';
+    exit;
+}
+
+if (
+    (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0
+    && empty($_POST)
+    && empty($_FILES)
+) {
+    $tamanoSolicitud = round((int) $_SERVER['CONTENT_LENGTH'] / 1048576, 2);
+    $limitePost = ini_get('post_max_size');
+    $limiteArchivo = ini_get('upload_max_filesize');
+    $mensaje = "La solicitud de {$tamanoSolicitud} MB excede el límite POST efectivo de {$limitePost}. Límite de archivo: {$limiteArchivo}. Reinicia Apache desde WAMP después de cambiar la configuración.";
+    echo '<script>document.getElementById("console-log").textContent = ' .
+        json_encode($mensaje, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) .
+        ';</script>';
+    echo '<script>document.getElementById("status-text").textContent = "No se pudo iniciar la importación.";</script></body></html>';
+    exit;
 }
 
 // ==========================================
-// 2. ARCHIVO A LEER
+// 2. VALIDAR Y LEER EL ARCHIVO SUBIDO
 // ==========================================
-$archivo = 'Export_TabCotizaciones 2026.csv'; 
+$errorCarga = $_FILES['csv_file']['error'] ?? UPLOAD_ERR_NO_FILE;
+$nombreArchivo = $_FILES['csv_file']['name'] ?? '';
+$archivo = $_FILES['csv_file']['tmp_name'] ?? '';
 
-if (!file_exists($archivo)) {
-    die("<script>document.getElementById('console-log').innerHTML += '<div class=\"text-danger\">Archivo $archivo no existe.</div>';</script></body></html>");
+$mensajesErrorCarga = [
+    UPLOAD_ERR_INI_SIZE => 'El archivo supera el tamaño máximo permitido por el servidor.',
+    UPLOAD_ERR_FORM_SIZE => 'El archivo supera el tamaño máximo permitido por el formulario.',
+    UPLOAD_ERR_PARTIAL => 'El archivo se recibió parcialmente. Intenta subirlo de nuevo.',
+    UPLOAD_ERR_NO_FILE => 'Selecciona un archivo CSV antes de iniciar la importación.',
+    UPLOAD_ERR_NO_TMP_DIR => 'El servidor no tiene configurada una carpeta temporal para las cargas.',
+    UPLOAD_ERR_CANT_WRITE => 'El servidor no pudo guardar temporalmente el archivo.',
+    UPLOAD_ERR_EXTENSION => 'Una extensión del servidor impidió recibir el archivo.'
+];
+
+if ($errorCarga !== UPLOAD_ERR_OK) {
+    $mensaje = $mensajesErrorCarga[$errorCarga] ?? 'Ocurrió un error al recibir el archivo.';
+    echo '<script>document.getElementById("console-log").textContent = ' .
+        json_encode($mensaje, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) .
+        ';</script>';
+    echo '<script>document.getElementById("status-text").textContent = "No se pudo iniciar la importación.";</script></body></html>';
+    exit;
 }
 
-$lineasArchivo = file($archivo);
-$totalLineas = count($lineasArchivo) - 1; 
-unset($lineasArchivo); 
+if (strtolower(pathinfo($nombreArchivo, PATHINFO_EXTENSION)) !== 'csv' || !is_uploaded_file($archivo) || !is_readable($archivo)) {
+    $mensaje = 'El archivo seleccionado no es un CSV válido o no se pudo leer.';
+    echo '<script>document.getElementById("console-log").textContent = ' .
+        json_encode($mensaje, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) .
+        ';</script></body></html>';
+    exit;
+}
+
 $gestor = fopen($archivo, "r");
-fgetcsv($gestor); 
+if ($gestor === false) {
+    die("<script>document.getElementById('console-log').innerHTML += '<div class=\"text-danger\">No fue posible abrir $nombreArchivo.</div>';</script></body></html>");
+}
+
+$columnasRequeridas = [
+    'IDCOTIZA', 'IDCLTE', 'FECHA', 'STATUS', 'VALOR_USD', 'VALOR_MXP',
+    'CANT', 'CDMESS', 'DESCRIPCION', 'IDEQUIPOCLIENTE', 'MESS_TAG',
+    'MARCA', 'MODELO', 'NOSERIE', 'IDUSRVEND'
+];
+$normalizarEncabezados = static function (array $valores) {
+    $valores = array_map(static function ($valor) {
+        return strtoupper(trim((string) $valor));
+    }, $valores);
+    if (isset($valores[0])) {
+        $valores[0] = preg_replace('/^\xEF\xBB\xBF/', '', $valores[0]);
+    }
+    return $valores;
+};
+
+$encabezados = false;
+while (($filaEncabezado = fgetcsv($gestor, 0, ",", '"', "")) !== false) {
+    $candidato = $normalizarEncabezados($filaEncabezado);
+    if (count(array_diff($columnasRequeridas, $candidato)) === 0) {
+        $encabezados = $candidato;
+        break;
+    }
+}
+
+if ($encabezados === false) {
+    fclose($gestor);
+    $mensaje = 'No se encontró el encabezado esperado. Verifica que el CSV contenga las columnas requeridas.';
+    echo '<script>document.getElementById("console-log").textContent = ' .
+        json_encode($mensaje, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) .
+        ';</script></body></html>';
+    exit;
+}
+
+$inicioDatos = ftell($gestor);
+$totalLineas = 0;
+while (fgetcsv($gestor, 0, ",", '"', "") !== false) {
+    $totalLineas++;
+}
+if (fseek($gestor, $inicioDatos) !== 0) {
+    fclose($gestor);
+    $mensaje = 'No se pudo volver al inicio de los registros del CSV.';
+    echo '<script>document.getElementById("console-log").textContent = ' .
+        json_encode($mensaje, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) .
+        ';</script></body></html>';
+    exit;
+}
 
 // ==========================================
 // 3. PREPARAR SENTENCIAS
@@ -109,14 +198,25 @@ $errores = 0;
 $ignorados = 0;
 $lineasLeidas = 0; 
 
+$normalizar = static function ($valor) {
+    $valor = trim((string) $valor);
+    return $valor === "'-" ? '' : $valor;
+};
+
 $conn->query("SET FOREIGN_KEY_CHECKS = 0");
 $conn->begin_transaction(); 
 
 try {
-    while (($datos = fgetcsv($gestor, 1000, ",")) !== FALSE) {
+    while (($datos = fgetcsv($gestor, 0, ",", '"', "")) !== false) {
         $lineasLeidas++; 
         
-        if (empty($datos) || !isset($datos[0]) || trim($datos[0]) === '') {
+        if (empty($datos) || count($datos) !== count($encabezados)) {
+            $ignorados++;
+            continue;
+        }
+
+        $fila = array_combine($encabezados, $datos);
+        if ($fila === false || trim($fila['IDCOTIZA']) === '') {
             $ignorados++;
             continue;
         }
@@ -124,26 +224,28 @@ try {
         // ==========================================
         // 4. MAPEO DE DATOS
         // ==========================================
-        $id_cotiza  = trim($datos[0] ?? '');
-        $id_clte    = trim($datos[1] ?? '');
-        $fecha      = trim($datos[2] ?? '');
-        $status     = trim($datos[3] ?? '');
-        
-        $valor_usd  = floatval($datos[4] ?? 0); 
-        $valor_mxn  = isset($datos[5]) ? floatval($datos[5]) : 0; 
-        
-        $id_vend    = trim($datos[6] ?? '');
-        $cdmess     = trim($datos[8] ?? '');
-        $desc       = trim($datos[11] ?? '');
-        
-        $cant       = isset($datos[18]) ? intval($datos[18]) : 1;
+        $id_cotiza  = $normalizar($fila['IDCOTIZA']);
+        $id_clte    = $normalizar($fila['IDCLTE']);
+        $fecha      = $normalizar($fila['FECHA']);
+        $status     = $normalizar($fila['STATUS']);
+        $valor_usd  = (float) $normalizar($fila['VALOR_USD']);
+        $valor_mxn  = (float) $normalizar($fila['VALOR_MXP']);
+        $cant       = (int) $normalizar($fila['CANT']);
+        $cdmess     = $normalizar($fila['CDMESS']);
+        $desc       = $normalizar($fila['DESCRIPCION']);
+        $id_eq_clte = $normalizar($fila['IDEQUIPOCLIENTE']);
+        $messtag    = $normalizar($fila['MESS_TAG']);
+        $marca      = $normalizar($fila['MARCA']);
+        $modelo     = $normalizar($fila['MODELO']);
+        $serie      = $normalizar($fila['NOSERIE']);
+        $id_vend    = $normalizar($fila['IDUSRVEND']);
+
+        if ($id_cotiza === '') {
+            $ignorados++;
+            continue;
+        }
+
         if ($cant <= 0) $cant = 1;
-        
-        $marca      = trim($datos[20] ?? '');
-        $modelo     = trim($datos[21] ?? '');
-        $serie      = trim($datos[22] ?? '');
-        $id_eq_clte = trim($datos[23] ?? ''); 
-        $messtag    = trim($datos[24] ?? ''); 
 
         $tipo_defecto = 'EQUIPO';
 
@@ -194,7 +296,7 @@ try {
         // 8. ACTUALIZACIÓN VISUAL (TIEMPO REAL)
         // ==========================================
         if ($lineasLeidas % 50 === 0 || $lineasLeidas === $totalLineas) {
-            $porcentaje = min(100, round(($lineasLeidas / $totalLineas) * 100)); 
+            $porcentaje = $totalLineas > 0 ? min(100, round(($lineasLeidas / $totalLineas) * 100)) : 100;
             echo "<script>
                 document.getElementById('progress-bar').style.width = '{$porcentaje}%';
                 document.getElementById('progress-bar').innerText = '{$porcentaje}%';

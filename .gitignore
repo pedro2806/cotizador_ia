@@ -7,3 +7,6 @@ Export_TabCotizaciones 2024.csv
 Export_TabCotizaciones 2023.csv
 log_ia.txt
 worker_heartbeat.txt
+CLAUDE.md
+core/config.php
+worker_heartbeat.txt
