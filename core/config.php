@@ -16,8 +16,8 @@
 
 // --- Base de datos ---
 define('DB_HOST', 'localhost');
-define('DB_USER', 'root');
-define('DB_PASS', '');
+define('DB_USER', 'messias_admin');
+define('DB_PASS', 'Pipmytrade123');
 define('DB_NAME', 'cotizador_ia');
 define('DB_CHARSET', 'utf8mb4');
 
