@@ -8,3 +8,4 @@ Export_TabCotizaciones 2023.csv
 log_ia.txt
 CLAUDE.md
 core/config.php
+worker_heartbeat.txt
