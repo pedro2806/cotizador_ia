@@ -78,6 +78,7 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $tipoBusqueda, $cliente, $co
     // Antes LIMIT 15: mismo criterio que la rama CDMESS, más candidatos
     // reales para que la IA elija entre ellos.
     $group_order = ' GROUP BY TRIM(ci.CDMESS), t.STATUS ORDER BY COUNT(*) DESC LIMIT 25';
+    $parametros_orden = [];
 
     // Switch sin la barrera de "ci.TIPO = ?" para que encuentre equipos aunque parezcan servicios.
     // El 'default' cae en el mismo comportamiento de 'todas' para que un valor de
@@ -85,9 +86,27 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $tipoBusqueda, $cliente, $co
     // $where_clause vacío producía "... WHERE  AND ci.PRECIO_VENTA..." inválido).
     switch ($tipoBusqueda) {
         case 'descripciones':
-            $where_clause = 'WHERE ci.DESCRIPCION LIKE ?';
-            $params = [$termino];
-            $types = 's';
+            $texto_descripcion = preg_replace('/[^\p{L}\p{N}]+/u', ' ', trim($busqueda));
+            $tokens = is_string($texto_descripcion)
+                ? preg_split('/\s+/u', trim($texto_descripcion), -1, PREG_SPLIT_NO_EMPTY)
+                : [];
+            if (!is_array($tokens)) {
+                $tokens = [];
+            }
+
+            if (empty($tokens)) {
+                $where_clause = 'WHERE ci.DESCRIPCION LIKE ?';
+                $params = [$termino];
+                $types = 's';
+            } else {
+                $where_clause = 'WHERE ' . implode(' AND ', array_fill(0, count($tokens), 'ci.DESCRIPCION LIKE ?'));
+                $params = array_map(static function ($token) {
+                    return '%' . $token . '%';
+                }, $tokens);
+                $types = str_repeat('s', count($tokens));
+                $group_order = ' GROUP BY TRIM(ci.CDMESS), t.STATUS ORDER BY MAX(ci.DESCRIPCION LIKE ?) DESC, COUNT(*) DESC LIMIT 25';
+                $parametros_orden[] = '%' . implode('%', $tokens) . '%';
+            }
             break;
         case 'modelo':
             $where_clause = 'WHERE ci.MODELO LIKE ?';
@@ -119,12 +138,19 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $tipoBusqueda, $cliente, $co
             $where_clause = 'WHERE (MATCH(ci.DESCRIPCION) AGAINST(? IN BOOLEAN MODE) OR ci.CDMESS LIKE ? OR ci.MARCA LIKE ? OR ci.MODELO LIKE ? OR ci.SERIE LIKE ?)';
             $params = [$busqueda_limpia, $termino, $termino, $termino, $termino];
             $types = 'sssss';
+            $group_order = ' GROUP BY TRIM(ci.CDMESS), t.STATUS ORDER BY MAX(ci.DESCRIPCION LIKE ?) DESC, COUNT(*) DESC LIMIT 25';
+            $frase = preg_replace('/[^\p{L}\p{N}]+/u', '%', trim($busqueda));
+            $parametros_orden[] = '%' . trim(is_string($frase) ? $frase : trim($busqueda), '%') . '%';
             break;
     }
 
     if ($filtrar_cliente) {
         $condiciones_globales .= ' AND c.IDCLTE = ? ';
         $params[] = $cliente_limpio;
+        $types .= 's';
+    }
+    foreach ($parametros_orden as $parametro_orden) {
+        $params[] = $parametro_orden;
         $types .= 's';
     }
 
@@ -136,16 +162,14 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $tipoBusqueda, $cliente, $co
     $resultados_crudos = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
 
-    // Búsqueda semántica: solo tiene sentido cuando se busca por texto
-    // libre/descripción. Para búsquedas por código exacto, serie, modelo,
-    // etc. el usuario ya sabe qué está buscando literalmente, y "parecido
-    // en significado" no aporta ahí (y podría meter ruido).
-    if (in_array($tipoBusqueda, ['todas', 'descripciones'], true)) {
-        $semanticos = buscarSemanticamente($busqueda_limpia, $conn, $cliente_limpio);
+    // La búsqueda semántica complementa el modo general; en "descripciones"
+    // se buscan literalmente todos los términos para evitar resultados ajenos.
+    if ($tipoBusqueda === 'todas') {
+        $semanticos = buscarSemanticamente($busqueda, $conn, $cliente_limpio);
         $resultados_crudos = mezclarCandidatos($resultados_crudos, $semanticos);
     }
 
-    return filtrarOpcionesConOllama($busqueda_limpia, $resultados_crudos);
+    return filtrarOpcionesConOllama($busqueda, $resultados_crudos);
 }
 
 /**
