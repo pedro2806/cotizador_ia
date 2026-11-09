@@ -3,7 +3,7 @@ include 'conexion.php';
 include 'funcionesWorker.php';
 
 
-echo verificarWorker() ? '<span class="text-success">● Worker Activo</span>' : '<span class="text-danger">○ Worker Apagado (Ejecuta el .bat)</span>';
+//echo verificarWorker() ? '<span class="text-success">● Worker Activo</span>' : '<span class="text-danger">○ Worker Apagado (Ejecuta el .bat)</span>';
 
 // 1. Obtener el resumen de proyectos activos para el selector
 $proyectos_query = $conn->query("SELECT id_proyecto, COUNT(*) as total, 

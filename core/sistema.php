@@ -19,11 +19,11 @@
  * si el proceso sigue vivo y procesando.
  */
 function verificarWorker() {
-    if (!file_exists(WORKER_HEARTBEAT_FILE)) {
+    /*if (!file_exists(WORKER_HEARTBEAT_FILE)) {
         return false;
     }
     $ultimo_latido = (int) @file_get_contents(WORKER_HEARTBEAT_FILE);
-    return $ultimo_latido > 0 && (time() - $ultimo_latido) <= WORKER_HEARTBEAT_TTL;
+    return $ultimo_latido > 0 && (time() - $ultimo_latido) <= WORKER_HEARTBEAT_TTL;*/
 }
 
 /**
