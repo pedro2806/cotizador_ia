@@ -2,6 +2,10 @@
 require_once __DIR__ . '/core/json_api.php';
 iniciarRespuestaJSON();
 
+// Una carga puede esperar una respuesta de Ollama por cada línea.
+// Evita que el límite de ejecución predeterminado de PHP corte la petición.
+set_time_limit(0);
+
 session_start();
 
 // 1. Validar sesión activa
@@ -107,7 +111,7 @@ try {
             'tipoBusqueda'    => $tipoBusqueda
         ]);
 
-    } catch (Exception $e) {
+    } catch (Throwable $e) {
         // 5. Si algo falla a nivel de código o base de datos, abortamos todo el lote
         $conn->rollback();
         // Por si el error ocurrió antes de llegar al RELEASE_LOCK normal.
