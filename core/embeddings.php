@@ -129,10 +129,16 @@ function buscarSemanticamente($busqueda, $conn, $idclte = null, $top_n = 10, $um
             $umbral_minimo = max($umbral_minimo, 0.60);
         }
 
-        $res = $conn->query("SELECT cdmess, descripcion, embedding FROM embeddings_historial");
+        // Stream the table: buffering every JSON vector can exceed PHP's
+        // memory limit once the embeddings table grows.
+        $res = $conn->query(
+            "SELECT cdmess, descripcion, embedding FROM embeddings_historial",
+            MYSQLI_USE_RESULT
+        );
         if (!$res) return [];
 
         $candidatos = [];
+        $max_candidatos = max(1, $top_n);
         while ($row = $res->fetch_assoc()) {
             if ($claves_cliente !== null && !isset($claves_cliente[trim($row['cdmess'])])) continue;
 
@@ -141,18 +147,32 @@ function buscarSemanticamente($busqueda, $conn, $idclte = null, $top_n = 10, $um
 
             $sim = similitudCoseno($emb_busqueda, $vector);
             if ($sim >= $umbral_minimo) {
-                $candidatos[] = [
+                $candidato = [
                     'cdmess' => $row['cdmess'],
                     'descripcion' => $row['descripcion'],
                     'similitud' => $sim
                 ];
+                if (count($candidatos) < $max_candidatos) {
+                    $candidatos[] = $candidato;
+                    continue;
+                }
+
+                $indice_menor = 0;
+                foreach ($candidatos as $indice => $existente) {
+                    if ($existente['similitud'] < $candidatos[$indice_menor]['similitud']) {
+                        $indice_menor = $indice;
+                    }
+                }
+                if ($sim > $candidatos[$indice_menor]['similitud']) {
+                    $candidatos[$indice_menor] = $candidato;
+                }
             }
         }
+        $res->free();
 
         if (empty($candidatos)) return [];
 
         usort($candidatos, fn($a, $b) => $b['similitud'] <=> $a['similitud']);
-        $candidatos = array_slice($candidatos, 0, $top_n);
 
         // La tabla de embeddings no guarda precio (cambia con el tiempo y
         // no queremos que se desactualice ahí); lo traemos fresco de

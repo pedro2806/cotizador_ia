@@ -18,6 +18,20 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $tipoBusqueda, $cliente, $co
     $contexto = procesarContextoBusqueda($busqueda);
     $busqueda_limpia = $contexto['busqueda_limpia'];
     $termino = $contexto['termino'];
+    $texto_descripcion = preg_replace('/[^\p{L}\p{N}]+/u', ' ', trim($busqueda));
+    $tokens_descripcion = is_string($texto_descripcion)
+        ? preg_split('/\s+/u', trim($texto_descripcion), -1, PREG_SPLIT_NO_EMPTY)
+        : [];
+    if (!is_array($tokens_descripcion)) {
+        $tokens_descripcion = [];
+    }
+    $tokens_sin_ruido = array_values(array_filter($tokens_descripcion, static function ($token) {
+        return !in_array(strtolower($token), ['de', 'del', 'la', 'el', 'los', 'las', 'con', 'por', 'para', 'en'], true);
+    }));
+    if (!empty($tokens_sin_ruido)) {
+        $tokens_descripcion = $tokens_sin_ruido;
+    }
+    $campo_descripcion = 'CONVERT(ci.DESCRIPCION USING utf8mb4) COLLATE utf8mb4_unicode_ci';
 
     // Validamos el cliente
     $filtrar_cliente = (!empty($cliente) && $cliente !== 'todos');
@@ -86,26 +100,18 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $tipoBusqueda, $cliente, $co
     // $where_clause vacío producía "... WHERE  AND ci.PRECIO_VENTA..." inválido).
     switch ($tipoBusqueda) {
         case 'descripciones':
-            $texto_descripcion = preg_replace('/[^\p{L}\p{N}]+/u', ' ', trim($busqueda));
-            $tokens = is_string($texto_descripcion)
-                ? preg_split('/\s+/u', trim($texto_descripcion), -1, PREG_SPLIT_NO_EMPTY)
-                : [];
-            if (!is_array($tokens)) {
-                $tokens = [];
-            }
-
-            if (empty($tokens)) {
-                $where_clause = 'WHERE ci.DESCRIPCION LIKE ?';
+            if (empty($tokens_descripcion)) {
+                $where_clause = "WHERE {$campo_descripcion} LIKE ?";
                 $params = [$termino];
                 $types = 's';
             } else {
-                $where_clause = 'WHERE ' . implode(' AND ', array_fill(0, count($tokens), 'ci.DESCRIPCION LIKE ?'));
+                $where_clause = 'WHERE ' . implode(' AND ', array_fill(0, count($tokens_descripcion), "{$campo_descripcion} LIKE ?"));
                 $params = array_map(static function ($token) {
                     return '%' . $token . '%';
-                }, $tokens);
-                $types = str_repeat('s', count($tokens));
-                $group_order = ' GROUP BY TRIM(ci.CDMESS), t.STATUS ORDER BY MAX(ci.DESCRIPCION LIKE ?) DESC, COUNT(*) DESC LIMIT 25';
-                $parametros_orden[] = '%' . implode('%', $tokens) . '%';
+                }, $tokens_descripcion);
+                $types = str_repeat('s', count($tokens_descripcion));
+                $group_order = " GROUP BY TRIM(ci.CDMESS), t.STATUS ORDER BY MAX({$campo_descripcion} LIKE ?) DESC, COUNT(*) DESC LIMIT 25";
+                $parametros_orden[] = '%' . implode('%', $tokens_descripcion) . '%';
             }
             break;
         case 'modelo':
@@ -135,12 +141,25 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $tipoBusqueda, $cliente, $co
             break;
         case 'todas':
         default:
-            $where_clause = 'WHERE (MATCH(ci.DESCRIPCION) AGAINST(? IN BOOLEAN MODE) OR ci.CDMESS LIKE ? OR ci.MARCA LIKE ? OR ci.MODELO LIKE ? OR ci.SERIE LIKE ?)';
-            $params = [$busqueda_limpia, $termino, $termino, $termino, $termino];
-            $types = 'sssss';
-            $group_order = ' GROUP BY TRIM(ci.CDMESS), t.STATUS ORDER BY MAX(ci.DESCRIPCION LIKE ?) DESC, COUNT(*) DESC LIMIT 25';
-            $frase = preg_replace('/[^\p{L}\p{N}]+/u', '%', trim($busqueda));
-            $parametros_orden[] = '%' . trim(is_string($frase) ? $frase : trim($busqueda), '%') . '%';
+            $condiciones_busqueda = ['MATCH(ci.DESCRIPCION) AGAINST(? IN BOOLEAN MODE)'];
+            $params = [$busqueda_limpia];
+            $types = 's';
+            if (!empty($tokens_descripcion)) {
+                $condiciones_busqueda[] = '(' . implode(' AND ', array_fill(0, count($tokens_descripcion), "{$campo_descripcion} LIKE ?")) . ')';
+                foreach ($tokens_descripcion as $token) {
+                    $params[] = '%' . $token . '%';
+                    $types .= 's';
+                }
+            }
+            $condiciones_busqueda[] = 'ci.CDMESS LIKE ?';
+            $condiciones_busqueda[] = 'ci.MARCA LIKE ?';
+            $condiciones_busqueda[] = 'ci.MODELO LIKE ?';
+            $condiciones_busqueda[] = 'ci.SERIE LIKE ?';
+            array_push($params, $termino, $termino, $termino, $termino);
+            $types .= 'ssss';
+            $where_clause = 'WHERE (' . implode(' OR ', $condiciones_busqueda) . ')';
+            $group_order = " GROUP BY TRIM(ci.CDMESS), t.STATUS ORDER BY MAX({$campo_descripcion} LIKE ?) DESC, COUNT(*) DESC LIMIT 25";
+            $parametros_orden[] = '%' . implode('%', $tokens_descripcion) . '%';
             break;
     }
 
