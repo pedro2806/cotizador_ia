@@ -194,7 +194,24 @@
             <div class="login-card mb-1">
                 <h5 class="fw-bold mb-1 text-dark border-bottom pb-2">Sistema de Control</h5>
                 
-                
+                <div class="mb-4">
+                    <label class="small text-muted d-block mb-2">Estatus del Motor</label>
+                    <?php if(function_exists('verificarWorker') && verificarWorker()): ?>
+                        <div class="alert alert-success border-0 py-2 d-flex align-items-center">
+                            <span class="status-dot bg-success"></span>
+                            <small class="fw-bold">Motor Activo</small>
+                        </div>
+                    <?php else: ?>
+                        <!-- Antes esta rama también mostraba "Motor Activo": el estatus
+                             nunca reflejaba la realidad porque verificarWorker() dependía
+                             de "wmic" (solo Windows) y el resultado se ignoraba. Ahora sí
+                             se distingue cuando worker_ia.php no está corriendo. -->
+                        <div class="alert alert-danger border-0 py-2 d-flex align-items-center">
+                           <span class="status-dot bg-danger"></span>
+                            <small class="fw-bold">Motor Inactivo</small>
+                        </div>
+                    <?php endif; ?>
+                </div>
 
                 <?php if (!$logueado): ?>
                 <div class="auth-section mt-1 bg-light p-3 rounded-4">

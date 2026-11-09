@@ -82,7 +82,7 @@ function procesarSiguientePendiente() {
     // Latido de vida: index.php (via verificarWorker()) lee este archivo
     // para saber si el motor sigue corriendo, en vez de depender de "wmic"
     // (que solo existe en Windows y ya está deprecado ahí también).
-    //@file_put_contents(WORKER_HEARTBEAT_FILE, (string) time());
+    @file_put_contents(WORKER_HEARTBEAT_FILE, (string) time());
 
     $res = $conn->query("SELECT id, idclte, entrada_usuario, cdmess_historico, precio_historico, descripcion_historica
                          FROM cola_procesamiento
