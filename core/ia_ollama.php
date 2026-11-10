@@ -103,10 +103,48 @@ function filtrarOpcionesConOllama($busqueda_usuario, $resultados_sql) {
  * estructura de la respuesta ni en inventar precios fuera de lo razonable.
  *
  * Devuelve el JSON crudo de texto que regresa el modelo (string).
+ *
+ * A1: $contexto_precio es opcional (ver obtenerContextoPrecio() en
+ * core/historial.php). Si llega con muestras, se inyecta en el prompt el
+ * contexto estadístico completo (mediana, P25/P75, desviación, tendencia y
+ * referencias con folio/fecha) en vez de solo MIN/MAX/AVG; si no llega,
+ * el prompt se arma como antes.
  */
-function preguntarOllamaConPrecios($stats, $consulta_usuario, $aprendizaje = '') {
+function preguntarOllamaConPrecios($stats, $consulta_usuario, $aprendizaje = '', $contexto_precio = null) {
     $contexto = "CDMESS:{$stats['cdmess']} MIN:{$stats['min']} MAX:{$stats['max']} AVG:{$stats['avg']}";
     $prompt = "Contexto Histórico: $contexto\n";
+
+    // A1: contexto estadístico completo (mediana, percentiles, tendencia y
+    // referencias con folio/fecha). Si no llega contexto, se mantiene el
+    // comportamiento anterior (solo MIN/MAX/AVG).
+    if (is_array($contexto_precio) && ($contexto_precio['n_muestras'] ?? 0) > 0) {
+        $bloque = "Contexto estadístico completo (CDMESS {$contexto_precio['cdmess']}): "
+            . "n=" . (int) $contexto_precio['n_muestras']
+            . ", mediana USD " . $contexto_precio['mediana']
+            . ", P25 USD " . $contexto_precio['p25']
+            . ", P75 USD " . $contexto_precio['p75']
+            . ", desviación estándar USD " . $contexto_precio['desviacion']
+            . ", promedio USD " . ($contexto_precio['avg'] ?? $stats['avg'])
+            . ", rango histórico USD " . $contexto_precio['min'] . "-" . $contexto_precio['max']
+            . ", fechas " . ($contexto_precio['fecha_min'] ?? 's/d') . " a " . ($contexto_precio['fecha_max'] ?? 's/d')
+            . ", última cotización " . ($contexto_precio['fecha_ultima'] ?? 's/d') . ".";
+        if (($contexto_precio['tendencia_12m'] ?? null) !== null) {
+            $bloque .= " Tendencia últimos 12 meses: " . $contexto_precio['tendencia_12m'] . "% (segundo semestre vs primero).";
+        } else {
+            $bloque .= " Tendencia 12 meses: sin datos suficientes.";
+        }
+        $refs = $contexto_precio['referencias'] ?? [];
+        if (!empty($refs)) {
+            $bloque .= "\nReferencias recientes (folio / fecha / precio unitario USD / MXN):";
+            foreach ($refs as $ref) {
+                $bloque .= "\n- Folio " . ($ref['folio'] ?? 's/d') . " / " . ($ref['fecha'] ?? 's/d')
+                    . " / USD " . ($ref['precio_usd'] ?? 's/d')
+                    . " / MXN " . ($ref['precio_mxn'] ?? 's/d');
+            }
+        }
+        $prompt .= $bloque . "\n";
+        $prompt .= "Usa la mediana y los percentiles (P25/P75) como ancla principal, no solo el promedio: el promedio se distorsiona con valores atípicos. Si propones un precio fuera de la banda [P25 x 0.85, P75 x 1.15] (o [mediana x 0.8, mediana x 1.2] con pocas muestras), cita en el veredicto el folio y la fecha de la referencia que lo justifica.\n";
+    }
 
     $alternativas = trim((string) ($stats['alternativas'] ?? ''));
     if ($alternativas !== '') {
