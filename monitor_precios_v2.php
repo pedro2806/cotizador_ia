@@ -237,6 +237,9 @@ const renderFila = (item, esSugerencia = false) => {
     const ia = item.propuesta_ia || {};
     const rowClass = esSugerencia ? 'table-warning font-small' : 'font-small';
     const fmt = v => parseFloat(v || 0).toFixed(2);
+    // A7: escapa la nota guardada para poder ponerla en el value del input
+    // resp_u_ sin romper el atributo si trae comillas o < >.
+    const escAttr = v => String(v ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
     return `
         <tr class="${rowClass}">
@@ -273,6 +276,11 @@ const renderFila = (item, esSugerencia = false) => {
                         `<option value="${op}" ${item.categoria_rechazo === op ? 'selected' : ''}>${op}</option>`
                     ).join('')}
                 </select>
+                <!-- A7: campo de nota/respuesta que validarRegistro() ya leía
+                     (resp_u_<id>) pero que renderFila nunca generaba: sin él,
+                     validar rompía con TypeError y la validación humana no se
+                     guardaba. Se prellena con item.respuesta si ya existe. -->
+                <input type="text" id="resp_u_${item.id}" class="form-control form-control-sm x-small mb-1" placeholder="Nota para la IA (opcional)" value="${escAttr(item.respuesta)}">
                 <button class="btn btn-sm w-100 ${item.estatus === 'completado' ? 'btn-success' : 'btn-outline-primary'}" onclick="validarRegistro(${item.id})">
                     <i class="bi ${item.estatus === 'completado' ? 'bi-check-all' : 'bi-send'}"></i> Validar
                 </button>
@@ -396,9 +404,15 @@ function mostrarVeredicto(id) {
 }
 
 async function validarRegistro(id) {
-    const precio = document.getElementById(`precio_u_${id}`).value;
-    const respuesta = document.getElementById(`resp_u_${id}`).value;
-    const categoria = document.getElementById(`cat_u_${id}`).value;
+    // A7: lecturas a prueba de nulos: si algún campo no existe, se usa ''
+    // en vez de romper con TypeError (antes resp_u_ no existía y validar
+    // nunca llegaba a enviar nada al servidor).
+    const precioEl = document.getElementById(`precio_u_${id}`);
+    const respEl = document.getElementById(`resp_u_${id}`);
+    const catEl = document.getElementById(`cat_u_${id}`);
+    const precio = precioEl ? precioEl.value : '';
+    const respuesta = respEl ? respEl.value : '';
+    const categoria = catEl ? catEl.value : '';
     const idUsuario = <?php echo intval($_SESSION['usuario_id'] ?? 0); ?>;
 
     Swal.fire({
