@@ -68,6 +68,32 @@ while (true) {
 }
 
 /**
+ * A2 — Banda estadística para el precio final, en vez de min/max crudos.
+ * Si hay 5 o más muestras: [P25 x 0.85, P75 x 1.15]. Si hay menos muestras
+ * pero hay mediana: [mediana x 0.8, mediana x 1.2]. Si no hay estadísticas
+ * válidas: min/max históricos del ítem como respaldo. Devuelve [0, 0] si
+ * tampoco hay min/max válidos.
+ */
+function calcularBandaPrecio($contexto_precio, $stats_item) {
+    if (is_array($contexto_precio)) {
+        $n = (int) ($contexto_precio['n_muestras'] ?? 0);
+        $p25 = (float) ($contexto_precio['p25'] ?? 0);
+        $p75 = (float) ($contexto_precio['p75'] ?? 0);
+        $mediana = (float) ($contexto_precio['mediana'] ?? 0);
+        if ($n >= 5 && $p25 > 0 && $p75 > 0 && $p75 >= $p25) {
+            return [round($p25 * 0.85, 2), round($p75 * 1.15, 2)];
+        }
+        if ($mediana > 0) {
+            return [round($mediana * 0.8, 2), round($mediana * 1.2, 2)];
+        }
+    }
+    $min = round((float) ($stats_item['min'] ?? 0), 2);
+    $max = round((float) ($stats_item['max'] ?? 0), 2);
+    if ($min > 0 && $max >= $min) return [$min, $max];
+    return [0, 0];
+}
+
+/**
  * Procesa un único ítem pendiente (si hay alguno) de principio a fin:
  * lo marca 'procesando', calcula la propuesta de la IA, y guarda el
  * resultado final. Aislado en su propia función para que el try/catch de
@@ -140,6 +166,11 @@ function procesarSiguientePendiente() {
     $cdmess_folio = !empty($cdmess_actual) ? $cdmess_actual : ($stats['cdmess'] ?? '');
     $folio_base   = obtenerFolioBase($cdmess_folio, $conn, $idclte);
 
+    // A1: contexto estadístico completo del CDMESS exacto del ítem
+    // (null si no hay historial válido; el flujo sigue como antes).
+    $cdmess_contexto = !empty($cdmess_actual) ? $cdmess_actual : ($stats['cdmess'] ?? '');
+    $contexto_precio = obtenerContextoPrecio($cdmess_contexto, $conn, $idclte);
+
     $aprendizaje = obtenerAprendizajeHumano($cdmess_para_aprendizaje, $conn);
 
     // NOTA: preguntarOllamaConPrecios() devuelve un STRING con JSON.
@@ -148,7 +179,7 @@ function procesarSiguientePendiente() {
     // esperaba sobre un string y hacía que la rama de "IA sugiere precio
     // distinto al promedio" jamás se aplicara en la práctica. Se decodifica
     // aquí explícitamente.
-    $respuesta_ia_raw = preguntarOllamaConPrecios($stats, $entrada, $aprendizaje);
+    $respuesta_ia_raw = preguntarOllamaConPrecios($stats, $entrada, $aprendizaje, $contexto_precio);
     $respuesta_ia = json_decode($respuesta_ia_raw, true);
     if (!is_array($respuesta_ia)) {
         $respuesta_ia = [];
@@ -164,33 +195,47 @@ function procesarSiguientePendiente() {
     $precio_final_mxn = $precio_base_mxn;
     $nota_final = "Basado en histórico de cotizaciones_items";
 
+    // A2: banda estadística en vez de min/max crudos, y proporción USD/MXN
+    // del histórico (la usa tanto el precio humano como el de la IA).
+    list($banda_min, $banda_max) = calcularBandaPrecio($contexto_precio, $stats_item);
+    $ratio_mxn = ($precio_base > 0) ? ($precio_base_mxn / $precio_base) : 1;
+    $requiere_revision = false;
+    $origen_precio = 'promedio';
+
     // 3. APLICAR APRENDIZAJE SI EXISTE (el criterio humano sigue teniendo
     // la última palabra sobre el precio: la IA solo "opina" en el veredicto,
     // no se le da libertad para pisar una corrección humana ya validada)
     if (!empty($aprendizaje)) {
         if (!empty($aprendizaje['precio_sugerido'])) {
             $precio_final = $aprendizaje['precio_sugerido'];
-            $precio_final_mxn = round($aprendizaje['precio_sugerido_mxn']?? 0, 2);
-            // El rango colapsa al precio corregido: cuando ya hay una
-            // corrección humana validada no tiene sentido mostrar un rango,
-            // el número ya es la decisión final.
-            $precio_final_min = $precio_final;
-            $precio_final_max = $precio_final;
+            // A2: el precio final sigue siendo el corregido por el humano,
+            // pero el rango YA NO colapsa a un solo número: se mantiene
+            // ±5% alrededor de ese precio.
+            $precio_final_mxn = !empty($aprendizaje['precio_sugerido_mxn'])
+                ? round($aprendizaje['precio_sugerido_mxn'], 2)
+                : round($precio_final * $ratio_mxn, 2);
+            $precio_final_min = round($precio_final * 0.95, 2);
+            $precio_final_max = round($precio_final * 1.05, 2);
+            $origen_precio = 'humano';
             $nota_final = "Precio corregido por {$aprendizaje['total_correcciones']} revisiones humanas";
         } else {
             switch ($aprendizaje['categoria_principal']) {
                 case 'Precio muy alto':
                     $precio_final = round($precio_base * 0.85, 2);
                     $precio_final_mxn = round($precio_base_mxn * 0.85, 2);
-                    $precio_final_min = $precio_final;
-                    $precio_final_max = $precio_final;
+                    // A2: el rango no colapsa al precio ajustado.
+                    $precio_final_min = round($precio_final * 0.95, 2);
+                    $precio_final_max = round($precio_final * 1.05, 2);
+                    $origen_precio = 'humano';
                     $nota_final = "Reducido 15% por reportes de 'precio muy alto'";
                     break;
                 case 'Precio muy bajo':
                     $precio_final = round($precio_base * 1.15, 2);
                     $precio_final_mxn = round($precio_base_mxn * 1.15, 2);
-                    $precio_final_min = $precio_final;
-                    $precio_final_max = $precio_final;
+                    // A2: el rango no colapsa al precio ajustado.
+                    $precio_final_min = round($precio_final * 0.95, 2);
+                    $precio_final_max = round($precio_final * 1.05, 2);
+                    $origen_precio = 'humano';
                     $nota_final = "Aumentado 15% por reportes de 'precio muy bajo'";
                     break;
                 case 'Descripcion incorrecta':
@@ -213,19 +258,23 @@ function procesarSiguientePendiente() {
         $precio_ia_sugerido = isset($respuesta_ia['precio_ia']) ? (float) $respuesta_ia['precio_ia'] : null;
         if ($precio_ia_sugerido !== null && $precio_ia_sugerido > 0 && abs($precio_ia_sugerido - $precio_base) > 0.01) {
             $precio_final = round($precio_ia_sugerido, 2);
-            $ratio_mxn = ($precio_base > 0) ? ($precio_base_mxn / $precio_base) : 1;
             $precio_final_mxn = round($precio_final * $ratio_mxn, 2);
+            $origen_precio = 'ia';
             $nota_final = "Precio sugerido por IA basado en análisis de datos";
         }
 
-        // Rango propuesto por la IA. Si no lo mandó o vino inconsistente
-        // (min > max, o precio_ia fuera del rango que ella misma dio), se
-        // usa el histórico como respaldo en vez de mostrar algo incoherente.
+        // Rango propuesto por la IA, tal como lo dio (A2: ya NO se fuerza
+        // el precio final dentro de ese rango con min()/max()). Si no lo
+        // mandó o vino inconsistente, se usa la banda estadística como
+        // respaldo en vez de mostrar algo incoherente.
         $ia_min = isset($respuesta_ia['precio_ia_min']) ? (float) $respuesta_ia['precio_ia_min'] : null;
         $ia_max = isset($respuesta_ia['precio_ia_max']) ? (float) $respuesta_ia['precio_ia_max'] : null;
         if ($ia_min !== null && $ia_max !== null && $ia_min > 0 && $ia_max >= $ia_min) {
-            $precio_final_min = round(min($ia_min, $precio_final), 2);
-            $precio_final_max = round(max($ia_max, $precio_final), 2);
+            $precio_final_min = round($ia_min, 2);
+            $precio_final_max = round($ia_max, 2);
+        } elseif ($banda_min > 0 && $banda_max >= $banda_min) {
+            $precio_final_min = $banda_min;
+            $precio_final_max = $banda_max;
         } else {
             $precio_final_min = round(min($precio_final_min, $precio_final), 2);
             $precio_final_max = round(max($precio_final_max, $precio_final), 2);
@@ -255,6 +304,13 @@ function procesarSiguientePendiente() {
             $stats_item['avg_mxn']
         );
         
+        if (!empty($contexto_precio)) {
+            $detalle_calculo .= sprintf(
+                " | Banda: $%.2f-$%.2f usd | Mediana: $%.2f usd (n=%d)",
+                $banda_min, $banda_max, $contexto_precio['mediana'], $contexto_precio['n_muestras']
+            );
+        }
+
         if (!empty($aprendizaje) && $aprendizaje['total_correcciones'] > 0) {
             $detalle_calculo.= " | Ajustado por {$aprendizaje['total_correcciones']} revisiones humanas";
         }
@@ -266,6 +322,26 @@ function procesarSiguientePendiente() {
         $veredicto_ia = !empty($stats['alternativas'])
             ? "Sin veredicto detallado de la IA para este ítem. Precio calculado sobre {$stats_item['total']} cotizaciones históricas; coincidencias consideradas: {$stats['alternativas']}."
             : "Sin veredicto detallado de la IA para este ítem. Precio calculado sobre {$stats_item['total']} cotizaciones históricas, sin otras coincidencias relevantes para comparar.";
+    }
+
+    // A2: un precio de IA fuera de la banda NO se descarta ni se fuerza
+    // dentro: se mantiene como propuesto y se marca para revisión humana.
+    // Dentro de la banda, requiere_revision = false. Un precio con origen
+    // humano o promedio (ya validado o sin propuesta de IA) no requiere
+    // revisión extra. Si el precio está fuera de banda, se deja constancia
+    // en la nota de si el veredicto citó o no la justificación (folio).
+    if ($origen_precio === 'ia') {
+        $dentro_banda = ($banda_min > 0 && $banda_max > 0 && $precio_final >= $banda_min && $precio_final <= $banda_max);
+        $requiere_revision = !$dentro_banda;
+        if ($requiere_revision) {
+            $tiene_justificacion = (bool) preg_match('/folio/i', $veredicto_ia)
+                || (bool) preg_match('/\b\d{5,}\b/', $veredicto_ia);
+            $nota_final .= $tiene_justificacion
+                ? " | Precio fuera de banda, justificado en veredicto; requiere revisión humana"
+                : " | Precio fuera de banda sin justificación citada en el veredicto; requiere revisión humana";
+        }
+    } else {
+        $requiere_revision = false;
     }
 
     $data = [
@@ -288,7 +364,18 @@ function procesarSiguientePendiente() {
         "veredicto_ia" => $veredicto_ia,
         "coincidencias" => $stats['alternativas']?? '',
         "aprendizaje_aplicado" =>!empty($aprendizaje),
-        "num_correcciones" => $aprendizaje['total_correcciones']?? 0
+        "num_correcciones" => $aprendizaje['total_correcciones']?? 0,
+        "banda_min" => $banda_min,
+        "banda_max" => $banda_max,
+        "contexto_precio" => !empty($contexto_precio) ? [
+            "mediana" => $contexto_precio['mediana'],
+            "p25" => $contexto_precio['p25'],
+            "p75" => $contexto_precio['p75'],
+            "n_muestras" => $contexto_precio['n_muestras'],
+            "tendencia" => $contexto_precio['tendencia_12m']
+        ] : null,
+        "requiere_revision" => $requiere_revision,
+        "origen_precio" => $origen_precio
     ];
 
         $json_final = json_encode($data, JSON_UNESCAPED_UNICODE);
