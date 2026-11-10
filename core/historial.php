@@ -417,6 +417,136 @@ function obtenerEstadisticasCDMESS($cdmess, $conn, $idclte = null) {
 }
 
 /**
+ * Percentil con interpolación lineal sobre un array ya ordenado de menor a mayor.
+ */
+function calcularPercentil(array $valores_ordenados, float $percentil) {
+    $n = count($valores_ordenados);
+    if ($n === 0) return null;
+    if ($n === 1) return (float) $valores_ordenados[0];
+    $pos = ($percentil / 100) * ($n - 1);
+    $base = (int) floor($pos);
+    $resto = $pos - $base;
+    if ($base + 1 >= $n) return (float) $valores_ordenados[$n - 1];
+    return (float) ($valores_ordenados[$base] + $resto * ($valores_ordenados[$base + 1] - $valores_ordenados[$base]));
+}
+
+/**
+ * A1 — Contexto estadístico completo de UN CDMESS exacto para Ollama.
+ * Devuelve mediana, P25/P75, desviación estándar, nº de muestras, fechas
+ * (min/max/última), tendencia de 12 meses y las 5 referencias más recientes
+ * con folio, fecha y precio unitario USD/MXN.
+ * El precio unitario es PRECIO_VENTA/CANT (y PRECIO_VENTA_MXN/CANT); se
+ * excluyen filas con CANT <= 0 o precio unitario USD <= 0.
+ * Con $idclte, solo cuenta cotizaciones de ese cliente.
+ * Devuelve null si el CDMESS está vacío, es 'S/C' o no tiene muestras válidas.
+ */
+function obtenerContextoPrecio($cdmess, $conn, $idclte = null) {
+    $cdmess = trim((string) $cdmess);
+    if ($cdmess === '' || strtoupper($cdmess) === 'S/C') return null;
+
+    $sql = "SELECT (ci.PRECIO_VENTA/ci.CANT) AS precio_usd,
+                   (ci.PRECIO_VENTA_MXN/ci.CANT) AS precio_mxn,
+                   c.FECHA AS fecha, ci.IDCOTIZA AS folio
+            FROM cotizaciones_items ci
+            INNER JOIN cotizaciones c ON ci.IDCOTIZA = c.IDCOTIZA
+            WHERE ci.CDMESS = ? AND ci.PRECIO_VENTA > 0 AND ci.CANT > 0";
+    $params = [$cdmess];
+    $types = 's';
+
+    if ($idclte !== null) {
+        $sql .= ' AND c.IDCLTE = ?';
+        $params[] = $idclte;
+        $types .= 'i';
+    }
+
+    // Las 5 primeras filas son las referencias más recientes que se mandan a Ollama.
+    $sql .= ' ORDER BY c.FECHA DESC, ci.id_item DESC';
+
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+    $filas = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+
+    $precios_usd = [];
+    $precios_mxn = [];
+    $fechas = [];
+    $referencias = [];
+    foreach ($filas as $fila) {
+        $usd = (float) ($fila['precio_usd'] ?? 0);
+        if ($usd <= 0) continue;
+        $precios_usd[] = $usd;
+        $mxn = (float) ($fila['precio_mxn'] ?? 0);
+        if ($mxn > 0) $precios_mxn[] = $mxn;
+        $fecha = $fila['fecha'] ?? null;
+        if ($fecha && $fecha !== '0000-00-00') $fechas[] = $fecha;
+        if (count($referencias) < 5) {
+            $referencias[] = [
+                'folio' => $fila['folio'] ?? '',
+                'fecha' => $fecha,
+                'precio_usd' => round($usd, 2),
+                'precio_mxn' => $mxn > 0 ? round($mxn, 2) : null
+            ];
+        }
+    }
+
+    $n = count($precios_usd);
+    if ($n === 0) return null;
+
+    sort($precios_usd, SORT_NUMERIC);
+    $mediana = calcularPercentil($precios_usd, 50);
+    $p25 = calcularPercentil($precios_usd, 25);
+    $p75 = calcularPercentil($precios_usd, 75);
+    $avg = array_sum($precios_usd) / $n;
+    $varianza = 0.0;
+    foreach ($precios_usd as $p) $varianza += ($p - $avg) * ($p - $avg);
+    $desviacion = sqrt($varianza / $n);
+    sort($fechas);
+    $fecha_min = $fechas[0] ?? null;
+    $fecha_max = !empty($fechas) ? end($fechas) : null;
+
+    // Tendencia 12 meses: variación % entre el promedio del último
+    // semestre y el del semestre anterior. Null si algún semestre tiene
+    // menos de 2 muestras.
+    $tendencia_12m = null;
+    $hoy = new DateTime();
+    $limite_12m = (clone $hoy)->modify('-12 months')->format('Y-m-d');
+    $limite_6m = (clone $hoy)->modify('-6 months')->format('Y-m-d');
+    $recientes = [];
+    $anteriores = [];
+    foreach ($filas as $fila) {
+        $usd = (float) ($fila['precio_usd'] ?? 0);
+        $fecha = (string) ($fila['fecha'] ?? '');
+        if ($usd <= 0 || $fecha === '' || $fecha === '0000-00-00') continue;
+        if ($fecha >= $limite_12m && $fecha < $limite_6m) $anteriores[] = $usd;
+        elseif ($fecha >= $limite_6m) $recientes[] = $usd;
+    }
+    if (count($recientes) >= 2 && count($anteriores) >= 2) {
+        $avg_reciente = array_sum($recientes) / count($recientes);
+        $avg_anterior = array_sum($anteriores) / count($anteriores);
+        if ($avg_anterior > 0) $tendencia_12m = round(($avg_reciente - $avg_anterior) / $avg_anterior * 100, 2);
+    }
+
+    return [
+        'cdmess' => $cdmess,
+        'n_muestras' => $n,
+        'mediana' => round($mediana, 2),
+        'p25' => round($p25, 2),
+        'p75' => round($p75, 2),
+        'desviacion' => round($desviacion, 2),
+        'min' => round($precios_usd[0], 2),
+        'max' => round($precios_usd[$n - 1], 2),
+        'avg' => round($avg, 2),
+        'avg_mxn' => !empty($precios_mxn) ? round(array_sum($precios_mxn) / count($precios_mxn), 2) : 0,
+        'fecha_min' => $fecha_min,
+        'fecha_max' => $fecha_max,
+        'fecha_ultima' => $fecha_max,
+        'tendencia_12m' => $tendencia_12m,
+        'referencias' => $referencias
+    ];
+}
+
+/**
  * Folio y fecha de la cotización más reciente que sirvió de base para un CDMESS.
  * Con $idclte, la más reciente de ese cliente.
  */
