@@ -17,9 +17,15 @@
  * (ver LIMIT 25 en core/historial.php) y más espacio para devolver varios
  * si genuinamente varios aplican, no solo los primeros 5 que aparezcan.
  */
-function filtrarOpcionesConOllama($busqueda_usuario, $resultados_sql) {
-    // Si SQL arrojó 8 o menos resultados, no gastamos tiempo en IA
-    if (count($resultados_sql) <= 8) {
+function filtrarOpcionesConOllama($busqueda_usuario, $resultados_sql, $accion = null) {
+    // R1: sin acción, si SQL arrojó 8 o menos resultados no gastamos
+    // tiempo en IA. CON acción (p. ej. 'calibracion'), el filtro corre
+    // aunque haya pocos candidatos: es el que debe descartar las
+    // revisiones/instalaciones/movimientos cuando se pidió una calibración.
+    if (count($resultados_sql) <= 1) {
+        return $resultados_sql;
+    }
+    if ($accion === null && count($resultados_sql) <= 8) {
         return array_slice($resultados_sql, 0, 8);
     }
 
@@ -37,14 +43,23 @@ function filtrarOpcionesConOllama($busqueda_usuario, $resultados_sql) {
     $json_candidatos = json_encode($candidatos_ia, JSON_UNESCAPED_UNICODE);
 
     // 2. Prompt con doble perfil: técnico y comercial (Business Intelligence)
+    // R1: la acción pedida es un requisito, no una sugerencia. Se le
+    // dice explícitamente a Ollama para que no devuelva revisiones cuando
+    // se pidió una calibración, aunque el equipo (CMM) coincida.
+    $linea_accion = '';
+    if ($accion !== null && $accion !== '') {
+        $linea_accion = "\n    ACCIÓN REQUERIDA: '$accion'. Solo valen las opciones cuya descripción contenga esa acción (acepta variantes con/sin acento, p. ej. calibración/calibracion). Descarta revisión, instalación, movimiento y cualquier otra acción distinta, aunque el equipo coincida. Solo si NINGUNA opción contiene la acción, devuelve las más cercanas y lo indicas en tu criterio.\n";
+    }
+
     $prompt = "Eres un estratega comercial y experto técnico en metrología.
     El cliente está buscando cotizar: '$busqueda_usuario'.
+$linea_accion
 
     Aquí tienes el historial de candidatos encontrados con sus precios promedio en JSON:
     $json_candidatos
 
     INSTRUCCIONES DE SELECCIÓN:
-    1. Filtro Técnico: Descarta cualquier opción que no coincida con la naturaleza del equipo o servicio solicitado.
+    1. Filtro Técnico: Descarta cualquier opción que no coincida con la naturaleza del equipo o servicio solicitado. Si hay una ACCIÓN REQUERIDA arriba, es excluyente: la descripción debe contener esa acción; una revisión no es una calibración, ni una instalación es un movimiento, aunque sea el mismo equipo.
     2. Filtro Comercial: Evalúa la viabilidad de los precios históricos. Prioriza opciones con precios coherentes y consistentes. Si ves anomalías evidentes (precios absurdamente bajos o altos sin justificación en la descripción), penalízalos en tu elección.
     3. Criterio propio: no te limites a devolver siempre el mismo número de opciones. Si genuinamente hay 6, 7 u 8 candidatos sólidos (técnica Y comercialmente razonables), inclúyelos todos; si solo 2 o 3 son realmente defendibles, regresa solo esos. Usa tu criterio, no rellenes por rellenar.
     4. Equilibrio: Selecciona los mejores candidatos (máximo 8) que representen la oferta más sólida tanto a nivel técnico como financiero.
@@ -84,7 +99,9 @@ function filtrarOpcionesConOllama($busqueda_usuario, $resultados_sql) {
         }
     }
 
-    // Fallback: si Ollama no responde o falla, regresamos los 8 primeros del SQL
+    // Fallback: si Ollama no responde o falla, regresamos los 8 primeros
+    // de la lista que ya viene ordenada por relevancia (R1), no los más
+    // frecuentes: ahí las calibraciones ya van antes que las revisiones.
     return array_slice($resultados_sql, 0, 8);
 }
 
