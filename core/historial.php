@@ -10,6 +10,60 @@
  */
 
 /**
+ * R1 — Ordena candidatos por RELEVANCIA, no solo por frecuencia.
+ * Puntaje por candidato (sobre la descripción normalizada, sin acentos):
+ *   +100 si contiene la acción pedida (calibración, revisión, ...)
+ *    +30 extra si la descripción EMPIEZA con esa acción
+ *    +20 por cada token de la búsqueda presente en la descripción
+ * Desempate: total_veces (frecuencia histórica) y luego CDMESS.
+ * Así 'calibración de cmm' pone primero los S1-5 / S5-85 / S1-459 de
+ * calibración, aunque Revisión (S1-250, 1412 veces) sea más frecuente.
+ */
+function ordenarPorRelevancia(array $resultados, array $tokens, $accion) {
+    $accion_norm = ($accion !== null && $accion !== '') ? normalizarTextoPlano($accion) : null;
+    $tokens_norm = [];
+    foreach ($tokens as $token) {
+        $tn = normalizarTextoPlano($token);
+        if ($tn !== '' && !in_array($tn, ['de', 'del', 'la', 'el', 'los', 'las', 'con', 'por', 'para', 'en', 'un', 'una', 'y'], true)) {
+            $tokens_norm[$tn] = true;
+        }
+    }
+    $tokens_norm = array_keys($tokens_norm);
+
+    foreach ($resultados as $i => $fila) {
+        $desc_norm = normalizarTextoPlano($fila['descripcion'] ?? '');
+        $puntaje = 0;
+        if ($accion_norm !== null && $accion_norm !== '') {
+            if (strpos($desc_norm, $accion_norm) !== false) {
+                $puntaje += 100;
+                $primera = strtok($desc_norm, " \t");
+                if ($primera === $accion_norm) $puntaje += 30;
+            }
+        }
+        foreach ($tokens_norm as $token) {
+            if (strpos($desc_norm, $token) !== false) $puntaje += 20;
+        }
+        $resultados[$i]['_puntaje_relevancia'] = $puntaje;
+        $resultados[$i]['_total_veces'] = (int) ($fila['total_veces'] ?? 0);
+    }
+
+    usort($resultados, static function ($a, $b) {
+        if ($a['_puntaje_relevancia'] !== $b['_puntaje_relevancia']) {
+            return $b['_puntaje_relevancia'] <=> $a['_puntaje_relevancia'];
+        }
+        if ($a['_total_veces'] !== $b['_total_veces']) {
+            return $b['_total_veces'] <=> $a['_total_veces'];
+        }
+        return strcmp((string) ($a['CDMESS'] ?? ''), (string) ($b['CDMESS'] ?? ''));
+    });
+
+    foreach ($resultados as $i => $fila) {
+        unset($resultados[$i]['_puntaje_relevancia'], $resultados[$i]['_total_veces']);
+    }
+    return array_values($resultados);
+}
+
+/**
  * Función principal para obtener el historial con filtro holgado y análisis IA.
  * Devuelve 'noValido' si es un CDMESS que no existe/está inactivo, un array
  * de opciones, o un array vacío si no hay coincidencias.
@@ -18,6 +72,8 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $tipoBusqueda, $cliente, $co
     $contexto = procesarContextoBusqueda($busqueda);
     $busqueda_limpia = $contexto['busqueda_limpia'];
     $termino = $contexto['termino'];
+    // R1: acción principal (p. ej. 'calibracion'), o null si no hay.
+    $accion = $contexto['accion'] ?? null;
     $texto_descripcion = preg_replace('/[^\p{L}\p{N}]+/u', ' ', trim($busqueda));
     $tokens_descripcion = is_string($texto_descripcion)
         ? preg_split('/\s+/u', trim($texto_descripcion), -1, PREG_SPLIT_NO_EMPTY)
@@ -83,7 +139,7 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $tipoBusqueda, $cliente, $co
     }
 
     // Constructor dinámico para consultas generales
-    $sql_base = "SELECT TRIM(ci.CDMESS) as CDMESS, MAX(ci.DESCRIPCION) as descripcion, ROUND(AVG(ci.PRECIO_VENTA/ci.CANT), 2) as precio_promedio, t.STATUS
+    $sql_base = "SELECT TRIM(ci.CDMESS) as CDMESS, MAX(ci.DESCRIPCION) as descripcion, ROUND(AVG(ci.PRECIO_VENTA/ci.CANT), 2) as precio_promedio, COUNT(*) as total_veces, t.STATUS
                  FROM cotizaciones_items ci
                  LEFT JOIN tarifario t ON ci.CDMESS = t.CDMESS
                  INNER JOIN cotizaciones c ON ci.IDCOTIZA = c.IDCOTIZA ";
@@ -91,7 +147,7 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $tipoBusqueda, $cliente, $co
     $condiciones_globales = " AND ci.PRECIO_VENTA > 0 AND ci.CANT > 0 AND ci.CDMESS IS NOT NULL AND ci.CDMESS != '' AND t.STATUS = 'ACTIVE' ";
     // Antes LIMIT 15: mismo criterio que la rama CDMESS, más candidatos
     // reales para que la IA elija entre ellos.
-    $group_order = ' GROUP BY TRIM(ci.CDMESS), t.STATUS ORDER BY COUNT(*) DESC LIMIT 25';
+    $group_order = ' GROUP BY TRIM(ci.CDMESS), t.STATUS ORDER BY COUNT(*) DESC LIMIT 100';
     $parametros_orden = [];
 
     // Switch sin la barrera de "ci.TIPO = ?" para que encuentre equipos aunque parezcan servicios.
@@ -110,7 +166,7 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $tipoBusqueda, $cliente, $co
                     return '%' . $token . '%';
                 }, $tokens_descripcion);
                 $types = str_repeat('s', count($tokens_descripcion));
-                $group_order = " GROUP BY TRIM(ci.CDMESS), t.STATUS ORDER BY MAX({$campo_descripcion} LIKE ?) DESC, COUNT(*) DESC LIMIT 25";
+                $group_order = " GROUP BY TRIM(ci.CDMESS), t.STATUS ORDER BY MAX({$campo_descripcion} LIKE ?) DESC, COUNT(*) DESC LIMIT 100";
                 $parametros_orden[] = '%' . implode('%', $tokens_descripcion) . '%';
             }
             break;
@@ -158,7 +214,7 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $tipoBusqueda, $cliente, $co
             array_push($params, $termino, $termino, $termino, $termino);
             $types .= 'ssss';
             $where_clause = 'WHERE (' . implode(' OR ', $condiciones_busqueda) . ')';
-            $group_order = " GROUP BY TRIM(ci.CDMESS), t.STATUS ORDER BY MAX({$campo_descripcion} LIKE ?) DESC, COUNT(*) DESC LIMIT 25";
+            $group_order = " GROUP BY TRIM(ci.CDMESS), t.STATUS ORDER BY MAX({$campo_descripcion} LIKE ?) DESC, COUNT(*) DESC LIMIT 100";
             $parametros_orden[] = '%' . implode('%', $tokens_descripcion) . '%';
             break;
     }
@@ -181,14 +237,21 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $tipoBusqueda, $cliente, $co
     $resultados_crudos = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
 
+    // R1: reordenar el pool (hasta 100) por relevancia antes de recortar
+    // a 25. Antes el ORDER BY COUNT(*) DESC dejaba fuera del top 25 a las
+    // calibraciones, aunque existieran, porque Revisión/Movimiento se
+    // cotizan mucho más veces. La frecuencia queda solo como desempate.
+    $resultados_crudos = ordenarPorRelevancia($resultados_crudos, $tokens_descripcion, $accion);
+    $resultados_crudos = array_slice($resultados_crudos, 0, 25);
+
     // La búsqueda semántica complementa el modo general; en "descripciones"
     // se buscan literalmente todos los términos para evitar resultados ajenos.
     if ($tipoBusqueda === 'todas') {
         $semanticos = buscarSemanticamente($busqueda, $conn, $cliente_limpio);
-        $resultados_crudos = mezclarCandidatos($resultados_crudos, $semanticos);
+        $resultados_crudos = mezclarCandidatos($resultados_crudos, $semanticos, $accion);
     }
 
-    return filtrarOpcionesConOllama($busqueda, $resultados_crudos);
+    return filtrarOpcionesConOllama($busqueda, $resultados_crudos, $accion);
 }
 
 /**
