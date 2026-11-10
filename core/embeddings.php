@@ -230,25 +230,60 @@ function buscarSemanticamente($busqueda, $conn, $idclte = null, $top_n = 10, $um
 }
 
 /**
- * Mezcla candidatos de SQL con candidatos semánticos, sin duplicar CDMESS
- * (si SQL ya lo encontró, se queda con esa versión — tiene el precio más
- * fresco calculado en la misma consulta).
+ * R1 — Mezcla candidatos de SQL con candidatos semánticos, sin duplicar
+ * CDMESS (si SQL ya lo encontró, se queda con esa versión — tiene el precio
+ * más fresco calculado en la misma consulta).
+ *
+ * Antes lo semántico iba siempre al final, detrás de los 25 de SQL, así
+ * que casi nunca llegaba al filtro de Ollama. Ahora, si hay acción
+ * (p. ej. 'calibracion'), los candidatos semánticos que la contienen van
+ * PRIMERO (en su orden de similitud), luego el resto de SQL en su orden
+ * de relevancia, y al final los semánticos restantes. Sin acción, el
+ * orden es el de antes: SQL primero, semánticos después.
  */
-function mezclarCandidatos(array $resultadosSql, array $resultadosSemanticos) {
+function mezclarCandidatos(array $resultadosSql, array $resultadosSemanticos, $accion = null) {
     $vistos = [];
     $combinados = [];
 
+    $sql_por_cd = [];
     foreach ($resultadosSql as $fila) {
-        $cd = trim($fila['CDMESS']);
-        if ($cd === '' || isset($vistos[$cd])) continue;
-        $vistos[$cd] = true;
-        $combinados[] = $fila;
+        $cd = trim($fila['CDMESS'] ?? '');
+        if ($cd === '' || isset($sql_por_cd[$cd])) continue;
+        $sql_por_cd[$cd] = $fila;
     }
-    foreach ($resultadosSemanticos as $fila) {
-        $cd = trim($fila['CDMESS']);
-        if ($cd === '' || isset($vistos[$cd])) continue;
+
+    $accion_norm = ($accion !== null && $accion !== '' && function_exists('normalizarTextoPlano'))
+        ? normalizarTextoPlano($accion) : null;
+    $contiene_accion = static function ($descripcion) use ($accion_norm) {
+        if ($accion_norm === null || $accion_norm === '') return false;
+        $desc = function_exists('normalizarTextoPlano')
+            ? normalizarTextoPlano($descripcion) : strtolower((string) $descripcion);
+        return strpos($desc, $accion_norm) !== false;
+    };
+
+    $emitir = static function ($fila) use (&$vistos, &$combinados) {
+        $cd = trim($fila['CDMESS'] ?? '');
+        if ($cd === '' || isset($vistos[$cd])) return;
         $vistos[$cd] = true;
         $combinados[] = $fila;
+    };
+
+    // 1. Semánticos que coinciden con la acción, en orden de similitud.
+    //    Si SQL ya tiene esa clave, se emite la versión SQL (precio fresco).
+    foreach ($resultadosSemanticos as $fila) {
+        if (!$contiene_accion($fila['descripcion'] ?? '')) continue;
+        $cd = trim($fila['CDMESS'] ?? '');
+        $emitir($sql_por_cd[$cd] ?? $fila);
+    }
+
+    // 2. El resto de SQL, en su orden de relevancia.
+    foreach ($resultadosSql as $fila) {
+        $emitir($fila);
+    }
+
+    // 3. Semánticos restantes, en orden de similitud.
+    foreach ($resultadosSemanticos as $fila) {
+        $emitir($fila);
     }
 
     return $combinados;
