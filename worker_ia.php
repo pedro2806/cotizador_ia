@@ -204,7 +204,11 @@ function procesarSiguientePendiente() {
     // esperaba sobre un string y hacía que la rama de "IA sugiere precio
     // distinto al promedio" jamás se aplicara en la práctica. Se decodifica
     // aquí explícitamente.
+    // A6: latencia de la llamada a Ollama (incluye reintentos y
+    // re-preguntas de A5). $t_inicio (arriba) ya mide el ítem completo.
+    $t_ia_inicio = microtime(true);
     $respuesta_ia_raw = preguntarOllamaConPrecios($stats, $entrada, $aprendizaje, $contexto_precio);
+    $latencia_ia_ms = (int) round((microtime(true) - $t_ia_inicio) * 1000);
     $respuesta_ia = json_decode($respuesta_ia_raw, true);
     if (!is_array($respuesta_ia)) {
         $respuesta_ia = [];
@@ -468,6 +472,57 @@ function procesarSiguientePendiente() {
         $requiere_revision = false;
     }
 
+    // A6 — Trazabilidad completa de esta propuesta (subobjeto nuevo en
+    // propuesta_ia; no se quita ni se cambia ningún campo existente).
+    // Modelo y parámetros se leen de las constantes (A6 en ia_ollama.php);
+    // si alguna no está definida, se usa el literal que usa el código.
+    // NO se guardan el prompt completo ni la respuesta cruda de Ollama.
+    // tipo_busqueda del cargador ('todas', etc.) NO se guarda en
+    // cola_procesamiento, así que el worker no lo conoce: queda null.
+    // n_candidatos_semanticos tampoco: esta ruta usa obtenerHistorialMESS
+    // (SQL, máx. 10); la mezcla semántica vive en el encolado (R1).
+    $contexto_busqueda = function_exists('procesarContextoBusqueda')
+        ? procesarContextoBusqueda($entrada) : null;
+    $candidatos_traza = [];
+    if (!empty($stats['items']) && is_array($stats['items'])) {
+        foreach (array_slice($stats['items'], 0, 8) as $cand) {
+            $candidatos_traza[] = [
+                'cdmess' => $cand['cdmess'] ?? '',
+                'precio_promedio' => isset($cand['avg']) ? round((float) $cand['avg'], 2) : null,
+            ];
+        }
+    }
+    $trazabilidad = [
+        'modelo' => defined('OLLAMA_MODEL') ? (string) OLLAMA_MODEL : 'desconocido',
+        'parametros_precio' => [
+            'temperature' => defined('OLLAMA_PRECIO_TEMPERATURE') ? OLLAMA_PRECIO_TEMPERATURE : 0.6,
+            'top_p' => defined('OLLAMA_PRECIO_TOP_P') ? OLLAMA_PRECIO_TOP_P : 0.94,
+            'num_predict' => defined('OLLAMA_PRECIO_NUM_PREDICT') ? (int) OLLAMA_PRECIO_NUM_PREDICT : 300,
+            'timeout_seg' => defined('OLLAMA_TIMEOUT_PRECIO') ? (int) OLLAMA_TIMEOUT_PRECIO : null,
+        ],
+        'parametros_filtro' => [
+            'temperature' => defined('OLLAMA_FILTRO_TEMPERATURE') ? OLLAMA_FILTRO_TEMPERATURE : 0.45,
+            'num_predict' => defined('OLLAMA_FILTRO_NUM_PREDICT') ? (int) OLLAMA_FILTRO_NUM_PREDICT : 200,
+            'timeout_seg' => defined('OLLAMA_TIMEOUT_FILTRO') ? (int) OLLAMA_TIMEOUT_FILTRO : null,
+        ],
+        'fecha_hora_procesamiento' => date('Y-m-d H:i:s'),
+        'latencia_ia_ms' => $latencia_ia_ms,
+        'duracion_total_ms' => (int) round((microtime(true) - $t_inicio) * 1000),
+        'entrada_usuario' => $entrada,
+        'busqueda_limpia' => $contexto_busqueda['busqueda_limpia'] ?? null,
+        'accion' => $contexto_busqueda['accion'] ?? null,
+        'tipo' => $contexto_busqueda['tipo'] ?? null,
+        'tipo_busqueda' => null,
+        'id_cliente' => $idclte,
+        'n_candidatos' => count($stats['items'] ?? []),
+        'n_candidatos_semanticos' => null,
+        'candidatos' => $candidatos_traza,
+        'folio_base' => $folio_base['folio'] ?? '',
+        'fecha_base' => $folio_base['fecha'] ?? '',
+        // Rama de trabajo (literal documentado; no se lee git en runtime).
+        'rama' => 'versionMuse_10112026',
+    ];
+
     $data = [
         "cdmess" => $item['cdmess_historico'],
         "desc" => $item['descripcion_historica']?? $entrada,
@@ -502,6 +557,13 @@ function procesarSiguientePendiente() {
             "mediana" => $contexto_precio['mediana'],
             "p25" => $contexto_precio['p25'],
             "p75" => $contexto_precio['p75'],
+            // A6: completar lo que A1 ya calcula y el worker descartaba:
+            // desviación, fechas y las 5 referencias (folio/fecha/precio).
+            "desviacion" => $contexto_precio['desviacion'] ?? null,
+            "fecha_min" => $contexto_precio['fecha_min'] ?? null,
+            "fecha_max" => $contexto_precio['fecha_max'] ?? null,
+            "fecha_ultima" => $contexto_precio['fecha_ultima'] ?? null,
+            "referencias" => $contexto_precio['referencias'] ?? [],
             "n_muestras" => $contexto_precio['n_muestras'],
             "tendencia" => $contexto_precio['tendencia_12m'],
             // A3: conteos de la limpieza IQR y promedios ponderados por antigüedad.
@@ -518,7 +580,9 @@ function procesarSiguientePendiente() {
         // A5: diagnóstico de la llamada a Ollama en esta vuelta.
         "ia_intentos" => $ia_intentos,
         "ia_error" => $ia_error,
-        "ia_degradado" => $ia_degradado
+        "ia_degradado" => $ia_degradado,
+        // A6: trazabilidad completa de esta propuesta (ver arriba).
+        "trazabilidad" => $trazabilidad
     ];
 
         $json_final = json_encode($data, JSON_UNESCAPED_UNICODE);
