@@ -406,6 +406,13 @@ function mostrarVeredicto(id) {
     const rangoHtml = (ia.precio_ia_min !== undefined && ia.precio_ia_max !== undefined && parseFloat(ia.precio_ia_max) > parseFloat(ia.precio_ia_min))
         ? `<div class="text-center x-small text-muted mt-1">Rango sugerido: $${parseFloat(ia.precio_ia_min).toFixed(2)} &ndash; $${parseFloat(ia.precio_ia_max).toFixed(2)}</div>`
         : '';
+    // A6: línea corta de trazabilidad en el modal (modelo, intentos y
+    // latencia de la IA, fecha de procesamiento). Solo si la propuesta
+    // trae trazabilidad; ítems viejos sin ella no muestran nada.
+    const traza = ia.trazabilidad || {};
+    const trazaHtml = (traza.modelo || traza.fecha_hora_procesamiento)
+        ? `<div class="x-small text-muted mt-2">Modelo: ${String(traza.modelo || 's/d').replace(/</g, '&lt;')} &middot; Intentos IA: ${ia.ia_intentos ?? 's/d'} &middot; Latencia IA: ${traza.latencia_ia_ms != null ? traza.latencia_ia_ms + ' ms' : 's/d'} &middot; Procesado: ${String(traza.fecha_hora_procesamiento || '').replace(/</g, '&lt;')}</div>`
+        : '';
 
     Swal.fire({
         title: 'Veredicto de MessIAs',
@@ -420,6 +427,7 @@ function mostrarVeredicto(id) {
                     <span>Promedio histórico: $${parseFloat(ia.precio_promedio || 0).toFixed(2)}</span>
                 </div>
                 ${rangoHtml}
+                ${trazaHtml}
             </div>
             ${coincidenciasHtml}
         `
