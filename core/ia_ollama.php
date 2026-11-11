@@ -145,6 +145,16 @@ function preguntarOllamaConPrecios($stats, $consulta_usuario, $aprendizaje = '',
             . ", rango histórico USD " . $contexto_precio['min'] . "-" . $contexto_precio['max']
             . ", fechas " . ($contexto_precio['fecha_min'] ?? 's/d') . " a " . ($contexto_precio['fecha_max'] ?? 's/d')
             . ", última cotización " . ($contexto_precio['fecha_ultima'] ?? 's/d') . ".";
+        // A3: la limpieza IQR y el promedio ponderado ya vienen calculados
+        // en el contexto; se le muestran a Ollama para que sepa que los
+        // percentiles excluyen atípicos y que lo reciente pesa más.
+        if (isset($contexto_precio['n_atipicos']) && isset($contexto_precio['promedio_ponderado'])) {
+            $bloque .= " Limpieza IQR: n=" . (int) ($contexto_precio['n_original'] ?? $contexto_precio['n_muestras'])
+                . "->" . (int) ($contexto_precio['n_limpio'] ?? $contexto_precio['n_muestras'])
+                . " (" . (int) $contexto_precio['n_atipicos'] . " atípicos descartados)"
+                . ", promedio ponderado por antigüedad USD " . $contexto_precio['promedio_ponderado']
+                . ", mediana ponderada USD " . ($contexto_precio['mediana_ponderada'] ?? $contexto_precio['mediana']) . ".";
+        }
         if (($contexto_precio['tendencia_12m'] ?? null) !== null) {
             $bloque .= " Tendencia últimos 12 meses: " . $contexto_precio['tendencia_12m'] . "% (segundo semestre vs primero).";
         } else {
@@ -160,7 +170,7 @@ function preguntarOllamaConPrecios($stats, $consulta_usuario, $aprendizaje = '',
             }
         }
         $prompt .= $bloque . "\n";
-        $prompt .= "Usa la mediana y los percentiles (P25/P75) como ancla principal, no solo el promedio: el promedio se distorsiona con valores atípicos. Si propones un precio fuera de la banda [P25 x 0.85, P75 x 1.15] (o [mediana x 0.8, mediana x 1.2] con pocas muestras), cita en el veredicto el folio y la fecha de la referencia que lo justifica.\n";
+        $prompt .= "Usa la mediana y los percentiles (P25/P75) como ancla principal, no solo el promedio: el promedio se distorsiona con valores atípicos. Los percentiles y la mediana ya excluyen atípicos por IQR, y el promedio ponderado da más peso a las cotizaciones recientes: úsalo como referencia de precio actual, no el promedio simple. Si propones un precio fuera de la banda [P25 x 0.85, P75 x 1.15] (o [mediana x 0.8, mediana x 1.2] con pocas muestras), cita en el veredicto el folio y la fecha de la referencia que lo justifica.\n";
     }
 
     $alternativas = trim((string) ($stats['alternativas'] ?? ''));
