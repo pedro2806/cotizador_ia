@@ -56,6 +56,15 @@
  */
 if (!defined('OLLAMA_MAX_INTENTOS')) define('OLLAMA_MAX_INTENTOS', 3);
 if (!defined('OLLAMA_BACKOFF_BASE_SEG')) define('OLLAMA_BACKOFF_BASE_SEG', 1);
+// A6 — Parámetros de las llamadas a Ollama en un solo lugar, para que la
+// trazabilidad de propuesta_ia (worker_ia.php) los lea sin duplicar
+// literales. OLLAMA_MODEL / OLLAMA_URL / OLLAMA_TIMEOUT_PRECIO /
+// OLLAMA_TIMEOUT_FILTRO viven en core/config.php (no está en el repo).
+if (!defined('OLLAMA_PRECIO_TEMPERATURE')) define('OLLAMA_PRECIO_TEMPERATURE', 0.6);
+if (!defined('OLLAMA_PRECIO_TOP_P')) define('OLLAMA_PRECIO_TOP_P', 0.94);
+if (!defined('OLLAMA_PRECIO_NUM_PREDICT')) define('OLLAMA_PRECIO_NUM_PREDICT', 300);
+if (!defined('OLLAMA_FILTRO_TEMPERATURE')) define('OLLAMA_FILTRO_TEMPERATURE', 0.45);
+if (!defined('OLLAMA_FILTRO_NUM_PREDICT')) define('OLLAMA_FILTRO_NUM_PREDICT', 200);
 $GLOBALS['ollama_intentos'] = 0;
 $GLOBALS['ollama_ultimo_error'] = null;
 
@@ -115,8 +124,8 @@ $linea_accion
         'prompt' => $prompt,
         'stream' => false,
         'options' => [
-            'temperature' => 0.45, // Antes 0.3: más criterio propio para decidir cuántas opciones son realmente válidas
-            'num_predict' => 200   // Antes 150: espacio para un arreglo de hasta 8 ids
+            'temperature' => OLLAMA_FILTRO_TEMPERATURE, // Antes 0.3: más criterio propio para decidir cuántas opciones son realmente válidas
+            'num_predict' => OLLAMA_FILTRO_NUM_PREDICT   // Antes 150: espacio para un arreglo de hasta 8 ids
         ]
     ];
 
@@ -271,8 +280,8 @@ function preguntarOllamaConPrecios($stats, $consulta_usuario, $aprendizaje = '',
         'stream' => false,
         'keep_alive' => '24h',
         'options' => [
-            'temperature' => 0.6,  // Antes 0.55: un poco más de criterio propio para el rango
-            'top_p' => 0.94,       // Antes 0.92
+            'temperature' => OLLAMA_PRECIO_TEMPERATURE,  // Antes 0.55: un poco más de criterio propio para el rango
+            'top_p' => OLLAMA_PRECIO_TOP_P,       // Antes 0.92
             // Antes 260: en CPU con un modelo de 8B (llama3:latest) generar
             // 260 tokens se pasaba fácil de los timeouts. 180 sigue dejando
             // espacio de sobra para un veredicto de 2-4 frases, pero tarda
@@ -284,7 +293,7 @@ function preguntarOllamaConPrecios($stats, $consulta_usuario, $aprendizaje = '',
             // filtro (que devuelve un arreglo corto). Con el reintento de
             // A5, si aun así se trunca, se re-pregunta en vez de caer al
             // promedio en silencio.
-            'num_predict' => 300
+            'num_predict' => OLLAMA_PRECIO_NUM_PREDICT
         ]
     ];
 
