@@ -352,20 +352,44 @@ function obtenerHistorialMESS($busqueda, $idclte = null) {
  * para un CDMESS o texto de búsqueda, para que la IA priorice el criterio
  * de los expertos por encima del promedio histórico crudo.
  */
+/**
+ * A4 — Aprendizaje humano gradual.
+ * Antes: total_correcciones era solo el nº de filas del LIMIT (máx. 5 por
+ * CDMESS, 2 por texto) y precio_sugerido era la media simple de los precios
+ * humanos; el worker fijaba el precio exacto al 100%.
+ * Ahora: total_correcciones es el conteo REAL (COUNT(*) con el mismo filtro,
+ * sin LIMIT) para que el peso por nº crezca con cada corrección; se lee
+ * fecha_registro de cada corrección (fecha en que el ítem quedó completado;
+ * la validación de A7 no actualiza esa columna, así que es la fecha del
+ * procesamiento, que es cuando se valida, normalmente el mismo día) y se
+ * calcula precio_humano_ponderado con pesoPorAntiguedad() de A3 (<6m 1.0,
+ * 6-12m 0.75, 12-24m 0.5, >24m 0.25, sin fecha 0.5). Las filas para el
+ * precio siguen siendo las 5 (CDMESS) / 2 (texto) más recientes, que es lo
+ * que cabe en el prompt; el conteo real solo alimenta el peso.
+ * fecha_ultima_correccion es la fecha_registro de la fila más reciente
+ * (ORDER BY id DESC). Devuelve [] si no hay correcciones. No se quita
+ * ningún campo existente.
+ */
 function obtenerAprendizajeHumano($entrada, $conn) {
     $es_cdmess = preg_match('/^[SL]\d+/i', $entrada);
 
     if ($es_cdmess) {
-        $sql = "SELECT entrada_usuario, precio_usuario, categoria_rechazo, cdmess_historico, respuesta
+        $sql = "SELECT entrada_usuario, precio_usuario, categoria_rechazo, cdmess_historico, respuesta, fecha_registro
                 FROM cola_procesamiento
                 WHERE estatus = 'completado' AND cdmess_historico = ? AND precio_usuario > 0
                   AND categoria_rechazo IS NOT NULL AND categoria_rechazo != 'Acepta precio IA'
                 ORDER BY id DESC LIMIT 5";
         $stmt = $conn->prepare($sql);
         $stmt->bind_param('s', $entrada);
+        // A4: conteo real de correcciones (sin LIMIT) para el peso por nº.
+        $sql_count = "SELECT COUNT(*) AS total FROM cola_procesamiento
+                      WHERE estatus = 'completado' AND cdmess_historico = ? AND precio_usuario > 0
+                        AND categoria_rechazo IS NOT NULL AND categoria_rechazo != 'Acepta precio IA'";
+        $stmt_count = $conn->prepare($sql_count);
+        $stmt_count->bind_param('s', $entrada);
     } else {
         $like = '%' . $entrada . '%';
-        $sql = "SELECT entrada_usuario, precio_usuario, categoria_rechazo, cdmess_historico, respuesta
+        $sql = "SELECT entrada_usuario, precio_usuario, categoria_rechazo, cdmess_historico, respuesta, fecha_registro
                 FROM cola_procesamiento
                 WHERE estatus = 'completado' AND precio_usuario > 0
                   AND categoria_rechazo IS NOT NULL AND categoria_rechazo != 'Acepta precio IA'
@@ -373,6 +397,12 @@ function obtenerAprendizajeHumano($entrada, $conn) {
                 ORDER BY id DESC LIMIT 2";
         $stmt = $conn->prepare($sql);
         $stmt->bind_param('s', $like);
+        $sql_count = "SELECT COUNT(*) AS total FROM cola_procesamiento
+                      WHERE estatus = 'completado' AND precio_usuario > 0
+                        AND categoria_rechazo IS NOT NULL AND categoria_rechazo != 'Acepta precio IA'
+                        AND entrada_usuario LIKE ?";
+        $stmt_count = $conn->prepare($sql_count);
+        $stmt_count->bind_param('s', $like);
     }
 
     $stmt->execute();
@@ -380,23 +410,39 @@ function obtenerAprendizajeHumano($entrada, $conn) {
 
     if (!$res || $res->num_rows == 0) {
         $stmt->close();
+        if (isset($stmt_count)) $stmt_count->close();
         return [];
     }
 
+    // A4: conteo real (puede ser mayor que las filas del LIMIT).
+    $total_correcciones = (int) $res->num_rows;
+    if (isset($stmt_count)) {
+        $stmt_count->execute();
+        $row_count = $stmt_count->get_result()->fetch_assoc();
+        if ($row_count && isset($row_count['total'])) $total_correcciones = (int) $row_count['total'];
+        $stmt_count->close();
+    }
+
     $aprendizaje = [
-        'total_correcciones' => $res->num_rows,
+        'total_correcciones' => $total_correcciones,
         'precios_usuario' => [],
         'categoria_principal' => null,
         'nota_humana' => null,
         'alerta_descripcion' => false,
-        'ejemplos_texto' => "\n--- APRENDIZAJE DE EXPERTOS MESS (Prioridad Alta) ---\n"
+        'ejemplos_texto' => "\n--- APRENDIZAJE DE EXPERTOS MESS (Prioridad Alta) ---\n",
+        // A4: precio humano ponderado por recencia y fecha de la
+        // corrección más reciente (se rellenan abajo).
+        'precio_humano_ponderado' => null,
+        'fecha_ultima_correccion' => null
     ];
 
     $categorias = [];
+    $correcciones = [];
 
     while ($row = $res->fetch_assoc()) {
         if ($row['precio_usuario'] > 0) {
             $aprendizaje['precios_usuario'][] = $row['precio_usuario'];
+            $correcciones[] = ['precio' => (float) $row['precio_usuario'], 'fecha' => $row['fecha_registro'] ?? null];
         }
 
         $cat = $row['categoria_rechazo'];
@@ -419,6 +465,25 @@ function obtenerAprendizajeHumano($entrada, $conn) {
 
     if (!empty($aprendizaje['precios_usuario'])) {
         $aprendizaje['precio_sugerido'] = round(array_sum($aprendizaje['precios_usuario']) / count($aprendizaje['precios_usuario']), 2);
+    }
+
+    // A4: precio humano ponderado por recencia (mismos pesos que A3) y
+    // fecha de la corrección más reciente (primera fila, id DESC).
+    if (!empty($correcciones)) {
+        $suma_pesos = 0.0;
+        $suma_ponderada = 0.0;
+        foreach ($correcciones as $c) {
+            $peso = pesoPorAntiguedad($c['fecha']);
+            $suma_pesos += $peso;
+            $suma_ponderada += $c['precio'] * $peso;
+        }
+        if ($suma_pesos > 0) {
+            $aprendizaje['precio_humano_ponderado'] = round($suma_ponderada / $suma_pesos, 2);
+        }
+        $aprendizaje['fecha_ultima_correccion'] = $correcciones[0]['fecha'] ?? null;
+    }
+    if ($aprendizaje['precio_humano_ponderado'] === null && isset($aprendizaje['precio_sugerido'])) {
+        $aprendizaje['precio_humano_ponderado'] = $aprendizaje['precio_sugerido'];
     }
 
     return $aprendizaje;
