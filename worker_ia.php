@@ -210,6 +210,15 @@ function procesarSiguientePendiente() {
         $respuesta_ia = [];
     }
     $veredicto_ia = trim((string) ($respuesta_ia['veredicto'] ?? ''));
+    // A5: diagnóstico de la llamada a Ollama que trae preguntarOllamaConPrecios()
+    // en la propia respuesta (van a propuesta_ia). ia_degradado=true significa
+    // que Ollama no devolvió una propuesta válida de precio en esta vuelta y
+    // el precio de la IA es el respaldo del promedio (o el ancla humana si
+    // hay aprendizaje); no afirma por sí solo que el precio final sea el
+    // promedio cuando hay mezcla humana (ahí origen_precio es 'mixto'/'humano').
+    $ia_intentos = isset($respuesta_ia['ia_intentos']) ? (int) $respuesta_ia['ia_intentos'] : 0;
+    $ia_error = isset($respuesta_ia['ia_error']) && $respuesta_ia['ia_error'] !== '' && $respuesta_ia['ia_error'] !== null ? (string) $respuesta_ia['ia_error'] : null;
+    $ia_degradado = !empty($respuesta_ia['ia_degradado']);
     //error_log("APRENDIZAJE PARA $cdmess_para_aprendizaje: ". json_encode($aprendizaje));
 
     $precio_base = round($stats_item['avg']?? 0, 2);
@@ -224,6 +233,18 @@ function procesarSiguientePendiente() {
     // del histórico (la usa tanto el precio humano como el de la IA).
     list($banda_min, $banda_max) = calcularBandaPrecio($contexto_precio, $stats_item);
     $ratio_mxn = ($precio_base > 0) ? ($precio_base_mxn / $precio_base) : 1;
+    // A5: el Rango que muestra el monitor (precio_min/max en propuesta_ia)
+    // usa los extremos LIMPIOS por IQR cuando hay contexto (A3), no los
+    // crudos con atípicos como el Min $5.67 / Max $6650 de S2-5. El contexto
+    // no trae min/max MXN limpios, así que se derivan con la misma
+    // proporción USD/MXN del histórico que ya se usa para precio_ia_mxn.
+    // Sin contexto, se cae a los crudos de obtenerEstadisticasCDMESS().
+    // El promedio histórico (precio_promedio) NO cambia: sigue siendo el
+    // promedio simple. La banda tampoco cambia (ya usaba P25/P75 limpios).
+    $display_min = !empty($contexto_precio) && isset($contexto_precio['min_limpio']) ? round((float) $contexto_precio['min_limpio'], 2) : round($stats_item['min'] ?? 0, 2);
+    $display_max = !empty($contexto_precio) && isset($contexto_precio['max_limpio']) ? round((float) $contexto_precio['max_limpio'], 2) : round($stats_item['max'] ?? 0, 2);
+    $display_min_mxn = !empty($contexto_precio) && isset($contexto_precio['min_limpio']) ? round($display_min * $ratio_mxn, 2) : round($stats_item['min_mxn'] ?? 0, 2);
+    $display_max_mxn = !empty($contexto_precio) && isset($contexto_precio['max_limpio']) ? round($display_max * $ratio_mxn, 2) : round($stats_item['max_mxn'] ?? 0, 2);
     $requiere_revision = false;
     $origen_precio = 'promedio';
 
@@ -370,16 +391,18 @@ function procesarSiguientePendiente() {
             $fecha_rango = $anio_min == $anio_max? " $anio_min" : " $anio_min-$anio_max";
         }
         
+        // A5: el Min/Max del detalle es el LIMPIO (igual que el Rango del
+        // monitor); el Promedio sigue siendo el promedio simple histórico.
         $detalle_calculo = sprintf(
             "Calculado con %d cotizaciones%s%s | Min: $%.2f usd| Max: $%.2f usd| Promedio: $%.2f usd | Min: $%.2f mxn| Max: $%.2f mxn| Promedio: $%.2f mxn",
             $stats_item['total'],
             $idclte !== null ? ' del cliente' : '',
             $fecha_rango,
-            $stats_item['min'],
-            $stats_item['max'],
+            $display_min,
+            $display_max,
             $stats_item['avg'],
-            $stats_item['min_mxn'],
-            $stats_item['max_mxn'],
+            $display_min_mxn,
+            $display_max_mxn,
             $stats_item['avg_mxn']
         );
         
@@ -451,14 +474,14 @@ function procesarSiguientePendiente() {
         "folio" => $folio_base['folio'],
         "fecha" => $folio_base['fecha'],
         "detalle_calculo" => $detalle_calculo,
-        "precio_min" => round($stats_item['min']?? 0, 2),
-        "precio_max" => round($stats_item['max']?? 0, 2),
+        "precio_min" => $display_min,
+        "precio_max" => $display_max,
         "precio_promedio" => $precio_base,
         "precio_ia" => $precio_final,
         "precio_ia_min" => $precio_final_min,
         "precio_ia_max" => $precio_final_max,
-        "precio_min_mxn" => round($stats_item['min_mxn']?? 0, 2),
-        "precio_max_mxn" => round($stats_item['max_mxn']?? 0, 2),
+        "precio_min_mxn" => $display_min_mxn,
+        "precio_max_mxn" => $display_max_mxn,
         "precio_promedio_mxn" => $precio_base_mxn,
         "precio_ia_mxn" => $precio_final_mxn,
         "notas" => $nota_final,
@@ -491,7 +514,11 @@ function procesarSiguientePendiente() {
             "mediana_ponderada" => $contexto_precio['mediana_ponderada'] ?? null
         ] : null,
         "requiere_revision" => $requiere_revision,
-        "origen_precio" => $origen_precio
+        "origen_precio" => $origen_precio,
+        // A5: diagnóstico de la llamada a Ollama en esta vuelta.
+        "ia_intentos" => $ia_intentos,
+        "ia_error" => $ia_error,
+        "ia_degradado" => $ia_degradado
     ];
 
         $json_final = json_encode($data, JSON_UNESCAPED_UNICODE);
