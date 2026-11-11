@@ -311,6 +311,20 @@ function procesarSiguientePendiente() {
             );
         }
 
+        // A3: la línea de limpieza solo se muestra cuando hubo atípicos
+        // descartados (o cambió el conteo), para no ensuciar el detalle.
+        if (!empty($contexto_precio)
+            && ((($contexto_precio['n_atipicos'] ?? 0) > 0)
+                || (($contexto_precio['n_limpio'] ?? $contexto_precio['n_muestras']) !== ($contexto_precio['n_original'] ?? $contexto_precio['n_muestras'])))) {
+            $detalle_calculo .= sprintf(
+                " | Limpieza IQR: n=%d->%d (%d atípicos) | Prom. ponderado: $%.2f usd",
+                $contexto_precio['n_original'] ?? $contexto_precio['n_muestras'],
+                $contexto_precio['n_limpio'] ?? $contexto_precio['n_muestras'],
+                $contexto_precio['n_atipicos'] ?? 0,
+                $contexto_precio['promedio_ponderado'] ?? $contexto_precio['avg']
+            );
+        }
+
         if (!empty($aprendizaje) && $aprendizaje['total_correcciones'] > 0) {
             $detalle_calculo.= " | Ajustado por {$aprendizaje['total_correcciones']} revisiones humanas";
         }
@@ -372,7 +386,15 @@ function procesarSiguientePendiente() {
             "p25" => $contexto_precio['p25'],
             "p75" => $contexto_precio['p75'],
             "n_muestras" => $contexto_precio['n_muestras'],
-            "tendencia" => $contexto_precio['tendencia_12m']
+            "tendencia" => $contexto_precio['tendencia_12m'],
+            // A3: conteos de la limpieza IQR y promedios ponderados por antigüedad.
+            "n_original" => $contexto_precio['n_original'] ?? $contexto_precio['n_muestras'],
+            "n_limpio" => $contexto_precio['n_limpio'] ?? $contexto_precio['n_muestras'],
+            "n_atipicos" => $contexto_precio['n_atipicos'] ?? 0,
+            "min_limpio" => $contexto_precio['min_limpio'] ?? $contexto_precio['min'],
+            "max_limpio" => $contexto_precio['max_limpio'] ?? $contexto_precio['max'],
+            "promedio_ponderado" => $contexto_precio['promedio_ponderado'] ?? null,
+            "mediana_ponderada" => $contexto_precio['mediana_ponderada'] ?? null
         ] : null,
         "requiere_revision" => $requiere_revision,
         "origen_precio" => $origen_precio
