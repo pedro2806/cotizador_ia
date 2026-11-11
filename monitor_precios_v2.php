@@ -268,6 +268,29 @@ const renderFila = (item, esSugerencia = false) => {
                     <span>Sugerido: $${fmt(ia.precio_ia)}</span>
                     ${ia.veredicto_ia ? `<button type="button" class="btn btn-link btn-sm p-0 ms-1" title="Ver veredicto de MessIAs" onclick='mostrarVeredicto(${JSON.stringify(item.id)})'><i class="bi bi-chat-square-quote-fill"></i></button>` : ''}
                 </div>
+                ${(() => {
+                    // A5: distintivo de origen del precio y de revisión. El
+                    // origen viene en propuesta_ia (get_proyecto_data.php ya
+                    // pasa el JSON completo): 'ia' = propuesto por Ollama,
+                    // 'promedio' = respaldo del promedio porque Ollama no
+                    // devolvió propuesta válida (se marca en ámbar para que
+                    // no se vea como sugerencia de la IA), 'humano'/'mixto'
+                    // = con aprendizaje humano (A4). El veredicto va como
+                    // tooltip (escapado con escAttr). En ítems viejos sin
+                    // origen_precio no se muestra nada. 'Revisar' sale solo
+                    // si requiere_revision es true.
+                    const etiquetas = {ia: 'IA', promedio: 'Promedio (respaldo)', humano: 'Humano', mixto: 'Mixto'};
+                    const etiqueta = ia.origen_precio ? (etiquetas[ia.origen_precio] || ia.origen_precio) : '';
+                    let badges = '';
+                    if (etiqueta) {
+                        const clase = ia.origen_precio === 'promedio' ? 'bg-warning text-dark' : 'bg-secondary';
+                        badges += `<span class="badge ${clase} x-small me-1" title="${escAttr(ia.veredicto_ia || '')}">${etiqueta}</span>`;
+                    }
+                    if (ia.requiere_revision) {
+                        badges += `<span class="badge bg-danger x-small">Revisar</span>`;
+                    }
+                    return badges ? `<div class="mb-1">${badges}</div>` : '';
+                })()}
                 <input type="number" id="precio_u_${item.id}" class="form-control form-control-sm fw-bold" value="${parseFloat(item.precio_usuario) > 0 ? fmt(item.precio_usuario) : fmt(ia.precio_ia)}">
             </td>
             <td class="align-middle">
