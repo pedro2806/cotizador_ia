@@ -494,10 +494,90 @@ function calcularPercentil(array $valores_ordenados, float $percentil) {
 }
 
 /**
+ * A3 — Limpieza de atípicos por IQR sobre muestras
+ * [['precio_usd'=>..., 'precio_mxn'=>..., 'fecha'=>..., 'folio'=>...], ...].
+ * Con n>=8: Q1=P25, Q3=P75, IQR=Q3-Q1; se descartan las muestras fuera de
+ * [Q1-1.5*IQR, Q3+1.5*IQR]. Con n<8 no se descarta nada. Si tras limpiar
+ * quedaran menos de 3 muestras, se conservan las originales y se marca
+ * que no se limpió. Si IQR=0 los límites colapsan a Q1=Q3 y solo sobreviven
+ * los valores iguales a ese precio (con el mismo rescate de <3 muestras).
+ * Devuelve ['muestras'=>..., 'n_atipicos'=>int, 'aplicada'=>bool].
+ */
+function limpiarAtipicosIQR(array $muestras) {
+    $n = count($muestras);
+    if ($n < 8) return ['muestras' => $muestras, 'n_atipicos' => 0, 'aplicada' => false];
+    $precios = array_column($muestras, 'precio_usd');
+    sort($precios, SORT_NUMERIC);
+    $q1 = calcularPercentil($precios, 25);
+    $q3 = calcularPercentil($precios, 75);
+    $iqr = $q3 - $q1;
+    $lim_inf = $q1 - 1.5 * $iqr;
+    $lim_sup = $q3 + 1.5 * $iqr;
+    $limpias = [];
+    foreach ($muestras as $m) {
+        if ($m['precio_usd'] >= $lim_inf && $m['precio_usd'] <= $lim_sup) $limpias[] = $m;
+    }
+    if (count($limpias) < 3) return ['muestras' => $muestras, 'n_atipicos' => 0, 'aplicada' => false];
+    return ['muestras' => $limpias, 'n_atipicos' => $n - count($limpias), 'aplicada' => true];
+}
+
+/**
+ * A3 — Peso por antigüedad de una muestra (fecha 'Y-m-d').
+ * Regla simple y documentada: <6 meses => 1.0; 6-12 meses => 0.75;
+ * 12-24 meses => 0.5; >24 meses => 0.25. Sin fecha válida => 0.5.
+ * Una fecha futura se trata como reciente (1.0). Se mide en días
+ * (180/365/730) para no depender del día del mes.
+ */
+function pesoPorAntiguedad($fecha, $hoy = null) {
+    if (!is_string($fecha) || $fecha === '' || $fecha === '0000-00-00') return 0.5;
+    try {
+        $f = new DateTime($fecha);
+    } catch (Exception $e) {
+        return 0.5;
+    }
+    $hoy = ($hoy instanceof DateTime) ? $hoy : new DateTime();
+    if ($f > $hoy) return 1.0;
+    $dias = (int) $hoy->diff($f)->format('%a');
+    if ($dias < 180) return 1.0;
+    if ($dias < 365) return 0.75;
+    if ($dias < 730) return 0.5;
+    return 0.25;
+}
+
+/**
+ * A3 — Mediana ponderada: se ordenan los pares por precio y se toma el
+ * primer precio cuya masa acumulada llega a la mitad del peso total.
+ * $pares es [['precio'=>float, 'peso'=>float], ...]. Null si no hay pesos.
+ */
+function calcularMedianaPonderada(array $pares) {
+    $validos = [];
+    foreach ($pares as $p) {
+        if (($p['peso'] ?? 0) > 0) $validos[] = $p;
+    }
+    if (empty($validos)) return null;
+    usort($validos, static function ($a, $b) {
+        return $a['precio'] <=> $b['precio'];
+    });
+    $total = 0.0;
+    foreach ($validos as $p) $total += $p['peso'];
+    $acum = 0.0;
+    foreach ($validos as $p) {
+        $acum += $p['peso'];
+        if ($acum >= $total / 2) return (float) $p['precio'];
+    }
+    return (float) $validos[count($validos) - 1]['precio'];
+}
+
+/**
  * A1 — Contexto estadístico completo de UN CDMESS exacto para Ollama.
  * Devuelve mediana, P25/P75, desviación estándar, nº de muestras, fechas
  * (min/max/última), tendencia de 12 meses y las 5 referencias más recientes
  * con folio, fecha y precio unitario USD/MXN.
+ * A3 — Todas esas estadísticas se calculan sobre las muestras LIMPIAS:
+ * atípicos descartados por IQR (n>=8) y promedio/mediana ponderados por
+ * antigüedad (lo reciente pesa más). El retorno añade n_original, n_limpio,
+ * n_atipicos, min/max_limpio, min/max_original, promedio_ponderado y
+ * mediana_ponderada, sin quitar ningún campo existente.
  * El precio unitario es PRECIO_VENTA/CANT (y PRECIO_VENTA_MXN/CANT); se
  * excluyen filas con CANT <= 0 o precio unitario USD <= 0.
  * Con $idclte, solo cuenta cotizaciones de ese cliente.
@@ -531,24 +611,46 @@ function obtenerContextoPrecio($cdmess, $conn, $idclte = null) {
     $filas = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
 
+    // A3: se trabaja con muestras (precio + fecha) para poder limpiar
+    // atípicos y ponderar por antigüedad. Las filas ya vienen ordenadas
+    // por FECHA DESC, así que las 5 primeras limpias son las referencias
+    // más recientes que se mandan a Ollama.
+    $muestras = [];
+    foreach ($filas as $fila) {
+        $usd = (float) ($fila['precio_usd'] ?? 0);
+        if ($usd <= 0) continue;
+        $muestras[] = [
+            'precio_usd' => $usd,
+            'precio_mxn' => (float) ($fila['precio_mxn'] ?? 0),
+            'fecha' => $fila['fecha'] ?? null,
+            'folio' => $fila['folio'] ?? ''
+        ];
+    }
+
+    $n_original = count($muestras);
+    if ($n_original === 0) return null;
+
+    // A3: limpieza IQR (solo con n>=8; si quedaran <3, se revierte y no
+    // se descarta nada). min/max originales se conservan en el retorno.
+    $limpieza = limpiarAtipicosIQR($muestras);
+    $muestras_limpias = $limpieza['muestras'];
+    $n_atipicos = $limpieza['n_atipicos'];
+
     $precios_usd = [];
     $precios_mxn = [];
     $fechas = [];
     $referencias = [];
-    foreach ($filas as $fila) {
-        $usd = (float) ($fila['precio_usd'] ?? 0);
-        if ($usd <= 0) continue;
-        $precios_usd[] = $usd;
-        $mxn = (float) ($fila['precio_mxn'] ?? 0);
-        if ($mxn > 0) $precios_mxn[] = $mxn;
-        $fecha = $fila['fecha'] ?? null;
+    foreach ($muestras_limpias as $m) {
+        $precios_usd[] = $m['precio_usd'];
+        if ($m['precio_mxn'] > 0) $precios_mxn[] = $m['precio_mxn'];
+        $fecha = $m['fecha'];
         if ($fecha && $fecha !== '0000-00-00') $fechas[] = $fecha;
         if (count($referencias) < 5) {
             $referencias[] = [
-                'folio' => $fila['folio'] ?? '',
+                'folio' => $m['folio'],
                 'fecha' => $fecha,
-                'precio_usd' => round($usd, 2),
-                'precio_mxn' => $mxn > 0 ? round($mxn, 2) : null
+                'precio_usd' => round($m['precio_usd'], 2),
+                'precio_mxn' => $m['precio_mxn'] > 0 ? round($m['precio_mxn'], 2) : null
             ];
         }
     }
@@ -564,6 +666,23 @@ function obtenerContextoPrecio($cdmess, $conn, $idclte = null) {
     $varianza = 0.0;
     foreach ($precios_usd as $p) $varianza += ($p - $avg) * ($p - $avg);
     $desviacion = sqrt($varianza / $n);
+
+    // A3: ponderación por antigüedad sobre las muestras LIMPIAS.
+    // Peso: <6 meses 1.0, 6-12 meses 0.75, 12-24 meses 0.5, >24 meses 0.25;
+    // sin fecha válida, 0.5. Promedio ponderado y mediana ponderada.
+    $hoy = new DateTime();
+    $suma_pesos = 0.0;
+    $suma_ponderada = 0.0;
+    $pares_ponderados = [];
+    foreach ($muestras_limpias as $m) {
+        $peso = pesoPorAntiguedad($m['fecha'], $hoy);
+        $suma_pesos += $peso;
+        $suma_ponderada += $m['precio_usd'] * $peso;
+        $pares_ponderados[] = ['precio' => $m['precio_usd'], 'peso' => $peso];
+    }
+    $promedio_ponderado = $suma_pesos > 0 ? $suma_ponderada / $suma_pesos : $avg;
+    $mediana_ponderada = calcularMedianaPonderada($pares_ponderados);
+    if ($mediana_ponderada === null) $mediana_ponderada = $mediana;
     sort($fechas);
     $fecha_min = $fechas[0] ?? null;
     $fecha_max = !empty($fechas) ? end($fechas) : null;
@@ -577,7 +696,9 @@ function obtenerContextoPrecio($cdmess, $conn, $idclte = null) {
     $limite_6m = (clone $hoy)->modify('-6 months')->format('Y-m-d');
     $recientes = [];
     $anteriores = [];
-    foreach ($filas as $fila) {
+    // A3: la tendencia también se calcula sobre las muestras LIMPIAS,
+    // para que un atípico no infle el promedio de un semestre.
+    foreach ($muestras_limpias as $fila) {
         $usd = (float) ($fila['precio_usd'] ?? 0);
         $fecha = (string) ($fila['fecha'] ?? '');
         if ($usd <= 0 || $fecha === '' || $fecha === '0000-00-00') continue;
@@ -592,14 +713,26 @@ function obtenerContextoPrecio($cdmess, $conn, $idclte = null) {
 
     return [
         'cdmess' => $cdmess,
+        // A3: n_muestras, min, max, avg, mediana, P25/P75 y desviación ya
+        // son sobre las muestras LIMPIAS; n_original/min_original/max_original
+        // conservan el conteo y los extremos antes de limpiar.
         'n_muestras' => $n,
+        'n_original' => $n_original,
+        'n_limpio' => $n,
+        'n_atipicos' => $n_atipicos,
         'mediana' => round($mediana, 2),
         'p25' => round($p25, 2),
         'p75' => round($p75, 2),
         'desviacion' => round($desviacion, 2),
         'min' => round($precios_usd[0], 2),
         'max' => round($precios_usd[$n - 1], 2),
+        'min_limpio' => round($precios_usd[0], 2),
+        'max_limpio' => round($precios_usd[$n - 1], 2),
+        'min_original' => round(min(array_column($muestras, 'precio_usd')), 2),
+        'max_original' => round(max(array_column($muestras, 'precio_usd')), 2),
         'avg' => round($avg, 2),
+        'promedio_ponderado' => round($promedio_ponderado, 2),
+        'mediana_ponderada' => round($mediana_ponderada, 2),
         'avg_mxn' => !empty($precios_mxn) ? round(array_sum($precios_mxn) / count($precios_mxn), 2) : 0,
         'fecha_min' => $fecha_min,
         'fecha_max' => $fecha_max,
