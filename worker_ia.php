@@ -94,6 +94,31 @@ function calcularBandaPrecio($contexto_precio, $stats_item) {
 }
 
 /**
+ * A4 — Peso del aprendizaje humano por nº de correcciones: w = n/(n+2),
+ * con tope 0.8. Una sola corrección pesa 0.33 (la IA sigue mandando 2/3),
+ * 2 pesan 0.50, 5 pesan 0.71 y 8 o más llegan al tope 0.80. Así una
+ * corrección aislada no fija el precio al 100% como hacía antes; solo
+ * varias correcciones consistentes acercan el precio al valor humano.
+ */
+function calcularPesoAprendizaje($n) {
+    $n = max(0, (int) $n);
+    if ($n <= 0) return 0.0;
+    return min($n / ($n + 2), 0.8);
+}
+
+/**
+ * A4 — Ajuste gradual por categoría (sin precio_sugerido explícito):
+ * 1 corrección ±5%, 2-3 correcciones ±10%, 4 o más ±15%. Antes era
+ * ±15% fijo desde la primera corrección.
+ */
+function ajustePorCategoria($n) {
+    $n = max(0, (int) $n);
+    if ($n <= 1) return 0.05;
+    if ($n <= 3) return 0.10;
+    return 0.15;
+}
+
+/**
  * Procesa un único ítem pendiente (si hay alguno) de principio a fin:
  * lo marca 'procesando', calcula la propuesta de la IA, y guarda el
  * resultado final. Aislado en su propia función para que el try/catch de
@@ -202,41 +227,94 @@ function procesarSiguientePendiente() {
     $requiere_revision = false;
     $origen_precio = 'promedio';
 
-    // 3. APLICAR APRENDIZAJE SI EXISTE (el criterio humano sigue teniendo
-    // la última palabra sobre el precio: la IA solo "opina" en el veredicto,
-    // no se le da libertad para pisar una corrección humana ya validada)
+    // A4: ancla de la IA para la mezcla gradual. Se extrae ANTES del
+    // bloque de aprendizaje porque la mezcla lo necesita como base; si
+    // Ollama no propuso precio válido, el ancla es el promedio histórico.
+    $precio_ia_sugerido = isset($respuesta_ia['precio_ia']) ? (float) $respuesta_ia['precio_ia'] : null;
+    $precio_ia_valido = ($precio_ia_sugerido !== null && $precio_ia_sugerido > 0);
+    $precio_ancla = $precio_ia_valido ? $precio_ia_sugerido : $precio_base;
+    // A4: salidas de trazabilidad del aprendizaje (van a propuesta_ia).
+    $peso_aprendizaje = null;
+    $precio_humano_ponderado_out = null;
+    $aprendizaje_detalle = '';
+    $n_correcciones = !empty($aprendizaje) ? (int) ($aprendizaje['total_correcciones'] ?? 0) : 0;
+    $fecha_ultima_correccion = !empty($aprendizaje) ? ($aprendizaje['fecha_ultima_correccion'] ?? null) : null;
+
+    // 3. APLICAR APRENDIZAJE SI EXISTE.
+    // A4 — Aprendizaje GRADUAL, no binario. Antes, un precio_sugerido
+    // humano fijaba el precio exacto al 100% y las categorías aplicaban
+    // ±15% fijo desde la primera corrección. Ahora:
+    //  - Con precio_sugerido: mezcla precio_final = (1-w)*precio_ia +
+    //    w*precio_humano_ponderado, con w = n/(n+2) topado a 0.8. Una
+    //    corrección (w=0.33) mueve el precio solo un tercio hacia lo
+    //    humano; hacen falta varias para que lo humano domine.
+    //  - Sin precio_sugerido pero con categoría: ajuste gradual sobre
+    //    el precio de la IA (o el promedio si no hay IA): ±5% con 1
+    //    corrección, ±10% con 2-3, ±15% con 4 o más.
+    //  - El rango NUNCA colapsa: sigue siendo ±5% alrededor del precio
+    //    final (rama humana) o la banda/rango de la IA.
+    //  - origen_precio: 'humano' cuando w>=0.5 o no hay precio de IA;
+    //    'mixto' cuando hay mezcla con w<0.5 (la IA aún pesa más).
+    // NOTA: la rama de categoría sin precio_sugerido hoy es casi
+    // inalcanzable en la práctica, porque obtenerAprendizajeHumano()
+    // exige precio_usuario>0 y por tanto precio_sugerido siempre viene
+    // calculado cuando hay aprendizaje; queda como red de seguridad.
     if (!empty($aprendizaje)) {
         if (!empty($aprendizaje['precio_sugerido'])) {
-            $precio_final = $aprendizaje['precio_sugerido'];
-            // A2: el precio final sigue siendo el corregido por el humano,
-            // pero el rango YA NO colapsa a un solo número: se mantiene
-            // ±5% alrededor de ese precio.
-            $precio_final_mxn = !empty($aprendizaje['precio_sugerido_mxn'])
-                ? round($aprendizaje['precio_sugerido_mxn'], 2)
-                : round($precio_final * $ratio_mxn, 2);
+            $peso_aprendizaje = calcularPesoAprendizaje($n_correcciones);
+            $precio_humano = (float) ($aprendizaje['precio_humano_ponderado'] ?? $aprendizaje['precio_sugerido']);
+            $precio_humano_ponderado_out = round($precio_humano, 2);
+            $precio_humano_mxn = !empty($aprendizaje['precio_sugerido_mxn'])
+                ? (float) $aprendizaje['precio_sugerido_mxn']
+                : round($precio_humano * $ratio_mxn, 2);
+            if ($precio_ia_valido) {
+                $precio_final = round((1 - $peso_aprendizaje) * $precio_ancla + $peso_aprendizaje * $precio_humano, 2);
+                $precio_final_mxn = round((1 - $peso_aprendizaje) * $precio_ancla * $ratio_mxn + $peso_aprendizaje * $precio_humano_mxn, 2);
+                $origen_precio = ($peso_aprendizaje >= 0.5) ? 'humano' : 'mixto';
+            } else {
+                // Sin precio de IA válido, el precio humano ponderado se
+                // aplica tal cual (no hay nada con qué mezclarlo).
+                $precio_final = round($precio_humano, 2);
+                $precio_final_mxn = round($precio_humano_mxn, 2);
+                $origen_precio = 'humano';
+            }
+            // A2: el rango YA NO colapsa a un solo número: se mantiene
+            // ±5% alrededor del precio final.
             $precio_final_min = round($precio_final * 0.95, 2);
             $precio_final_max = round($precio_final * 1.05, 2);
-            $origen_precio = 'humano';
-            $nota_final = "Precio corregido por {$aprendizaje['total_correcciones']} revisiones humanas";
+            $aprendizaje_detalle = sprintf(
+                "Aprendizaje humano: %d correcciones, peso %.2f, última %s, humano $%.2f",
+                $n_correcciones,
+                $peso_aprendizaje,
+                !empty($fecha_ultima_correccion) ? substr((string) $fecha_ultima_correccion, 0, 10) : 'sin fecha',
+                $precio_humano
+            );
+            $nota_final = ($origen_precio === 'mixto')
+                ? sprintf("Mezcla IA/humano (peso humano %.2f, %d revisión%s): IA $%.2f -> humano $%.2f", $peso_aprendizaje, $n_correcciones, $n_correcciones === 1 ? '' : 'es', $precio_ancla, $precio_humano)
+                : sprintf("Precio corregido por %d revisiones humanas (peso %.2f)", $n_correcciones, $peso_aprendizaje);
         } else {
             switch ($aprendizaje['categoria_principal']) {
                 case 'Precio muy alto':
-                    $precio_final = round($precio_base * 0.85, 2);
-                    $precio_final_mxn = round($precio_base_mxn * 0.85, 2);
+                    $ajuste_cat = ajustePorCategoria($n_correcciones);
+                    $precio_final = round($precio_ancla * (1 - $ajuste_cat), 2);
+                    $precio_final_mxn = round($precio_ancla * $ratio_mxn * (1 - $ajuste_cat), 2);
                     // A2: el rango no colapsa al precio ajustado.
                     $precio_final_min = round($precio_final * 0.95, 2);
                     $precio_final_max = round($precio_final * 1.05, 2);
                     $origen_precio = 'humano';
-                    $nota_final = "Reducido 15% por reportes de 'precio muy alto'";
+                    $nota_final = sprintf("Reducido %.0f%% por %d reportes de 'precio muy alto'", $ajuste_cat * 100, $n_correcciones);
+                    $aprendizaje_detalle = sprintf("Categoría 'Precio muy alto': %d correcciones, ajuste -%.0f%% sobre precio IA $%.2f", $n_correcciones, $ajuste_cat * 100, $precio_ancla);
                     break;
                 case 'Precio muy bajo':
-                    $precio_final = round($precio_base * 1.15, 2);
-                    $precio_final_mxn = round($precio_base_mxn * 1.15, 2);
+                    $ajuste_cat = ajustePorCategoria($n_correcciones);
+                    $precio_final = round($precio_ancla * (1 + $ajuste_cat), 2);
+                    $precio_final_mxn = round($precio_ancla * $ratio_mxn * (1 + $ajuste_cat), 2);
                     // A2: el rango no colapsa al precio ajustado.
                     $precio_final_min = round($precio_final * 0.95, 2);
                     $precio_final_max = round($precio_final * 1.05, 2);
                     $origen_precio = 'humano';
-                    $nota_final = "Aumentado 15% por reportes de 'precio muy bajo'";
+                    $nota_final = sprintf("Aumentado %.0f%% por %d reportes de 'precio muy bajo'", $ajuste_cat * 100, $n_correcciones);
+                    $aprendizaje_detalle = sprintf("Categoría 'Precio muy bajo': %d correcciones, ajuste +%.0f%% sobre precio IA $%.2f", $n_correcciones, $ajuste_cat * 100, $precio_ancla);
                     break;
                 case 'Descripcion incorrecta':
                     $nota_final = "ALERTA: ". ($aprendizaje['nota_humana']?? 'Descripción reportada como incorrecta');
@@ -255,7 +333,8 @@ function procesarSiguientePendiente() {
         // deriva manteniendo la misma proporción USD/MXN del histórico,
         // porque el modelo no tiene tipo de cambio propio y no queremos que
         // "invente" una cifra en MXN sin respaldo.
-        $precio_ia_sugerido = isset($respuesta_ia['precio_ia']) ? (float) $respuesta_ia['precio_ia'] : null;
+        // A4: $precio_ia_sugerido / $precio_ia_valido ya se extrajeron
+        // antes del bloque de aprendizaje y se reutilizan aquí.
         if ($precio_ia_sugerido !== null && $precio_ia_sugerido > 0 && abs($precio_ia_sugerido - $precio_base) > 0.01) {
             $precio_final = round($precio_ia_sugerido, 2);
             $precio_final_mxn = round($precio_final * $ratio_mxn, 2);
@@ -327,6 +406,10 @@ function procesarSiguientePendiente() {
 
         if (!empty($aprendizaje) && $aprendizaje['total_correcciones'] > 0) {
             $detalle_calculo.= " | Ajustado por {$aprendizaje['total_correcciones']} revisiones humanas";
+            // A4: peso y fecha de la última corrección en el detalle.
+            if ($aprendizaje_detalle !== '') {
+                $detalle_calculo .= " | " . $aprendizaje_detalle;
+            }
         }
     }
 
@@ -344,7 +427,11 @@ function procesarSiguientePendiente() {
     // humano o promedio (ya validado o sin propuesta de IA) no requiere
     // revisión extra. Si el precio está fuera de banda, se deja constancia
     // en la nota de si el veredicto citó o no la justificación (folio).
-    if ($origen_precio === 'ia') {
+    // A4: también se evalúa con origen 'mixto' (la mezcla lleva
+    // componente de IA y puede quedar fuera de banda). Con origen
+    // 'humano' (w>=0.5 o sin precio de IA) o 'promedio' no se exige
+    // revisión extra, como antes.
+    if ($origen_precio === 'ia' || $origen_precio === 'mixto') {
         $dentro_banda = ($banda_min > 0 && $banda_max > 0 && $precio_final >= $banda_min && $precio_final <= $banda_max);
         $requiere_revision = !$dentro_banda;
         if ($requiere_revision) {
@@ -379,6 +466,13 @@ function procesarSiguientePendiente() {
         "coincidencias" => $stats['alternativas']?? '',
         "aprendizaje_aplicado" =>!empty($aprendizaje),
         "num_correcciones" => $aprendizaje['total_correcciones']?? 0,
+        // A4: peso del aprendizaje en la mezcla, precio humano ponderado
+        // por recencia y detalle corto (n, peso, última corrección).
+        // aprendizaje_aplicado sigue siendo booleano; el texto va en
+        // aprendizaje_detalle para no cambiar su tipo.
+        "peso_aprendizaje" => $peso_aprendizaje,
+        "precio_humano_ponderado" => $precio_humano_ponderado_out,
+        "aprendizaje_detalle" => $aprendizaje_detalle,
         "banda_min" => $banda_min,
         "banda_max" => $banda_max,
         "contexto_precio" => !empty($contexto_precio) ? [
