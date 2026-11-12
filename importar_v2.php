@@ -4,7 +4,16 @@
  * CORRECCIÓN: bind_param restaurado en $stmtMaster
  */
 ini_set('memory_limit','512M');
-set_time_limit(0); 
+set_time_limit(0);
+
+// A7: importar_v2.php no verificaba sesión: cualquiera podía abrirlo
+// directo y cargar cotizaciones al histórico. Mismo candado que ya usan
+// cargador_masivo.php / procesar_carga.php / monitor_precios_v2.php.
+if (session_status() === PHP_SESSION_NONE) session_start();
+if (empty($_SESSION['usuario_id'])) {
+    http_response_code(401);
+    die('Sesión expirada o no válida. Inicia sesión para importar.');
+}
 
 if (ob_get_level()) ob_end_clean();
 ob_implicit_flush(true);

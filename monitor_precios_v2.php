@@ -237,6 +237,9 @@ const renderFila = (item, esSugerencia = false) => {
     const ia = item.propuesta_ia || {};
     const rowClass = esSugerencia ? 'table-warning font-small' : 'font-small';
     const fmt = v => parseFloat(v || 0).toFixed(2);
+    // A7: escapa la nota guardada para poder ponerla en el value del input
+    // resp_u_ sin romper el atributo si trae comillas o < >.
+    const escAttr = v => String(v ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
     return `
         <tr class="${rowClass}">
@@ -265,6 +268,29 @@ const renderFila = (item, esSugerencia = false) => {
                     <span>Sugerido: $${fmt(ia.precio_ia)}</span>
                     ${ia.veredicto_ia ? `<button type="button" class="btn btn-link btn-sm p-0 ms-1" title="Ver veredicto de MessIAs" onclick='mostrarVeredicto(${JSON.stringify(item.id)})'><i class="bi bi-chat-square-quote-fill"></i></button>` : ''}
                 </div>
+                ${(() => {
+                    // A5: distintivo de origen del precio y de revisión. El
+                    // origen viene en propuesta_ia (get_proyecto_data.php ya
+                    // pasa el JSON completo): 'ia' = propuesto por Ollama,
+                    // 'promedio' = respaldo del promedio porque Ollama no
+                    // devolvió propuesta válida (se marca en ámbar para que
+                    // no se vea como sugerencia de la IA), 'humano'/'mixto'
+                    // = con aprendizaje humano (A4). El veredicto va como
+                    // tooltip (escapado con escAttr). En ítems viejos sin
+                    // origen_precio no se muestra nada. 'Revisar' sale solo
+                    // si requiere_revision es true.
+                    const etiquetas = {ia: 'IA', promedio: 'Promedio (respaldo)', humano: 'Humano', mixto: 'Mixto'};
+                    const etiqueta = ia.origen_precio ? (etiquetas[ia.origen_precio] || ia.origen_precio) : '';
+                    let badges = '';
+                    if (etiqueta) {
+                        const clase = ia.origen_precio === 'promedio' ? 'bg-warning text-dark' : 'bg-secondary';
+                        badges += `<span class="badge ${clase} x-small me-1" title="${escAttr(ia.veredicto_ia || '')}">${etiqueta}</span>`;
+                    }
+                    if (ia.requiere_revision) {
+                        badges += `<span class="badge bg-danger x-small">Revisar</span>`;
+                    }
+                    return badges ? `<div class="mb-1">${badges}</div>` : '';
+                })()}
                 <input type="number" id="precio_u_${item.id}" class="form-control form-control-sm fw-bold" value="${parseFloat(item.precio_usuario) > 0 ? fmt(item.precio_usuario) : fmt(ia.precio_ia)}">
             </td>
             <td class="align-middle">
@@ -273,6 +299,11 @@ const renderFila = (item, esSugerencia = false) => {
                         `<option value="${op}" ${item.categoria_rechazo === op ? 'selected' : ''}>${op}</option>`
                     ).join('')}
                 </select>
+                <!-- A7: campo de nota/respuesta que validarRegistro() ya leía
+                     (resp_u_<id>) pero que renderFila nunca generaba: sin él,
+                     validar rompía con TypeError y la validación humana no se
+                     guardaba. Se prellena con item.respuesta si ya existe. -->
+                <input type="text" id="resp_u_${item.id}" class="form-control form-control-sm x-small mb-1" placeholder="Nota para la IA (opcional)" value="${escAttr(item.respuesta)}">
                 <button class="btn btn-sm w-100 ${item.estatus === 'completado' ? 'btn-success' : 'btn-outline-primary'}" onclick="validarRegistro(${item.id})">
                     <i class="bi ${item.estatus === 'completado' ? 'bi-check-all' : 'bi-send'}"></i> Validar
                 </button>
@@ -375,6 +406,13 @@ function mostrarVeredicto(id) {
     const rangoHtml = (ia.precio_ia_min !== undefined && ia.precio_ia_max !== undefined && parseFloat(ia.precio_ia_max) > parseFloat(ia.precio_ia_min))
         ? `<div class="text-center x-small text-muted mt-1">Rango sugerido: $${parseFloat(ia.precio_ia_min).toFixed(2)} &ndash; $${parseFloat(ia.precio_ia_max).toFixed(2)}</div>`
         : '';
+    // A6: línea corta de trazabilidad en el modal (modelo, intentos y
+    // latencia de la IA, fecha de procesamiento). Solo si la propuesta
+    // trae trazabilidad; ítems viejos sin ella no muestran nada.
+    const traza = ia.trazabilidad || {};
+    const trazaHtml = (traza.modelo || traza.fecha_hora_procesamiento)
+        ? `<div class="x-small text-muted mt-2">Modelo: ${String(traza.modelo || 's/d').replace(/</g, '&lt;')} &middot; Intentos IA: ${ia.ia_intentos ?? 's/d'} &middot; Latencia IA: ${traza.latencia_ia_ms != null ? traza.latencia_ia_ms + ' ms' : 's/d'} &middot; Procesado: ${String(traza.fecha_hora_procesamiento || '').replace(/</g, '&lt;')}</div>`
+        : '';
 
     Swal.fire({
         title: 'Veredicto de MessIAs',
@@ -389,6 +427,7 @@ function mostrarVeredicto(id) {
                     <span>Promedio histórico: $${parseFloat(ia.precio_promedio || 0).toFixed(2)}</span>
                 </div>
                 ${rangoHtml}
+                ${trazaHtml}
             </div>
             ${coincidenciasHtml}
         `
@@ -396,9 +435,15 @@ function mostrarVeredicto(id) {
 }
 
 async function validarRegistro(id) {
-    const precio = document.getElementById(`precio_u_${id}`).value;
-    const respuesta = document.getElementById(`resp_u_${id}`).value;
-    const categoria = document.getElementById(`cat_u_${id}`).value;
+    // A7: lecturas a prueba de nulos: si algún campo no existe, se usa ''
+    // en vez de romper con TypeError (antes resp_u_ no existía y validar
+    // nunca llegaba a enviar nada al servidor).
+    const precioEl = document.getElementById(`precio_u_${id}`);
+    const respEl = document.getElementById(`resp_u_${id}`);
+    const catEl = document.getElementById(`cat_u_${id}`);
+    const precio = precioEl ? precioEl.value : '';
+    const respuesta = respEl ? respEl.value : '';
+    const categoria = catEl ? catEl.value : '';
     const idUsuario = <?php echo intval($_SESSION['usuario_id'] ?? 0); ?>;
 
     Swal.fire({
