@@ -68,6 +68,9 @@
 
         .bg-soft-success { background-color: #e8f5e9; color: #2e7d32; }
         .bg-soft-primary { background-color: #e3f2fd; color: #1976d2; }
+        /* Tarjetas de agentes BI (agentesIA, en /agentesIA/ del mismo servidor) */
+        .bg-soft-warning { background-color: #fff8e1; color: #b26a00; }
+        .bg-soft-info    { background-color: #e0f7fa; color: #00838f; }
 
         /* Sección de Login como Sidecard */
         .login-card {
@@ -184,6 +187,36 @@
                             </div>
                             <h4 class="fw-bold">Entrenamiento del Modelo</h4>
                             <p class="text-muted small">Auditoría, variaciones de margen y ajustes para el entrenamiento del modelo MessIAs.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Agentes BI (proyecto agentesIA, mismo servidor): el usuario levanta la
+                 solicitud y un agente la cotiza; la respuesta llega a "Mis solicitudes". -->
+            <div class="row g-0">
+                <div class="col-md-6">
+                    <div class="card card-menu h-100 p-4<?php echo $logueado ? '' : ' opacity-50 pe-none'; ?>"
+                         <?php if ($logueado): ?>onclick="location.href='../agentesIA/embed_nueva_solicitud.php'"<?php endif; ?>>
+                        <div class="card-body text-center">
+                            <div class="icon-box bg-soft-warning">
+                                <i class="bi bi-robot"></i>
+                            </div>
+                            <h4 class="fw-bold">Cotizar con agentes BI</h4>
+                            <p class="text-muted small">Envía tus ítems y un agente BI te devuelve la cotización.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="card card-menu h-100 p-4<?php echo $logueado ? '' : ' opacity-50 pe-none'; ?>"
+                         <?php if ($logueado): ?>onclick="location.href='../agentesIA/embed_mis_solicitudes.php'"<?php endif; ?>>
+                        <div class="card-body text-center">
+                            <div class="icon-box bg-soft-info">
+                                <i class="bi bi-inbox-fill"></i>
+                            </div>
+                            <h4 class="fw-bold">Mis solicitudes a agentes BI</h4>
+                            <p class="text-muted small">Revisa el estatus y las cotizaciones que te respondieron los agentes.</p>
                         </div>
                     </div>
                 </div>
