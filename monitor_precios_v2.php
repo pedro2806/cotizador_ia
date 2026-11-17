@@ -5,6 +5,7 @@ if (empty($_SESSION['usuario_id'])) {
     exit;
 }
 include 'acciones_monitor_precios_v2.php';
+require_once __DIR__ . '/includes/marco_messias.php';
 
 // Parámetros para el Sidebar (Carga inicial)
 $id_proyecto_activo = $_GET['proyecto'] ?? '';
@@ -23,19 +24,28 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/x-icon" href="fav.ico">
-    <title>Monitor MessIAs | Auditoría de Precios</title>
+    <title>Histórico de mis cotizaciones con modelo messIAs | MessIAs</title>
     <link href="css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="css/bootstrap-icons.css">
     <link href="css/sweetalert2.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/marco_messias.css?v=<?php echo filemtime(__DIR__ . '/css/marco_messias.css'); ?>">
     <style>
         :root { --mess-blue: #002d5a; --mess-gold: #ffc107; }
-        body { background-color: #f4f7f6; font-family: 'Inter', sans-serif; }
-        
-        .navbar-custom { background: var(--mess-blue); border-bottom: 3px solid var(--mess-gold); }
-        
+        body { font-family: 'Inter', sans-serif; }
+
         /* Sidebar Estilizado */
-        .sidebar-card { border: none; border-radius: 15px; height: calc(100vh - 120px); display: flex; flex-direction: column; background: white; }
-        .sidebar-scroll { flex-grow: 1; overflow-y: auto; }
+        .sidebar-card { border: 1px solid #e9ecef; border-radius: 15px; max-height: 50vh; display: flex; flex-direction: column; background: white; }
+        .sidebar-scroll { flex-grow: 1; min-height: 0; overflow-y: auto; }
+        @media (min-width: 992px) {
+            .sidebar-card { max-height: none; height: 75vh; }
+        }
+        /* En escritorio la página cabe en la ventana (body.mx-app): la lista y el
+           detalle ocupan el alto de la hoja y hacen scroll por dentro. */
+        @media (min-width: 992px) and (min-height: 600px) {
+            .monitor-fila, .monitor-fila > [class*="col-"] { height: 100%; }
+            .sidebar-card { height: 100%; }
+            .monitor-fila .table-container { height: 100%; min-height: 0; overflow: auto; }
+        }
         .list-group-item { border-left: none; border-right: none; padding: 1rem; border-bottom: 1px solid #f0f0f0; transition: 0.2s; }
         .list-group-item.active { background-color: #eef4ff; border-color: transparent; color: var(--mess-blue); border-right: 4px solid var(--mess-blue); }
         
@@ -109,27 +119,16 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
         }
     </style>
 </head>
-<body>
+<body class="mx-marco mx-app">
 
-<nav class="navbar navbar-dark navbar-custom mb-4 shadow-sm">
-    <div class="container-fluid px-4">
-        <a class="navbar-brand d-flex align-items-center" href="#">
-            <img src="img/desarrollo-tecnologia.png" alt="Logo MESS" style="height: 55px; background: white; padding: 5px; border-radius: 8px;">
-            <span class="border-start ps-3">Monitor de cotizaciones realizadas por el modelo MessIAs</span>
-        </a>
-        <div class="d-flex align-items-center gap-3">
-            <span class="text-white x-small" id="last-update">Sincronizando...</span>
-            <a href="cargador_masivo.php" class="btn btn-warning btn-sm fw-bold px-3">Nueva Carga</a>
-        </div>
-    </div>
-</nav>
+<?php mxAbrirHoja('Histórico de mis cotizaciones con modelo messIAs'); ?>
 
-<div class="container-fluid px-4">
-    <div class="row">
-        <div class="col-md-2">
+<div class="mx-hoja-cuerpo">
+    <div class="row g-3 monitor-fila">
+        <div class="col-lg-2">
             <div class="card sidebar-card shadow-sm">
                 <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-collection-fill me-2"></i>Proyectos</h6>
+                    <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-briefcase-fill me-2"></i>Solicitudes</h6>
                     <span class="badge bg-light text-dark border"><?php echo $total_registros; ?></span>
                 </div>
                 <div class="sidebar-scroll">
@@ -164,12 +163,12 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
             </div>
         </div>
 
-        <div class="col-md-10">
+        <div class="col-lg-10">
             <?php if ($id_proyecto_activo): ?>
             <div class="table-container p-4">
-                <div class="d-flex justify-content-between align-items-center mb-4">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
                     <div>
-                        <h4 class="fw-bold mb-0 text-dark">Detalle del Proyecto</h4>
+                        <h2 class="h4 fw-bold mb-0 text-dark">Detalle de la solicitud</h2>
                         <span class="text-primary fw-bold small"><?php echo htmlspecialchars($id_proyecto_activo); ?></span>
                     </div>
                     <div class="d-flex align-items-center gap-3">
@@ -205,13 +204,16 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
             <?php else: ?>
             <div class="table-container d-flex flex-column align-items-center justify-content-center text-center p-5">
                 <i class="bi bi-clipboard2-check text-light" style="font-size: 5rem;"></i>
-                <h4 class="text-muted mt-3">Panel de Auditoría de Cotizaciones</h4>
-                <p class="text-secondary">Selecciona un proyecto del listado para ver el análisis de los precios dados por el modelo MessIAs.</p>
+                <h2 class="h4 text-muted mt-3">Panel de Auditoría de Cotizaciones</h2>
+                <p class="text-secondary">Selecciona una solicitud del listado para ver el análisis de los precios dados por el modelo MessIAs.</p>
             </div>
             <?php endif; ?>
         </div>
     </div>
 </div>
+
+<?php mxCerrarHoja(); ?>
+
 <script src="js/sweetalert2.all.min.js"></script>
 
 <script>
@@ -340,7 +342,9 @@ async function cargarDatos(soloDesviaciones = false) {
         const contenedor = document.getElementById('contenedor-items');
         const prevSel = new Set([...document.querySelectorAll('.item-check:checked')].map(cb => cb.value));
         
-        document.getElementById('last-update').innerHTML = `<i class="bi bi-clock-history me-1"></i> Sync: ${new Date().toLocaleTimeString()}`;
+        // El indicador "Sync" vivía en la barra superior, que el diseño nuevo quitó.
+        const lastUpdate = document.getElementById('last-update');
+        if (lastUpdate) lastUpdate.innerHTML = `<i class="bi bi-clock-history me-1"></i> Sync: ${new Date().toLocaleTimeString()}`;
 
         const originales = data.filter(i => !i.es_sugerencia);
         const sugerencias = data.filter(i => i.es_sugerencia);

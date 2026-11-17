@@ -1,4 +1,7 @@
-<?php include 'acciones_login.php'; ?>
+<?php
+include 'acciones_login.php';
+require_once __DIR__ . '/includes/marco_messias.php';
+?>
 
 <!DOCTYPE html>
 <html lang="es">
@@ -9,13 +12,12 @@
     <title><?php echo $logueado ? 'MessIAs | Inicio' : 'MessIAs | Iniciar sesión'; ?></title>
     <link href="css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="css/bootstrap-icons.css">
+    <link rel="stylesheet" href="css/marco_messias.css?v=<?php echo filemtime(__DIR__ . '/css/marco_messias.css'); ?>">
 
     <style>
-        /* Colores tomados de "MessIAs Login.pptx" (diseño aprobado). */
+        /* Colores tomados de "MessIAs Login.pptx" (diseño aprobado). El marco
+           (encabezado, banda azul, pie) está en css/marco_messias.css. */
         :root {
-            --mx-navy: #002060;        /* encabezado y pie */
-            --mx-oro: #FFC911;         /* filetes bajo el encabezado y sobre el pie */
-            --mx-azul: #2E75B6;        /* banda central (Azul énfasis 5, -25 %) */
             --mx-azul-btn: #013569;    /* botones "Consultar mis cotizaciones" */
             --mx-azul-btn-hover: #02478c;
             --mx-rojo: #C00000;        /* botón Salir */
@@ -26,63 +28,14 @@
             --mx-gris-bienvenido: #D9D6D6;
             --mx-fondo-login: #F8F9FA;
             --mx-entrar: #212529;
-            --mx-gutter: clamp(16px, 2vw, 32px);
+            --mx-gutter-panel: clamp(16px, 2vw, 32px);
         }
 
-        html, body { height: 100%; }
-
         body {
-            margin: 0;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            background: var(--mx-navy);
-            font-family: Calibri, Carlito, "Segoe UI", system-ui, -apple-system, sans-serif;
+            font-family: var(--mx-font);
             font-size: 16px;
             color: var(--mx-texto-titulo);
         }
-
-        /* ---------- Marco: encabezado / banda / pie ---------- */
-        .mx-header {
-            flex: 0 0 auto;
-            height: clamp(88px, 19vh, 156px);
-            display: flex;
-            align-items: center;
-            justify-content: flex-end;
-            padding: 0 clamp(12px, 1.2vw, 24px);
-            background: var(--mx-navy);
-            border-bottom: 3px solid var(--mx-oro);
-        }
-        .mx-header a { display: block; height: 92%; }
-        .mx-header img { height: 100%; width: auto; display: block; }
-
-        .mx-main {
-            flex: 1 0 auto;
-            position: relative;
-            overflow: hidden;
-            background: var(--mx-azul);
-        }
-        /* Red de nodos: ocupa los 2/3 derechos de la banda, como en la diapositiva. */
-        .mx-main::before {
-            content: "";
-            position: absolute;
-            top: 0; right: 0; bottom: 0;
-            width: 67%;
-            background: url("img/messias/red-fondo.png") no-repeat right bottom / cover;
-            pointer-events: none;
-        }
-        .mx-main > * { position: relative; z-index: 1; }
-
-        .mx-footer {
-            flex: 0 0 auto;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 8px 16px;
-            background: var(--mx-navy);
-            border-top: 3px solid var(--mx-oro);
-        }
-        .mx-footer img { height: clamp(52px, 8.5vh, 80px); width: auto; max-width: 100%; display: block; }
 
         @keyframes mxEntrada {
             from { opacity: 0; transform: translateY(14px); }
@@ -187,7 +140,7 @@
             grid-template-columns: minmax(300px, min(36vw, 620px)) 1fr;
             gap: 24px 40px;
             align-items: start;
-            padding: var(--mx-gutter);
+            padding: var(--mx-gutter-panel);
             animation: mxEntrada .4s ease both;
         }
         .mx-opciones { display: flex; flex-direction: column; gap: 16px; }
@@ -304,7 +257,6 @@
         @media (max-width: 899px) {
             .mx-panel { grid-template-columns: 1fr; }
             .mx-bienvenida { order: -1; padding-top: 0; }
-            .mx-main::before { width: 100%; opacity: .7; }
         }
         @media (max-width: 479px) {
             .mx-consultas { grid-template-columns: 1fr; }
@@ -317,13 +269,9 @@
         }
     </style>
 </head>
-<body>
+<body class="mx-marco">
 
-<header class="mx-header">
-    <a href="index.php" aria-label="messIAs, inicio">
-        <img src="img/messias/logo-messias.png" alt="messIAs, all about metrology at the speed of AI">
-    </a>
-</header>
+<?php mxEncabezado(); ?>
 
 <main class="mx-main">
 <?php if (!$logueado): ?>
@@ -423,9 +371,7 @@
 <?php endif; ?>
 </main>
 
-<footer class="mx-footer">
-    <img src="img/messias/logo-mess-b1.png" alt="Grupo mess, all about metrology · B1 Business Intelligence">
-</footer>
+<?php mxPie(); ?>
 
 <script src="js/sweetalert2.all.min.js"></script>
 <script>

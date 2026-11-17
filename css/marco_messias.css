@@ -1,0 +1,123 @@
+/* =========================================================
+   Marco messIAs — encabezado, banda azul con red de nodos, hoja blanca y pie.
+   Diseño aprobado: "MessIAs Login.pptx" (colores tomados de ahí).
+
+   Lo usan index.php, cargador_masivo.php y monitor_precios_v2.php junto con
+   includes/marco_messias.php. agentesIA tiene una COPIA en
+   agentesIA/css/marco_messias.css: si cambias este archivo, cambia aquel.
+
+   Uso:  <body class="mx-marco">  (+ "mx-app" para que en escritorio la página
+   quepa en la ventana y el contenido haga scroll por dentro, como el monitor).
+   ========================================================= */
+
+:root {
+    --mx-navy: #002060;          /* encabezado y pie */
+    --mx-oro: #FFC911;           /* filetes bajo el encabezado y sobre el pie */
+    --mx-azul: #2E75B6;          /* banda central (Azul énfasis 5, -25 %) */
+    --mx-titulo-hoja: #AEAAAA;   /* título gris de cada página, a la derecha */
+    --mx-gutter: clamp(12px, 1.1vw, 20px);
+    --mx-font: Calibri, Carlito, "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+body.mx-marco {
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--mx-navy);
+}
+
+/* ---------- Encabezado ---------- */
+.mx-header {
+    flex: 0 0 auto;
+    height: clamp(88px, 19vh, 156px);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 0 clamp(12px, 1.2vw, 24px) 0 clamp(16px, 1.9vw, 32px);
+    background: var(--mx-navy);
+    border-bottom: 3px solid var(--mx-oro);
+}
+.mx-logo { display: block; height: 92%; margin-left: auto; }
+.mx-logo img { height: 100%; width: auto; display: block; }
+
+/* Botón naranja de regreso (izquierda). */
+.mx-volver {
+    flex: 0 0 auto;
+    display: block;
+    width: clamp(48px, 5.5vw, 80px);
+    height: clamp(48px, 5.5vw, 80px);
+    border-radius: 50%;
+    transition: transform .15s ease, box-shadow .15s ease;
+}
+.mx-volver img { width: 100%; height: 100%; display: block; }
+.mx-volver:hover { transform: scale(1.06); box-shadow: 0 0 0 4px rgba(255, 255, 255, .15); }
+.mx-volver:focus-visible,
+.mx-logo:focus-visible {
+    outline: 3px solid var(--mx-oro);
+    outline-offset: 3px;
+}
+
+/* ---------- Banda central ---------- */
+.mx-main {
+    flex: 1 0 auto;
+    position: relative;
+    overflow: hidden;
+    background: var(--mx-azul);
+}
+/* Red de nodos: los 2/3 derechos de la banda, como en la diapositiva. */
+.mx-main::before {
+    content: "";
+    position: absolute;
+    top: 0; right: 0; bottom: 0;
+    width: 67%;
+    background: url("../img/messias/red-fondo.png") no-repeat right bottom / cover;
+    pointer-events: none;
+}
+.mx-main > * { position: relative; z-index: 1; }
+
+/* ---------- Hoja blanca de las páginas internas ---------- */
+.mx-hoja {
+    margin: 18px var(--mx-gutter);
+    padding: 10px clamp(14px, 1.6vw, 28px) clamp(16px, 1.8vw, 28px);
+    background: var(--mx-hoja-bg, #fff);
+    border-radius: 14px;
+    box-shadow: 0 14px 34px rgba(0, 20, 60, .2);
+}
+.mx-hoja-titulo {
+    margin: 0 0 14px;
+    font-family: var(--mx-font);
+    font-size: clamp(1.35rem, 2.3vw, 2.2rem);
+    font-weight: 700;
+    line-height: 1.15;
+    text-align: right;
+    color: var(--mx-titulo-hoja);
+}
+
+/* ---------- Pie ---------- */
+.mx-footer {
+    flex: 0 0 auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 8px 16px;
+    background: var(--mx-navy);
+    border-top: 3px solid var(--mx-oro);
+}
+.mx-footer img { height: clamp(52px, 8.5vh, 80px); width: auto; max-width: 100%; display: block; }
+
+/* ---------- Página "app" (cabe en la ventana en escritorio) ---------- */
+@media (min-width: 992px) and (min-height: 600px) {
+    body.mx-app { height: 100vh; height: 100dvh; overflow: hidden; }
+    body.mx-app .mx-main { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+    body.mx-app .mx-hoja { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+    body.mx-app .mx-hoja-cuerpo { flex: 1 1 auto; min-height: 0; }
+}
+
+@media (max-width: 899px) {
+    .mx-main::before { width: 100%; opacity: .7; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .mx-volver, .mx-volver:hover { transition: none; transform: none; }
+}

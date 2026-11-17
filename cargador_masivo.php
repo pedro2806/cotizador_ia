@@ -4,6 +4,7 @@ if (empty($_SESSION['usuario_id'])) {
     header('Location: index.php');
     exit;
 }
+require_once __DIR__ . '/includes/marco_messias.php';
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -11,23 +12,21 @@ if (empty($_SESSION['usuario_id'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/x-icon" href="fav.ico">
-    <title>Cotizador | MessIAs</title>
+    <title>Nueva cotización con modelo messIAs | MessIAs</title>
     <link href="css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="css/bootstrap-icons.css">
+    <link rel="stylesheet" href="css/marco_messias.css?v=<?php echo filemtime(__DIR__ . '/css/marco_messias.css'); ?>">
     <script src="js/sweetalert2.all.min.js"></script>
     <style>
         :root {
             --mess-blue: #002d5a;
             --mess-gold: #ffc107;
         }
-        body { 
-            background-color: #f0f2f5; 
+        body {
             font-family: 'Inter', sans-serif;
         }
-        .navbar-custom {
-            background-color: var(--mess-blue);
-            border-bottom: 3px solid var(--mess-gold);
-        }
+        /* Ancho del formulario dentro de la hoja blanca (como en el diseño). */
+        .cargador-contenido { max-width: 1100px; margin: 0 auto; }
         .card-upload {
             border: none;
             border-radius: 10px;
@@ -86,40 +85,14 @@ if (empty($_SESSION['usuario_id'])) {
         }
     </style>
 </head>
-<body>
+<body class="mx-marco">
 
-<nav class="navbar navbar-dark navbar-custom mb-2 shadow">
-    <div class="container">
-        <a class="navbar-brand d-flex align-items-center" href="index.php">
-            <img src="img/desarrollo-tecnologia.png" alt="Logo MESS" style="height: 55px; background: white; padding: 5px; border-radius: 8px;">            
-        </a>
-        <a href="index.php" class="btn btn-outline-light btn-sm rounded-pill">
-            <i class="bi bi-arrow-left"></i> Volver a Inicio
-        </a>
-    </div>
-</nav>
-
-<div class="container mb-0">
-    <div class="row justify-content-center">
-        <div class="col-lg-12">
-            <div class="card border-0 shadow-sm rounded-4 mb-0">
-                
-                <!-- Header -->
-                <div class="card-header bg-white border-bottom-0">
-                    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
-                        <div>
-                            <h5 class="fw-bold mb-1 text-dark">Nueva Carga de Proyecto (Cotización)</h5>                            
-                        </div>
-                        <!--<a href="monitor_precios_v2.php" class="btn btn-light btn-sm text-secondary fw-bold border">
-                            <i class="bi bi-view-list me-1"></i> Ir al monitor de proyectos activos
-                        </a>-->
-                    </div>
-                </div>
+<?php mxAbrirHoja('Nueva cotización con modelo messIAs'); ?>
 
                 <!-- Formulario -->
                 <form id="formCargaMasiva">
-                    <div class="card-body px-2 px-md-4 pb-4 pt-2">
-                        <div class="row gy-5 gx-lg-5">
+                    <div class="cargador-contenido px-0 px-md-2 pb-2">
+                        <div class="row gy-4 gx-lg-5">
                             
                             <!-- Columna Izquierda: Instrucciones -->
                             <div class="col-lg-3 order-2 order-lg-1">
@@ -200,17 +173,9 @@ if (empty($_SESSION['usuario_id'])) {
                         </div>
                     </div>
                 </form>
-            </div>
-        </div>
-    </div>
-</div>
 
-<footer class="py-2 text-center text-muted border-top bg-white mt-auto">
-    <div class="container">               
-        <p class="small mb-0">Business intelligence | MessIAs&copy;</p>
-        <small class="opacity-50">2026</small>
-    </div>
-</footer>
+<?php mxCerrarHoja(); ?>
+
 <!-- CSS de Select2 y su adaptador Bootstrap 5 -->
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
