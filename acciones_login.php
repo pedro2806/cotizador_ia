@@ -73,6 +73,3 @@ if (isset($_GET['login_error'])) {
         ? 'Completa todos los campos.'
         : 'Correo o contraseña incorrectos, o cuenta inactiva.';
 }
-
-$total_proyectos = $conn->query("SELECT COUNT(DISTINCT id_proyecto) as total FROM cola_procesamiento")->fetch_assoc()['total'];
-$total_items     = $conn->query("SELECT COUNT(*) as total FROM cola_procesamiento")->fetch_assoc()['total'];
