@@ -246,6 +246,7 @@ const renderFila = (item, esSugerencia = false) => {
             <td class="text-center align-middle"><input type="checkbox" class="form-check-input item-check" value="${item.id}"></td>
             <td class="fw-bold text-primary align-middle">
                 ${ia.cdmess || 'S/C'}                
+                ${ia.atlas && ia.atlas.origen === 'similar' ? `<br><span class="badge bg-secondary x-small">Ya no activa en Atlas</span>` : ''}
                 ${item.entrada_usuario ? `<br><span class="x-small text-muted">Sugerencia para: ${item.entrada_usuario}</span>` : ''}
             </td>
             <td class="align-middle">
@@ -288,6 +289,20 @@ const renderFila = (item, esSugerencia = false) => {
                     }
                     if (ia.requiere_revision) {
                         badges += `<span class="badge bg-danger x-small">Revisar</span>`;
+                    }
+                    // Fase 1 (Atlas): badge de coincidencia y alerta de
+                    // validación de experto. En el caso similar nunca se
+                    // pinta como validado: "Sugerencia Atlas (sin validar)".
+                    if (ia.atlas) {
+                        if (ia.atlas.origen === 'similar') {
+                            badges += `<span class="badge bg-warning text-dark x-small me-1">Sugerencia Atlas (sin validar)</span>`;
+                        } else {
+                            const claseAtlas = ia.atlas.tipo_coincidencia === 'Directa' ? 'bg-success' : (ia.atlas.tipo_coincidencia === 'Parcial' ? 'bg-warning text-dark' : 'bg-secondary');
+                            badges += `<span class="badge ${claseAtlas} x-small me-1">Atlas: ${escAttr(ia.atlas.tipo_coincidencia || 's/d')}</span>`;
+                        }
+                        if (ia.atlas.requiere_validacion_experto) {
+                            badges += `<span class="badge bg-danger x-small me-1" title="${escAttr('Requiere validación de experto, acércate al área correspondiente')}">Requiere validación de experto</span>`;
+                        }
                     }
                     return badges ? `<div class="mb-1">${badges}</div>` : '';
                 })()}
@@ -414,13 +429,85 @@ function mostrarVeredicto(id) {
         ? `<div class="x-small text-muted mt-2">Modelo: ${String(traza.modelo || 's/d').replace(/</g, '&lt;')} &middot; Intentos IA: ${ia.ia_intentos ?? 's/d'} &middot; Latencia IA: ${traza.latencia_ia_ms != null ? traza.latencia_ia_ms + ' ms' : 's/d'} &middot; Procesado: ${String(traza.fecha_hora_procesamiento || '').replace(/</g, '&lt;')}</div>`
         : '';
 
+    // Fase 1 (Atlas): sección Atlas en el modal. Solo si la propuesta trae
+    // atlas; ítems viejos sin él no muestran nada. Todo texto de Atlas se
+    // escapa antes de interpolarlo en innerHTML (R5).
+    const esc = v => String(v ?? '').replace(/</g, '&lt;');
+    const fmtPrecioAtlas = v => (v === null || v === undefined || v === '') ? 'sin historial' : '$' + parseFloat(v).toFixed(2);
+    const atlas = ia.atlas || null;
+    let atlasHtml = '';
+    if (atlas) {
+        const alertaHtml = atlas.requiere_validacion_experto
+            ? `<div class="alert alert-warning x-small mt-2 mb-0">Requiere validación de experto, acércate al área correspondiente${atlas.motivo_validacion && atlas.motivo_validacion.length ? ` (${atlas.motivo_validacion.map(m => esc(m)).join(', ')})` : ''}</div>`
+            : '';
+        if (atlas.origen === 'similar') {
+            // §5.7: se muestran AMBAS claves, cada una con su propio bloque.
+            // La cotizada es la original (su precio es precio_ia); la
+            // sugerencia lleva solo su precio histórico como referencia.
+            const sugs = Array.isArray(atlas.sugerencias) ? atlas.sugerencias : [];
+            const codigosVivos = sugs.map(s => esc(s.codigo_scot));
+            const encabezado = sugs.length === 0
+                ? `La clave ${esc(atlas.codigo_buscado)} ya no está activa en Atlas.`
+                : (sugs.length === 1
+                    ? `La clave ${esc(atlas.codigo_buscado)} ya no está activa en Atlas; se sugiere el código vivo ${codigosVivos[0]} por similitud.`
+                    : `La clave ${esc(atlas.codigo_buscado)} ya no está activa en Atlas; se sugieren los códigos vivos ${codigosVivos.slice(0, -1).join(', ')} y ${codigosVivos[codigosVivos.length - 1]} por similitud.`);
+            const tarjetasSug = sugs.map(s => `
+                <div class="card mt-2">
+                    <div class="card-body p-2 text-start">
+                        <div class="fw-bold">${esc(s.codigo_scot)} <span class="badge bg-success x-small">Clave viva de Atlas</span> <span class="badge bg-warning text-dark x-small">Sugerencia por similitud</span></div>
+                        ${s.servicio ? `<div class="x-small mt-1">${esc(s.servicio)}</div>` : ''}
+                        ${s.tipo_coincidencia ? `<div class="x-small text-muted">Coincidencia: ${esc(s.tipo_coincidencia)}</div>` : ''}
+                        <div class="x-small mt-1">Precio histórico (referencial, para comparar): <b>${fmtPrecioAtlas(s.precio_promedio)}</b>${s.precio_promedio_mxn != null ? ` / MXN ${fmtPrecioAtlas(s.precio_promedio_mxn)}` : ''}${s.n_muestras != null ? ` (${s.n_muestras} muestras)` : ''}</div>
+                        ${s.tokens_comunes && s.tokens_comunes.length ? `<div class="x-small text-muted">Coincide en: ${s.tokens_comunes.map(t => esc(t)).join(', ')} (puntaje ${s.puntaje_similitud})</div>` : ''}
+                        ${s.ejemplos ? `<div class="x-small text-muted">Ejemplos: ${esc(s.ejemplos)}</div>` : ''}
+                        <div class="alert alert-warning x-small mt-2 mb-0">Requiere validación de experto, acércate al área correspondiente</div>
+                    </div>
+                </div>`).join('');
+            atlasHtml = `
+                <div class="mt-3 text-start">
+                    <div class="x-small text-uppercase text-muted fw-bold mb-1">Atlas — clave no activa</div>
+                    <div class="x-small">${encabezado}</div>
+                    <div class="x-small text-muted">Código no cubierto por Atlas. Sugerencia por similitud, no validada por experto.</div>
+                    <div class="card mt-2">
+                        <div class="card-body p-2 text-start">
+                            <div class="fw-bold">${esc(atlas.codigo_buscado)} <span class="badge bg-secondary x-small">Ya no activa — no está en Atlas</span></div>
+                            ${ia.desc ? `<div class="x-small mt-1">${esc(ia.desc)}</div>` : ''}
+                            <div class="x-small mt-1">Precio sugerido (cotizado): <b>$${parseFloat(ia.precio_ia || 0).toFixed(2)}</b> &middot; Promedio histórico: $${parseFloat(ia.precio_promedio || 0).toFixed(2)}</div>
+                        </div>
+                    </div>
+                    ${tarjetasSug}
+                </div>`;
+        } else {
+            const modelos = Array.isArray(atlas.modelos) ? atlas.modelos : [];
+            const modelosHtml = modelos.length
+                ? `<div class="x-small mt-1"><b>Modelos (${modelos.length}):</b> ${modelos.slice(0, 10).map(m => `${esc(m.fabricante || '')} ${esc(m.modelo || '')}${m.confianza ? ` (${esc(m.confianza)})` : ''}`).join(' &middot; ')}${modelos.length > 10 ? ` &middot; y ${modelos.length - 10} más` : ''}</div>`
+                : '';
+            const alts = Array.isArray(atlas.alternativas) ? atlas.alternativas : [];
+            const altsHtml = alts.length
+                ? `<div class="x-small mt-1"><b>Otras claves que pueden aplicar:</b><ul class="mb-0 ps-3">${alts.map(a => `<li><b>${esc(a.codigo_scot)}</b>${a.es_principal ? ' <span class="badge bg-primary x-small">Principal</span>' : ''}${a.servicio ? ` — ${esc(a.servicio)}` : ''} — ${fmtPrecioAtlas(a.precio_promedio)}${a.n_muestras != null ? ` (${a.n_muestras} muestras)` : ''}</li>`).join('')}</ul></div>`
+                : '';
+            atlasHtml = `
+                <div class="mt-3 text-start">
+                    <div class="x-small text-uppercase text-muted fw-bold mb-1">Atlas — ${esc(atlas.codigo_scot)} ${atlas.codigo_principal ? `<span class="badge bg-primary x-small">Principal: ${esc(atlas.codigo_principal)}</span>` : ''}</div>
+                    <div><span class="badge ${atlas.tipo_coincidencia === 'Directa' ? 'bg-success' : (atlas.tipo_coincidencia === 'Parcial' ? 'bg-warning text-dark' : 'bg-secondary')} x-small">Atlas: ${esc(atlas.tipo_coincidencia || 's/d')}</span></div>
+                    ${atlas.servicio ? `<div class="x-small mt-1"><b>Servicio:</b> ${esc(atlas.servicio)}</div>` : ''}
+                    ${atlas.usar_cuando ? `<div class="x-small mt-1"><b>Cuándo usar:</b> ${esc(atlas.usar_cuando)}</div>` : ''}
+                    ${atlas.precaucion ? `<div class="x-small mt-1"><b>Precaución:</b> ${esc(atlas.precaucion)}</div>` : ''}
+                    ${atlas.preguntas ? `<div class="x-small mt-1"><b>Preguntas:</b> ${esc(atlas.preguntas)}</div>` : ''}
+                    ${modelosHtml}
+                    ${altsHtml}
+                    ${alertaHtml}
+                </div>`;
+        }
+    }
+
     Swal.fire({
         title: 'Veredicto de MessIAs',
         confirmButtonColor: '#002d5a',
         confirmButtonText: 'Entendido',
         html: `
             <div class="text-start">
-                <div class="fw-bold text-primary mb-1">${ia.cdmess || 'S/C'} &mdash; ${ia.desc || item.entrada_usuario || ''}</div>
+                <div class="fw-bold text-primary mb-1">${String(ia.cdmess || 'S/C').replace(/</g, '&lt;')} &mdash; ${String(ia.desc || item.entrada_usuario || '').replace(/</g, '&lt;')}</div>
                 <div class="alert alert-light border mt-2 mb-2 text-start" style="white-space: pre-line;">${veredicto.replace(/</g, '&lt;')}</div>
                 <div class="d-flex justify-content-between x-small text-muted">
                     <span>Precio sugerido: <b class="text-dark">$${parseFloat(ia.precio_ia || 0).toFixed(2)}</b></span>
@@ -428,6 +515,7 @@ function mostrarVeredicto(id) {
                 </div>
                 ${rangoHtml}
                 ${trazaHtml}
+                ${atlasHtml}
             </div>
             ${coincidenciasHtml}
         `

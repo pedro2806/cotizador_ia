@@ -196,6 +196,12 @@ function procesarSiguientePendiente() {
     $cdmess_contexto = !empty($cdmess_actual) ? $cdmess_actual : ($stats['cdmess'] ?? '');
     $contexto_precio = obtenerContextoPrecio($cdmess_contexto, $conn, $idclte);
 
+    // Fase 1 (Atlas): info experta del Atlas para la clave ya encontrada.
+    // Solo lectura: no cambia el código cotizado ni el precio (el
+    // principal solo se muestra; el re-base es Fase 2). null si no hay
+    // fila Atlas ni sugerencia por similitud que supere el umbral.
+    $atlas = obtenerInfoAtlas($cdmess_contexto, $conn, $idclte, $item['descripcion_historica'] ?? '', $entrada);
+
     $aprendizaje = obtenerAprendizajeHumano($cdmess_para_aprendizaje, $conn);
 
     // NOTA: preguntarOllamaConPrecios() devuelve un STRING con JSON.
@@ -472,6 +478,16 @@ function procesarSiguientePendiente() {
         $requiere_revision = false;
     }
 
+    // Fase 1 (Atlas): OR de revisión cuando Atlas exige validación de
+    // experto. No quita la regla de banda, solo suma. El caso similar
+    // siempre dispara este OR (su requiere_validacion_experto es true
+    // por construcción), así que ningún ítem con sugerencia similar queda
+    // como completado sin marca de revisión.
+    if (!empty($atlas['requiere_validacion_experto'])) {
+        $requiere_revision = true;
+        $nota_final .= " | Requiere validación de experto (Atlas)";
+    }
+
     // A6 — Trazabilidad completa de esta propuesta (subobjeto nuevo en
     // propuesta_ia; no se quita ni se cambia ningún campo existente).
     // Modelo y parámetros se leen de las constantes (A6 en ia_ollama.php);
@@ -520,7 +536,7 @@ function procesarSiguientePendiente() {
         'folio_base' => $folio_base['folio'] ?? '',
         'fecha_base' => $folio_base['fecha'] ?? '',
         // Rama de trabajo (literal documentado; no se lee git en runtime).
-        'rama' => 'versionMuse_10112026',
+        'rama' => 'atlas-implementacion',
     ];
 
     $data = [
@@ -582,7 +598,9 @@ function procesarSiguientePendiente() {
         "ia_error" => $ia_error,
         "ia_degradado" => $ia_degradado,
         // A6: trazabilidad completa de esta propuesta (ver arriba).
-        "trazabilidad" => $trazabilidad
+        "trazabilidad" => $trazabilidad,
+        // Fase 1 (Atlas): info experta del Atlas (o null si no hay).
+        "atlas" => $atlas
     ];
 
         $json_final = json_encode($data, JSON_UNESCAPED_UNICODE);
