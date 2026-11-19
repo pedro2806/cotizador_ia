@@ -14,113 +14,35 @@ if (empty($_SESSION['usuario_id'])) {
     <title>Cotizador | MessIAs</title>
     <link href="css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="css/bootstrap-icons.css">
+    <link rel="stylesheet" href="css/estilos.css">
+    <link rel="stylesheet" href="css/marco_messias.css">
     <script src="js/sweetalert2.all.min.js"></script>
     <style>
-        /* Diseño marco messIAs según embed_nueva_solicitud.php (agentesIA).
-           Solo presentación: no se toca lógica PHP ni JavaScript. */
-        :root {
-            --mx-navy: #002060;        /* fondo de página, encabezado y pie */
-            --mx-oro: #FFC911;         /* filetes bajo el encabezado y sobre el pie */
-            --mx-banda: #2E75B6;       /* banda central con la red de nodos */
-            --mx-btn: #002060;         /* botones primarios */
-            --mx-btn-hover: #001a4d;
-            --mx-naranja: #F26522;     /* botón circular de regreso */
-            --mx-borde: #dee2e6;       /* bordes de tarjetas y campos */
-            --mx-titulo-gris: #767171;
-            --mx-texto: #3B3838;
-        }
+        /* Diseño marco messIAs real (css/estilos.css + css/marco_messias.css,
+           de agentesIA). Solo presentación: no se toca lógica PHP ni JavaScript.
+           Aquí solo van reglas propias de esta página que los CSS del marco
+           no cubren; los colores usan sus tokens (--mx-*, --accent). */
 
-        html, body { height: 100%; }
+        /* Botón naranja de regreso: el marco espera un <img> con el círculo;
+           en cotizador_ia no existe esa imagen, así que el círculo naranja
+           se pinta por CSS y la flecha es el SVG de Bootstrap Icons
+           (fill="currentColor", por eso color:#fff la vuelve blanca). */
+        .mx-volver { background: var(--mess-naranja, #EAAA00); display: flex; align-items: center; justify-content: center; }
+        .mx-volver img { width: 55%; height: 55%; color: #fff; }
 
-        body {
-            margin: 0;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            background: var(--mx-navy);
-            font-family: Calibri, Carlito, "Segoe UI", system-ui, -apple-system, sans-serif;
-            font-size: 16px;
-            color: var(--mx-texto);
-        }
-
-        /* Banda central azul con la red de nodos, como el marco del embed:
-           la tarjeta blanca va sobre ella. */
-        .mx-banda {
-            flex: 1 0 auto;
-            background: var(--mx-banda) url("img/messias/red-fondo.png") no-repeat right bottom / cover;
-            padding: 12px 0 28px;
-        }
-
-        /* Encabezado: marco navy con filete dorado; botón circular naranja
-           de regreso a la izquierda y logo messIAs a la derecha, como el embed. */
-        .navbar-custom {
-            background-color: var(--mx-navy);
-            border-bottom: 3px solid var(--mx-oro);
-        }
-        .btn-regreso {
-            width: 48px; height: 48px; border-radius: 50%;
-            background: var(--mx-naranja); color: #fff;
-            display: inline-flex; align-items: center; justify-content: center;
-            font-size: 1.35rem; border: none; flex-shrink: 0; text-decoration: none;
-        }
-        .btn-regreso:hover { background: #d9541b; color: #fff; }
-
-        /* Pie: mismo marco que el embed. */
-        .mx-footer {
-            flex: 0 0 auto;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            gap: 4px;
-            padding: 8px 16px;
-            background: var(--mx-navy);
-            border-top: 3px solid var(--mx-oro);
-            color: #D9D6D6;
-        }
-        .mx-footer img { height: 56px; width: auto; max-width: 100%; display: block; }
-        .mx-footer p, .mx-footer small { color: #D9D6D6; }
-
-        .card-upload {
-            border: 1px solid var(--mx-borde);
-            border-radius: 12px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.08);
-            overflow: hidden;
-        }
-        /* Tarjeta principal del formulario: blanca como el form-card del embed. */
-        .mx-card-form {
-            border: 1px solid var(--mx-borde);
-            border-radius: 12px;
-        }
-        /* Título de la tarjeta en gris, como el título del embed
-           ("Nueva solicitud para Agentes messbook"). */
-        .mx-card-form .card-header h5 {
-            color: var(--mx-titulo-gris);
-            font-weight: 600;
-        }
-        .card-header-mess {
-            background: white;
-            border-bottom: 1px solid #edf2f7;
-            padding: 1.5rem 2rem;
-        }
         .textarea-console {
             background-color: #fff;
-            border: 1px solid var(--mx-borde);
+            border: 1px solid var(--border);
             border-radius: 6px;
             font-family: 'Fira Code', monospace;
             font-size: 0.9rem;
             resize: none;
             transition: all 0.3s ease;
         }
-        .textarea-console:focus {
-            background-color: #fff;
-            border-color: var(--mx-btn);
-            box-shadow: 0 0 0 4px rgba(0, 32, 96, 0.08);
-        }
         .step-badge {
             width: 35px;
             height: 35px;
-            background: var(--mx-btn);
+            background: var(--accent);
             color: white;
             border-radius: 50%;
             flex-shrink: 0;
@@ -134,7 +56,7 @@ if (empty($_SESSION['usuario_id'])) {
             line-height: 1;
         }
         .btn-upload {
-            background: var(--mx-btn);
+            background: var(--accent);
             color: white;
             border-radius: 10px;
             padding: 1rem;
@@ -143,63 +65,41 @@ if (empty($_SESSION['usuario_id'])) {
             transition: all 0.3s;
         }
         .btn-upload:hover {
-            background: var(--mx-btn-hover);
+            background: var(--accent-dark);
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 32, 96, 0.2);
+            box-shadow: 0 5px 15px rgba(5, 13, 158, 0.2);
             color: white;
-        }
-        /* Selects del formulario en navy. */
-        .form-select:focus {
-            border-color: var(--mx-btn);
-            box-shadow: 0 0 0 3px rgba(0, 32, 96, 0.12);
         }
 
         /* Modal de SweetAlert2: se ajusta por CSS, sin tocar el
            JavaScript que lo dispara ni su contenido. */
         .swal2-popup {
-            font-family: Calibri, Carlito, "Segoe UI", system-ui, -apple-system, sans-serif;
+            font-family: var(--mx-font);
             border-radius: 12px;
-            border: 1px solid var(--mx-borde);
+            border: 1px solid var(--border);
         }
-        .swal2-title { color: var(--mx-texto); }
-        .swal2-confirm { background-color: var(--mx-btn) !important; }
+        .swal2-title { color: var(--text); }
+        .swal2-confirm { background-color: var(--accent) !important; }
         .swal2-cancel { background-color: #fff !important; color: #212529 !important; border: 1px solid #6c757d !important; }
         .swal2-confirm:focus, .swal2-cancel:focus {
             box-shadow: 0 0 0 3px rgba(255, 201, 17, .55) !important;
         }
     </style>
 </head>
-<body>
+<body class="mx-marco">
 
-<nav class="navbar navbar-dark navbar-custom mb-0 shadow">
-    <div class="container">
-        <a href="index.php" class="btn-regreso" title="Volver a Inicio" aria-label="Volver a Inicio"><i class="bi bi-arrow-left"></i></a>
-        <a class="navbar-brand d-flex align-items-center" href="index.php">
-            <img src="img/messias/logo-messias.png" alt="messIAs, all about metrology at the speed of AI" style="height: 64px;">
-        </a>
-    </div>
-</nav>
+<header class="mx-header">
+    <a class="mx-volver" href="index.php" title="Volver a Inicio" aria-label="Volver a Inicio"><img src="img/icons/arrow-return-left.svg" alt="Volver"></a>
+    <a class="mx-logo" href="index.php"><img src="img/messias/logo-messias.png" alt="messIAs, all about metrology at the speed of AI"></a>
+</header>
 
-<div class="mx-banda">
-<div class="container mb-0">
-    <div class="row justify-content-center">
-        <div class="col-lg-12">
-            <div class="card shadow-sm mb-0 mx-card-form">
+<main class="mx-main">
+<div class="mx-hoja">
                 
-                <!-- Header -->
-                <div class="card-header bg-white border-bottom-0">
-                    <div class="d-flex flex-column flex-md-row justify-content-md-end align-items-md-center gap-3">
-                        <div>
-                            <h5 class="fw-bold mb-1 text-dark">Nueva Carga de Proyecto (Cotización)</h5>                            
-                        </div>
-                        <!--<a href="monitor_precios_v2.php" class="btn btn-light btn-sm text-secondary fw-bold border">
-                            <i class="bi bi-view-list me-1"></i> Ir al monitor de proyectos activos
-                        </a>-->
-                    </div>
-                </div>
+                <h1 class="mx-hoja-titulo">Nueva Carga de Proyecto (Cotización)</h1>
 
                 <!-- Formulario -->
-                <form id="formCargaMasiva">
+                <form id="formCargaMasiva" class="form-card">
                     <div class="card-body px-2 px-md-4 pb-4 pt-2">
                         <div class="row gy-5 gx-lg-5">
                             
@@ -282,16 +182,11 @@ if (empty($_SESSION['usuario_id'])) {
                         </div>
                     </div>
                 </form>
-            </div>
-        </div>
-    </div>
 </div>
-</div>
+</main>
 
-<footer class="mx-footer mt-auto">
+<footer class="mx-footer">
     <img src="img/messias/logo-mess-b1.png" alt="Grupo mess, all about metrology · B1 Business Intelligence">
-    <p class="small mb-0">Business intelligence | MessIAs&copy;</p>
-    <small class="opacity-75">2026</small>
 </footer>
 <!-- CSS de Select2 y su adaptador Bootstrap 5 -->
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
