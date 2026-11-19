@@ -28,20 +28,18 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
     <link rel="stylesheet" href="css/bootstrap-icons.css">
     <link href="css/sweetalert2.min.css" rel="stylesheet">
     <style>
-        /* Diseño messIAs tomado de index.php (diseño aprobado "MessIAs Login.pptx").
+        /* Diseño marco messIAs según embed_nueva_solicitud.php (agentesIA).
            Solo presentación: no se toca lógica PHP ni JavaScript. */
         :root {
-            --mx-navy: #002060;        /* encabezado y pie */
+            --mx-navy: #002060;        /* fondo de página, encabezado y pie */
             --mx-oro: #FFC911;         /* filetes bajo el encabezado y sobre el pie */
-            --mx-azul: #2E75B6;        /* banda central */
-            --mx-azul-btn: #013569;    /* botones */
-            --mx-azul-btn-hover: #02478c;
-            --mx-rojo: #C00000;        /* botón Salir / cancelar */
-            --mx-rojo-hover: #9a0000;
-            --mx-borde-tarjeta: #172C51;
-            --mx-texto-titulo: #3B3838;
-            --mx-texto-desc: #767171;
-            --mx-fondo: #F8F9FA;
+            --mx-banda: #2E75B6;       /* banda central con la red de nodos */
+            --mx-btn: #002060;         /* botones primarios */
+            --mx-btn-hover: #001a4d;
+            --mx-naranja: #F26522;     /* botón circular de regreso */
+            --mx-borde: #dee2e6;       /* bordes de tarjetas y campos */
+            --mx-titulo-gris: #767171;
+            --mx-texto: #3B3838;
         }
 
         html, body { height: 100%; }
@@ -51,37 +49,62 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
             min-height: 100vh;
             display: flex;
             flex-direction: column;
-            /* Banda azul con la red de nodos de index.php (.mx-main). */
-            background: var(--mx-azul) url("img/messias/red-fondo.png") no-repeat right bottom / cover fixed;
+            background: var(--mx-navy);
             font-family: Calibri, Carlito, "Segoe UI", system-ui, -apple-system, sans-serif;
             font-size: 16px;
-            color: var(--mx-texto-titulo);
+            color: var(--mx-texto);
         }
-        body > .container-fluid { flex: 1 0 auto; }
 
-        /* Encabezado: mismo marco que index.php (.mx-header). */
+        /* Banda central azul con la red de nodos, como el marco del embed:
+           las tarjetas blancas van sobre ella. */
+        .mx-banda {
+            flex: 1 0 auto;
+            background: var(--mx-banda) url("img/messias/red-fondo.png") no-repeat right bottom / cover;
+            padding: 12px 0 28px;
+        }
+
+        /* Encabezado: marco navy con filete dorado; botón circular naranja
+           de regreso a la izquierda y logo messIAs a la derecha, como el embed. */
         .navbar-custom { background: var(--mx-navy); border-bottom: 3px solid var(--mx-oro); }
-        .navbar-custom .navbar-brand span { color: #fff; }
+        .btn-regreso {
+            width: 48px; height: 48px; border-radius: 50%;
+            background: var(--mx-naranja); color: #fff;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 1.35rem; border: none; flex-shrink: 0; text-decoration: none;
+        }
+        .btn-regreso:hover { background: #d9541b; color: #fff; }
 
-        /* Sidebar Estilizado: tarjeta blanca como .mx-card. */
-        .sidebar-card { border: 1px solid var(--mx-borde-tarjeta); border-radius: 12px; height: calc(100vh - 120px); display: flex; flex-direction: column; background: white; }
+        /* Pie: marco navy con filete dorado y logos centrados, como el embed. */
+        .mx-footer {
+            flex: 0 0 auto;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            gap: 4px; padding: 8px 16px;
+            background: var(--mx-navy);
+            border-top: 3px solid var(--mx-oro);
+            color: #D9D6D6;
+        }
+        .mx-footer img { height: 56px; width: auto; max-width: 100%; display: block; }
+        .mx-footer p, .mx-footer small { color: #D9D6D6; }
+
+        /* Sidebar: tarjeta blanca con borde gris claro, como el form-card del embed. */
+        .sidebar-card { border: 1px solid var(--mx-borde); border-radius: 12px; height: calc(100vh - 120px); display: flex; flex-direction: column; background: white; }
         .sidebar-scroll { flex-grow: 1; overflow-y: auto; }
         .list-group-item { border-left: none; border-right: none; padding: 1rem; border-bottom: 1px solid #f0f0f0; transition: 0.2s; }
-        .list-group-item.active { background-color: #eef4ff; border-color: transparent; color: var(--mx-azul-btn); border-right: 4px solid var(--mx-azul-btn); }
-        .sidebar-card .progress-bar { background-color: var(--mx-azul); }
-        .sidebar-card .btn-outline-secondary { color: var(--mx-azul-btn); border-color: var(--mx-azul-btn); }
-        .sidebar-card .btn-outline-secondary:hover { background-color: var(--mx-azul-btn); color: #fff; }
+        .list-group-item.active { background-color: #eef4ff; border-color: transparent; color: var(--mx-btn); border-right: 4px solid var(--mx-btn); }
+        .sidebar-card .progress-bar { background-color: var(--mx-banda); }
+        .sidebar-card .btn-outline-secondary { color: var(--mx-btn); border-color: var(--mx-btn); }
+        .sidebar-card .btn-outline-secondary:hover { background-color: var(--mx-btn); color: #fff; }
 
-        /* Contenedor de Tabla: tarjeta blanca como .mx-card. */
+        /* Contenedor de Tabla: tarjeta blanca como el form-card del embed. */
         .table-container {
             background: white;
-            border: 1px solid var(--mx-borde-tarjeta);
+            border: 1px solid var(--mx-borde);
             border-radius: 12px;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
             min-height: 600px;
             padding: 20px;
         }
-        .table thead { background-color: var(--mx-azul-btn); color: white; }
+        .table thead { background-color: var(--mx-btn); color: white; }
 
         .font-small { font-size: 0.85rem; }
         .x-small { font-size: 0.75rem; }
@@ -89,7 +112,7 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
         .badge-range { background-color: #f8f9fa; color: #6c757d; border: 1px solid #dee2e6; font-weight: normal; }
 
         .bg-sugerido input {
-            border: 1px solid var(--mx-azul-btn);
+            border: 1px solid var(--mx-btn);
             background-color: #fffceb;
         }
         textarea.x-small {
@@ -97,8 +120,8 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
             resize: none;
         }
         .text-muted { color: #6c757d !important; }
-        /* Acentos de texto en azul messIAs (código CDMESS, "Sugerido", folio). */
-        .text-primary { color: var(--mx-azul-btn) !important; }
+        /* Acentos de texto en navy (código CDMESS, "Sugerido", folio). */
+        .text-primary { color: var(--mx-btn) !important; }
 
         /* Mejora general de la tabla */
         #tabla-precios {
@@ -108,7 +131,7 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
 
         /* Encabezados con mejor contraste y espaciado */
         #tabla-precios thead th {
-            background-color: var(--mx-azul-btn) !important;
+            background-color: var(--mx-btn) !important;
             color: white;
             font-weight: 600;
             text-transform: uppercase;
@@ -126,7 +149,7 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
             border-radius: 6px;
             transition: all 0.2s;
         }
-        .form-control-sm:focus { border-color: var(--mx-azul-btn); box-shadow: none; }
+        .form-control-sm:focus { border-color: var(--mx-btn); box-shadow: none; }
 
         /* Etiquetas de rango más sutiles */
         .badge-range {
@@ -139,29 +162,29 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
             border-radius: 4px;
         }
 
-        /* Botones en azul messIAs (Exportar, Validar): se reestilan por CSS
+        /* Botones en navy (Exportar, Validar): se reestilan por CSS
            para no tocar el JavaScript que genera las filas. */
         .table-container .btn-success,
         #tabla-precios .btn-success {
-            background-color: var(--mx-azul-btn);
-            border-color: var(--mx-azul-btn);
+            background-color: var(--mx-btn);
+            border-color: var(--mx-btn);
         }
         .table-container .btn-success:hover,
         #tabla-precios .btn-success:hover {
-            background-color: var(--mx-azul-btn-hover);
-            border-color: var(--mx-azul-btn-hover);
+            background-color: var(--mx-btn-hover);
+            border-color: var(--mx-btn-hover);
         }
         #tabla-precios .btn-outline-primary {
-            color: var(--mx-azul-btn);
-            border-color: var(--mx-azul-btn);
+            color: var(--mx-btn);
+            border-color: var(--mx-btn);
         }
         #tabla-precios .btn-outline-primary:hover {
-            background-color: var(--mx-azul-btn);
+            background-color: var(--mx-btn);
             color: #fff;
         }
 
         /* Estado vacío: el icono claro no se veía sobre la tarjeta blanca. */
-        .table-container .bi-clipboard2-check { color: var(--mx-azul) !important; }
+        .table-container .bi-clipboard2-check { color: var(--mx-banda) !important; }
 
         /* Modal de veredicto (SweetAlert2): se ajusta por CSS, sin tocar el
            JavaScript que lo dispara ni su contenido. Los colores de los
@@ -170,11 +193,11 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
         .swal2-popup {
             font-family: Calibri, Carlito, "Segoe UI", system-ui, -apple-system, sans-serif;
             border-radius: 12px;
-            border: 1px solid var(--mx-borde-tarjeta);
+            border: 1px solid var(--mx-borde);
         }
-        .swal2-title { color: var(--mx-texto-titulo); }
-        .swal2-confirm { background-color: var(--mx-azul-btn) !important; }
-        .swal2-cancel { background-color: var(--mx-rojo) !important; }
+        .swal2-title { color: var(--mx-texto); }
+        .swal2-confirm { background-color: var(--mx-btn) !important; }
+        .swal2-cancel { background-color: #fff !important; color: #212529 !important; border: 1px solid #6c757d !important; }
         .swal2-confirm:focus, .swal2-cancel:focus {
             box-shadow: 0 0 0 3px rgba(255, 201, 17, .55) !important;
         }
@@ -182,19 +205,21 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
 </head>
 <body>
 
-<nav class="navbar navbar-dark navbar-custom mb-4 shadow-sm">
+<nav class="navbar navbar-dark navbar-custom mb-0 shadow-sm">
     <div class="container-fluid px-4">
-        <a class="navbar-brand d-flex align-items-center" href="#">
-            <img src="img/messias/logo-messias.png" alt="messIAs, all about metrology at the speed of AI" style="height: 64px;">
-            <span class="border-start ps-3">Monitor de cotizaciones realizadas por el modelo MessIAs</span>
-        </a>
+        <div class="d-flex align-items-center gap-3">
+            <a href="index.php" class="btn-regreso" title="Volver a Inicio" aria-label="Volver a Inicio"><i class="bi bi-arrow-left"></i></a>
+            <span class="text-white fw-semibold">Monitor de cotizaciones realizadas por el modelo MessIAs</span>
+        </div>
         <div class="d-flex align-items-center gap-3">
             <span class="text-white x-small" id="last-update">Sincronizando...</span>
             <a href="cargador_masivo.php" class="btn btn-warning btn-sm fw-bold px-3">Nueva Carga</a>
+            <img src="img/messias/logo-messias.png" alt="messIAs, all about metrology at the speed of AI" style="height: 64px;">
         </div>
     </div>
 </nav>
 
+<div class="mx-banda">
 <div class="container-fluid px-4">
     <div class="row">
         <div class="col-md-2">
@@ -283,6 +308,12 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
         </div>
     </div>
 </div>
+</div>
+<footer class="mx-footer">
+    <img src="img/messias/logo-mess-b1.png" alt="Grupo mess, all about metrology · B1 Business Intelligence">
+    <p class="small mb-0">Business intelligence | MessIAs&copy;</p>
+    <small class="opacity-75">2026</small>
+</footer>
 <script src="js/sweetalert2.all.min.js"></script>
 
 <script>

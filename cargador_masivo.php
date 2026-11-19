@@ -16,21 +16,18 @@ if (empty($_SESSION['usuario_id'])) {
     <link rel="stylesheet" href="css/bootstrap-icons.css">
     <script src="js/sweetalert2.all.min.js"></script>
     <style>
-        /* Diseño messIAs tomado de index.php (diseño aprobado "MessIAs Login.pptx").
+        /* Diseño marco messIAs según embed_nueva_solicitud.php (agentesIA).
            Solo presentación: no se toca lógica PHP ni JavaScript. */
         :root {
-            --mx-navy: #002060;        /* encabezado y pie */
+            --mx-navy: #002060;        /* fondo de página, encabezado y pie */
             --mx-oro: #FFC911;         /* filetes bajo el encabezado y sobre el pie */
-            --mx-azul: #2E75B6;        /* banda central */
-            --mx-azul-btn: #013569;    /* botones */
-            --mx-azul-btn-hover: #02478c;
-            --mx-rojo: #C00000;        /* botón Salir / cancelar */
-            --mx-rojo-hover: #9a0000;
-            --mx-borde-tarjeta: #172C51;
-            --mx-texto-titulo: #3B3838;
-            --mx-texto-desc: #767171;
-            --mx-gris-bienvenido: #D9D6D6;
-            --mx-fondo: #F8F9FA;
+            --mx-banda: #2E75B6;       /* banda central con la red de nodos */
+            --mx-btn: #002060;         /* botones primarios */
+            --mx-btn-hover: #001a4d;
+            --mx-naranja: #F26522;     /* botón circular de regreso */
+            --mx-borde: #dee2e6;       /* bordes de tarjetas y campos */
+            --mx-titulo-gris: #767171;
+            --mx-texto: #3B3838;
         }
 
         html, body { height: 100%; }
@@ -40,20 +37,35 @@ if (empty($_SESSION['usuario_id'])) {
             min-height: 100vh;
             display: flex;
             flex-direction: column;
-            /* Banda azul con la red de nodos de index.php (.mx-main). */
-            background: var(--mx-azul) url("img/messias/red-fondo.png") no-repeat right bottom / cover fixed;
+            background: var(--mx-navy);
             font-family: Calibri, Carlito, "Segoe UI", system-ui, -apple-system, sans-serif;
             font-size: 16px;
-            color: var(--mx-texto-titulo);
+            color: var(--mx-texto);
         }
-        body > .container { flex: 1 0 auto; }
 
-        /* Encabezado: mismo marco que index.php (.mx-header). */
+        /* Banda central azul con la red de nodos, como el marco del embed:
+           la tarjeta blanca va sobre ella. */
+        .mx-banda {
+            flex: 1 0 auto;
+            background: var(--mx-banda) url("img/messias/red-fondo.png") no-repeat right bottom / cover;
+            padding: 12px 0 28px;
+        }
+
+        /* Encabezado: marco navy con filete dorado; botón circular naranja
+           de regreso a la izquierda y logo messIAs a la derecha, como el embed. */
         .navbar-custom {
             background-color: var(--mx-navy);
             border-bottom: 3px solid var(--mx-oro);
         }
-        /* Pie: mismo marco que index.php (.mx-footer). */
+        .btn-regreso {
+            width: 48px; height: 48px; border-radius: 50%;
+            background: var(--mx-naranja); color: #fff;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 1.35rem; border: none; flex-shrink: 0; text-decoration: none;
+        }
+        .btn-regreso:hover { background: #d9541b; color: #fff; }
+
+        /* Pie: mismo marco que el embed. */
         .mx-footer {
             flex: 0 0 auto;
             display: flex;
@@ -64,21 +76,27 @@ if (empty($_SESSION['usuario_id'])) {
             padding: 8px 16px;
             background: var(--mx-navy);
             border-top: 3px solid var(--mx-oro);
-            color: var(--mx-gris-bienvenido, #D9D6D6);
+            color: #D9D6D6;
         }
         .mx-footer img { height: 56px; width: auto; max-width: 100%; display: block; }
         .mx-footer p, .mx-footer small { color: #D9D6D6; }
 
         .card-upload {
-            border: 1px solid var(--mx-borde-tarjeta);
+            border: 1px solid var(--mx-borde);
             border-radius: 12px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.08);
             overflow: hidden;
         }
-        /* Tarjeta principal del formulario: blanca como .mx-card. */
+        /* Tarjeta principal del formulario: blanca como el form-card del embed. */
         .mx-card-form {
-            border: 1px solid var(--mx-borde-tarjeta);
+            border: 1px solid var(--mx-borde);
             border-radius: 12px;
+        }
+        /* Título de la tarjeta en gris, como el título del embed
+           ("Nueva solicitud para Agentes messbook"). */
+        .mx-card-form .card-header h5 {
+            color: var(--mx-titulo-gris);
+            font-weight: 600;
         }
         .card-header-mess {
             background: white;
@@ -86,9 +104,9 @@ if (empty($_SESSION['usuario_id'])) {
             padding: 1.5rem 2rem;
         }
         .textarea-console {
-            background-color: #fafafa;
-            border: 2px dashed #cbd5e0;
-            border-radius: 10px;
+            background-color: #fff;
+            border: 1px solid var(--mx-borde);
+            border-radius: 6px;
             font-family: 'Fira Code', monospace;
             font-size: 0.9rem;
             resize: none;
@@ -96,13 +114,13 @@ if (empty($_SESSION['usuario_id'])) {
         }
         .textarea-console:focus {
             background-color: #fff;
-            border-color: var(--mx-azul-btn);
-            box-shadow: 0 0 0 4px rgba(1, 53, 105, 0.08);
+            border-color: var(--mx-btn);
+            box-shadow: 0 0 0 4px rgba(0, 32, 96, 0.08);
         }
         .step-badge {
             width: 35px;
             height: 35px;
-            background: var(--mx-azul-btn);
+            background: var(--mx-btn);
             color: white;
             border-radius: 50%;
             flex-shrink: 0;
@@ -116,7 +134,7 @@ if (empty($_SESSION['usuario_id'])) {
             line-height: 1;
         }
         .btn-upload {
-            background: var(--mx-azul-btn);
+            background: var(--mx-btn);
             color: white;
             border-radius: 10px;
             padding: 1rem;
@@ -125,15 +143,15 @@ if (empty($_SESSION['usuario_id'])) {
             transition: all 0.3s;
         }
         .btn-upload:hover {
-            background: var(--mx-azul-btn-hover);
+            background: var(--mx-btn-hover);
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(1, 53, 105, 0.2);
+            box-shadow: 0 5px 15px rgba(0, 32, 96, 0.2);
             color: white;
         }
-        /* Selects del formulario en azul messIAs. */
+        /* Selects del formulario en navy. */
         .form-select:focus {
-            border-color: var(--mx-azul-btn);
-            box-shadow: 0 0 0 3px rgba(1, 53, 105, 0.12);
+            border-color: var(--mx-btn);
+            box-shadow: 0 0 0 3px rgba(0, 32, 96, 0.12);
         }
 
         /* Modal de SweetAlert2: se ajusta por CSS, sin tocar el
@@ -141,11 +159,11 @@ if (empty($_SESSION['usuario_id'])) {
         .swal2-popup {
             font-family: Calibri, Carlito, "Segoe UI", system-ui, -apple-system, sans-serif;
             border-radius: 12px;
-            border: 1px solid var(--mx-borde-tarjeta);
+            border: 1px solid var(--mx-borde);
         }
-        .swal2-title { color: var(--mx-texto-titulo); }
-        .swal2-confirm { background-color: var(--mx-azul-btn) !important; }
-        .swal2-cancel { background-color: var(--mx-rojo) !important; }
+        .swal2-title { color: var(--mx-texto); }
+        .swal2-confirm { background-color: var(--mx-btn) !important; }
+        .swal2-cancel { background-color: #fff !important; color: #212529 !important; border: 1px solid #6c757d !important; }
         .swal2-confirm:focus, .swal2-cancel:focus {
             box-shadow: 0 0 0 3px rgba(255, 201, 17, .55) !important;
         }
@@ -153,17 +171,16 @@ if (empty($_SESSION['usuario_id'])) {
 </head>
 <body>
 
-<nav class="navbar navbar-dark navbar-custom mb-2 shadow">
+<nav class="navbar navbar-dark navbar-custom mb-0 shadow">
     <div class="container">
+        <a href="index.php" class="btn-regreso" title="Volver a Inicio" aria-label="Volver a Inicio"><i class="bi bi-arrow-left"></i></a>
         <a class="navbar-brand d-flex align-items-center" href="index.php">
-            <img src="img/messias/logo-messias.png" alt="messIAs, all about metrology at the speed of AI" style="height: 64px;">            
-        </a>
-        <a href="index.php" class="btn btn-outline-light btn-sm rounded-pill">
-            <i class="bi bi-arrow-left"></i> Volver a Inicio
+            <img src="img/messias/logo-messias.png" alt="messIAs, all about metrology at the speed of AI" style="height: 64px;">
         </a>
     </div>
 </nav>
 
+<div class="mx-banda">
 <div class="container mb-0">
     <div class="row justify-content-center">
         <div class="col-lg-12">
@@ -171,7 +188,7 @@ if (empty($_SESSION['usuario_id'])) {
                 
                 <!-- Header -->
                 <div class="card-header bg-white border-bottom-0">
-                    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                    <div class="d-flex flex-column flex-md-row justify-content-md-end align-items-md-center gap-3">
                         <div>
                             <h5 class="fw-bold mb-1 text-dark">Nueva Carga de Proyecto (Cotización)</h5>                            
                         </div>
@@ -268,6 +285,7 @@ if (empty($_SESSION['usuario_id'])) {
             </div>
         </div>
     </div>
+</div>
 </div>
 
 <footer class="mx-footer mt-auto">
