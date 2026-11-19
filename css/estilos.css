@@ -1,0 +1,516 @@
+/* =========================================================
+   MESS Design System — agentesIA (vistas embed para MessBook)
+   Tokens y componentes copiados de Tickets/css/estilos.css para que las
+   pestañas se vean idénticas dentro de loginMaster. Si cambias un token
+   allá, cámbialo aquí también.
+   Convención: nunca hex hardcoded en componentes — siempre var(--*).
+   ========================================================= */
+
+/* ===== Design tokens (light) ===== */
+:root {
+    /* superficies */
+    --bg:        #f8f9fc;
+    --card-bg:   #ffffff;
+    --card-soft: #f8f9fa;
+    --border:    #e5e7eb;
+    --shadow:    0 0.5rem 1rem rgba(0, 0, 0, 0.05);
+
+    /* texto */
+    --text:       #1f2937;
+    --text-muted: #6c757d;
+
+    /* acento institucional MESS (Pantone 072 C) */
+    --accent:      #050D9E;
+    --accent-dark: #040a7a;
+    --accent-soft: #eaf3ff;
+
+    /* paleta institucional MESS (logotipo/branding) */
+    --mess-azul:    #050D9E;
+    --mess-gris:    #8E8E8E;
+    --mess-naranja: #EAAA00;
+
+    /* semánticos */
+    --success: #0fa083;
+    --warning: #e2d522;
+    --info:    #484cac;
+    --danger:  #dc3545;
+
+    /* sidebar (siempre oscuro, varía sutilmente en dark) */
+    --sidebar-bg:            #1a1a2e;
+    --sidebar-text:          #c2c7d0;
+    --sidebar-hover:         rgba(255, 255, 255, .06);
+    --sidebar-active-border: var(--mess-naranja);
+
+    /* topbar */
+    --topbar-bg:     var(--card-bg);
+    --topbar-shadow: 0 .15rem 1.75rem 0 rgba(58, 59, 69, .10);
+
+    /* tabs */
+    --tab-active:   var(--accent);
+    --tab-inactive: #e9ecef;
+
+    /* aliases legacy (no romper componentes que usen --primary) */
+    --primary:      var(--accent);
+    --primary-dark: var(--accent-dark);
+    --secondary:    var(--text-muted);
+    --body-bg:      var(--bg);
+    --card-shadow:  var(--shadow);
+}
+
+
+/* ===== Design tokens (dark) ===== */
+body.theme-dark {
+    --bg:         #0b1220;
+    --card-bg:    #121a2b;
+    --card-soft:  #1a2438;
+    --text:       #e6edf7;
+    --text-muted: #9aa7bd;
+    --border:     #243049;
+    --shadow:     0 0.5rem 1.25rem rgba(0, 0, 0, .45);
+
+    --accent:      #4dabff;
+    --accent-dark: #3a8fd6;
+    --accent-soft: #1a2c44;
+
+    --success: #1fb892;
+    --warning: #d4b834;
+    --info:    #6b71d4;
+    --danger:  #ef4f5e;
+
+    --sidebar-bg:    #07101e;
+    --sidebar-text:  #aab4c7;
+    --sidebar-hover: rgba(255, 255, 255, .06);
+
+    --topbar-bg:     #121a2b;
+    --topbar-shadow: 0 .15rem 1.75rem 0 rgba(0, 0, 0, .35);
+
+    --tab-active:   var(--accent);
+    --tab-inactive: #1a2438;
+}
+
+
+/* ===== Body ===== */
+/* Sin height:100% en html/body: el iframe de loginMaster mide scrollHeight
+   para crecer, y con 100% el body nunca se encogería. */
+body {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: 'Nunito', 'Segoe UI', sans-serif;
+    font-size: .9rem;
+    padding: 1rem;
+    transition: background-color .2s, color .2s;
+}
+
+
+/* ===== Cards ===== */
+.card {
+    background-color: var(--card-bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: .75rem;
+    box-shadow: var(--shadow);
+    transition: background-color .2s, border-color .2s, box-shadow .2s;
+}
+
+.card-header {
+    background-color: var(--card-soft);
+    color: var(--text);
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+}
+
+.card-action {
+    border: 1px solid var(--border);
+    border-radius: .75rem;
+    background: var(--card-bg);
+    transition: box-shadow .2s, transform .15s;
+}
+.card-action:hover {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, .08);
+    transform: translateY(-2px);
+}
+
+.form-card .card-body { padding: 1.75rem; }
+
+/* ===== DataTables override ===== */
+.dataTables_wrapper .dataTables_filter input,
+.dataTables_wrapper .dataTables_length select {
+    border: 1px solid var(--border);
+    border-radius: .35rem;
+    padding: .375rem .75rem;
+    /* background-color, no el shorthand: Bootstrap 5 dibuja la flecha del
+       select como background-image, y el shorthand la borraba. El select de
+       "Mostrar N entradas" quedaba sin flecha y, con el padding-right que BS5
+       reserva para ella, se veia vacio y angosto en movil. */
+    background-color: var(--card-bg);
+    color: var(--text);
+}
+
+/* El select de "Mostrar N entradas" necesita ancho propio: sin esto queda
+   colapsado dentro del layout de DataTables en pantallas chicas. */
+.dataTables_wrapper .dataTables_length select {
+    width: auto;
+    min-width: 4.5rem;
+}
+
+table.dataTable thead th {
+    font-size: .75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    letter-spacing: .05rem;
+    border-bottom: 2px solid var(--border) !important;
+}
+
+.table {
+    color: var(--text);
+    --bs-table-bg: transparent;
+    --bs-table-color: var(--text);
+    --bs-table-border-color: var(--border);
+}
+.table-light,
+.table > :not(caption) > * > .table-light,
+.table thead.table-light th {
+    background-color: var(--card-soft);
+    color: var(--text);
+    border-color: var(--border);
+}
+.table-hover tbody tr:hover  { background-color: var(--accent-soft); }
+.table > :not(caption) > * > * { border-bottom-color: var(--border); }
+
+.dataTables_info,
+.dataTables_paginate,
+.dataTables_length label,
+.dataTables_filter label { color: var(--text-muted) !important; }
+
+
+/* ===== Buttons ===== */
+.btn-primary {
+    background-color: var(--accent);
+    border-color: var(--accent);
+}
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary:active {
+    background-color: var(--accent-dark);
+    border-color: var(--accent-dark);
+}
+
+.btn-outline-primary {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+.btn-outline-primary:hover,
+.btn-outline-primary:focus,
+.btn-check:checked + .btn-outline-primary {
+    background-color: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+/* Destino RRHH en el alta de ticket: naranja MESS (Pantone 143 C) */
+.btn-outline-secondary {
+    color: var(--text-muted);
+    border-color: var(--border);
+}
+.btn-outline-secondary:hover {
+    background-color: var(--card-soft);
+    color: var(--text);
+    border-color: var(--text-muted);
+}
+
+/* ===== Forms ===== */
+.form-control,
+.form-select {
+    background-color: var(--card-bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+}
+.form-control:focus,
+.form-select:focus {
+    background-color: var(--card-bg);
+    color: var(--text);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 .15rem rgba(5, 13, 158, .15);
+}
+.form-control::placeholder { color: var(--text-muted); opacity: .7; }
+.form-label  { color: var(--text); }
+.form-text   { color: var(--text-muted); }
+.form-check-input:checked {
+    background-color: var(--accent);
+    border-color: var(--accent);
+}
+
+
+/* ===== Adjuntos ===== */
+.adjunto-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    background: var(--card-soft);
+    border: 1px solid var(--border);
+    border-radius: 2rem;
+    padding: .25rem .75rem;
+    font-size: .8rem;
+    text-decoration: none;
+    color: var(--text);
+    transition: background .15s, border-color .15s;
+}
+.adjunto-chip:hover {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+
+/* ===== Select2 theme fix ===== */
+.select2-container--default .select2-selection--single {
+    height: calc(1.5em + .75rem + 2px);
+    border: 1px solid var(--border);
+    border-radius: .375rem;
+    padding: .375rem .75rem;
+    background-color: var(--card-bg);
+    color: var(--text);
+}
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+    line-height: 1.5;
+    padding: 0;
+    color: var(--text);
+}
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 100%;
+}
+.select2-dropdown {
+    background-color: var(--card-bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+}
+.select2-container--default .select2-results__option--highlighted[aria-selected] {
+    background-color: var(--accent);
+    color: #fff;
+}
+.select2-search--dropdown .select2-search__field {
+    background-color: var(--card-bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+}
+/* Deshabilitado (alta de ticket antes de elegir destino): select2 lo pinta #eee fijo */
+.select2-container--default.select2-container--disabled .select2-selection--single {
+    background-color: var(--card-soft);
+}
+/* Botón "Elegir archivos" del input file: Bootstrap lo deja claro aun en dark */
+body.theme-dark .form-control::file-selector-button {
+    background-color: var(--card-soft);
+    color: var(--text);
+    border-color: var(--border);
+}
+
+
+/* ===== Timeline (comentarios estilo timeline) ===== */
+.timeline-item {
+    position: relative;
+    padding-left: 2.5rem;
+    margin-bottom: 1.25rem;
+}
+.timeline-item::before {
+    content: '';
+    position: absolute;
+    left: .85rem;
+    top: 2rem;
+    bottom: -1rem;
+    width: 2px;
+    background: var(--border);
+}
+.timeline-item:last-child::before { display: none; }
+
+.timeline-dot {
+    position: absolute;
+    left: 0;
+    top: .35rem;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .7rem;
+}
+
+
+/* ===== Utilidades ===== */
+.text-primary-custom { color: var(--accent) !important; }
+.bg-primary-custom   { background-color: var(--accent) !important; }
+.text-muted          { color: var(--text-muted) !important; }
+
+.fw-600 { font-weight: 600; }
+.fs-7   { font-size: .8rem; }
+.fs-8   { font-size: .7rem; }
+
+.folio-badge {
+    font-family: monospace;
+    font-weight: 700;
+    font-size: .8rem;
+    letter-spacing: .05rem;
+}
+
+
+
+
+/* =========================================================
+   Propio de agentesIA
+   ========================================================= */
+
+/* ===== Estatus de solicitud ===== */
+.est-pendiente  { background-color: var(--warning); color: #212529; }
+.est-tomada     { background-color: var(--info);    color: #fff; }
+.est-en_proceso { background-color: var(--accent);  color: #fff; }
+.est-completada { background-color: var(--success); color: #fff; }
+.est-rechazada  { background-color: var(--danger);  color: #fff; }
+.est-cancelada  { background-color: var(--text-muted); color: #fff; }
+
+/* ===== Prioridad (mismos colores que Tickets) ===== */
+.badge-baja    { background-color: #a8d5ba; color: #1a3c2a; }
+.badge-media   { background-color: var(--info);    color: #fff; }
+.badge-alta    { background-color: var(--warning); color: #212529; }
+.badge-urgente { background-color: var(--danger);  color: #fff; }
+
+/* ===== Resultado por ítem ===== */
+.res-pendiente       { background-color: var(--card-soft); color: var(--text-muted); border: 1px solid var(--border); }
+.res-con_propuesta   { background-color: var(--success); color: #fff; }
+.res-sin_historial   { background-color: var(--warning); color: #212529; }
+.res-clave_no_activa { background-color: var(--danger);  color: #fff; }
+.res-error           { background-color: var(--danger);  color: #fff; opacity: .85; }
+
+/* ===== Formulario ===== */
+.items-textarea { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .85rem; }
+.items-contador.excedido { color: var(--danger) !important; font-weight: 600; }
+
+/* ===== Select2 ===== */
+.select2-container { width: 100% !important; }
+.select2-resultado-lugar { display: block; font-size: .75rem; color: var(--text-muted); }
+.select2-container--default .select2-results__option--highlighted .select2-resultado-lugar { color: rgba(255, 255, 255, .8); }
+.select2-container--default .select2-selection--single .select2-selection__placeholder { color: var(--text-muted); }
+
+/* ===== Detalle de solicitud ===== */
+.dato-label { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05rem; color: var(--text-muted); }
+.dato-valor { color: var(--text); word-break: break-word; }
+.texto-pre  { white-space: pre-wrap; word-break: break-word; }
+.resumen-resultado {
+    background: var(--accent-soft);
+    border-left: .25rem solid var(--accent);
+    border-radius: .5rem;
+    padding: .75rem 1rem;
+}
+/* Cotización del agente en Markdown (js/mis_solicitudes.js → renderMarkdown) */
+.md-respuesta { color: var(--text); font-size: .9rem; }
+.md-respuesta p { margin: 0 0 .5rem; }
+.md-respuesta ul, .md-respuesta ol { margin: 0 0 .5rem; padding-left: 1.25rem; }
+.md-respuesta li { margin-bottom: .15rem; }
+.md-respuesta li.md-check { list-style: none; margin-left: -1.1rem; }
+.md-respuesta code { color: var(--accent); background: var(--card-bg); padding: 0 .25rem; border-radius: .2rem; }
+.md-respuesta hr { border-color: var(--border); opacity: 1; }
+.md-h { color: var(--accent); font-weight: 700; margin: 1rem 0 .4rem; }
+.md-h:first-child { margin-top: 0; }
+.md-h1, .md-h2 { font-size: .95rem; text-transform: uppercase; letter-spacing: .03rem; }
+.md-h3, .md-h4 { font-size: .9rem; }
+.md-tabla { margin: 0 0 .75rem; }
+.md-tabla .table { --bs-table-bg: var(--card-bg); --bs-table-color: var(--text); border-color: var(--border); font-size: .82rem; }
+.md-tabla th { background: var(--card-soft); color: var(--text-muted); font-size: .7rem; text-transform: uppercase; white-space: nowrap; }
+.md-tabla td, .md-tabla th { border-color: var(--border); vertical-align: top; }
+.md-tabla td.md-num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.md-tabla td.md-corto { white-space: nowrap; }
+.md-tabla-acciones { display: flex; gap: .5rem; justify-content: flex-end; }
+.md-tabla-acciones .btn { font-size: .75rem; }
+
+.motivo-rechazo {
+    background: var(--card-soft);
+    border-left: .25rem solid var(--danger);
+    border-radius: .5rem;
+    padding: .75rem 1rem;
+}
+.tabla-items td, .tabla-items th { vertical-align: top; }
+.tabla-items .col-precio { white-space: nowrap; text-align: right; }
+.detalle-json { font-size: .75rem; margin: .35rem 0 0; color: var(--text-muted); }
+.detalle-json dt { font-weight: 600; display: inline; }
+.detalle-json dd { display: inline; margin: 0 .75rem 0 .25rem; }
+
+.timeline-dot.dot-agente  { background: var(--mess-naranja); color: #1f2937; }
+.timeline-dot.dot-sistema { background: var(--text-muted); }
+
+/* ===== Móvil (el portal se usa en Safari como app web) ===== */
+@media (max-width: 575.98px) {
+    body { padding: .5rem; }
+    .form-card .card-body { padding: 1rem; }
+    .acciones-form { flex-direction: column-reverse; }
+    .acciones-form .btn { width: 100%; }
+}
+
+/* ===== Ajustes de consistencia ===== */
+/* Select2 al mismo tamaño de letra/alto que .form-select de Bootstrap */
+.select2-container--default .select2-selection--single { font-size: 1rem; height: calc(1.5em + .75rem + 2px); }
+
+/* Validación: solo marcar en rojo lo inválido; los opcionales no se pintan de verde */
+.was-validated .form-control:valid:not([required]),
+.was-validated .form-select:valid:not([required]) {
+    border-color: var(--border);
+    background-image: none;
+    padding-right: .75rem;
+}
+.was-validated .form-select:valid:not([required]) {
+    background-image: var(--bs-form-select-bg-img);
+    padding-right: 2.25rem;
+}
+.was-validated .form-control:valid:not([required]):focus,
+.was-validated .form-select:valid:not([required]):focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 .15rem rgba(5, 13, 158, .15);
+}
+
+/* DataTables dentro de .card-body.p-0: aire para buscador, info y paginación */
+.card-body.p-0 .dataTables_wrapper > .row { margin: 0; padding: .5rem .75rem; }
+.card-body.p-0 .dataTables_wrapper > .row.dt-row { padding: 0; }
+.page-link { color: var(--accent); background-color: var(--card-bg); border-color: var(--border); }
+.page-item.active .page-link { background-color: var(--accent); border-color: var(--accent); color: #fff; }
+.page-item.disabled .page-link { background-color: var(--card-soft); color: var(--text-muted); border-color: var(--border); }
+
+/* Tabla de ítems: aire en los bordes de la tarjeta */
+.tabla-items > :not(caption) > tr > :first-child { padding-left: 1rem; }
+.tabla-items > :not(caption) > tr > :last-child  { padding-right: 1rem; }
+
+/* Date picker legible en tema oscuro */
+body.theme-dark input[type="date"] { color-scheme: dark; }
+
+/* Ítems en el teléfono: cada fila es una tarjeta
+     [#] [ítem solicitado        ]
+         [resultado]     [precio]
+         [propuesta              ]                                  */
+@media (max-width: 575.98px) {
+    .tabla-items thead { display: none; }
+    .tabla-items tbody tr {
+        display: grid;
+        grid-template-columns: 1.5rem 1fr auto;
+        grid-template-areas: "n ent ent" ". res pre" ". pro pro";
+        gap: .3rem .5rem;
+        padding: .75rem 1rem;
+        border-bottom: 1px solid var(--border);
+    }
+    .tabla-items tbody td { display: block; border: 0; padding: 0 !important; }
+    .tabla-items .c-n   { grid-area: n; }
+    .tabla-items .c-ent { grid-area: ent; font-weight: 600; }
+    .tabla-items .c-res { grid-area: res; }
+    .tabla-items .c-pre { grid-area: pre; }
+    .tabla-items .c-pro { grid-area: pro; }
+    .tabla-items .c-pro.vacio, .tabla-items .c-pre.vacio { display: none; }
+    .tabla-items .texto-pre { word-break: normal; overflow-wrap: anywhere; }
+}
+
+/* Cada par clave: valor del detalle del agente se mantiene junto */
+.detalle-json .par { display: inline-block; margin-right: .75rem; }
+.detalle-json .par dd { margin: 0 0 0 .25rem; }
+
+/* ===== Marco messIAs de las vistas del usuario (css/marco_messias.css) ===== */
+/* En tema oscuro la hoja toma el fondo de las tarjetas; el marco (azul marino,
+   banda azul) se queda igual en los dos temas. */
+body.theme-dark { --mx-hoja-bg: var(--bg); --mx-titulo-hoja: var(--text-muted); }

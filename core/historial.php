@@ -808,6 +808,298 @@ function obtenerContextoPrecio($cdmess, $conn, $idclte = null) {
 }
 
 /**
+ * Fase 1 (Atlas) — Una fila de atlas_catalogo_codigos por código, o null.
+ * Se reutiliza para Q-A y para resolver servicio/tipo de cada alternativa.
+ */
+function atlasFilaCatalogo($conn, $codigo) {
+    $stmt = $conn->prepare(
+        "SELECT codigo_scot, servicio, usar_cuando, preguntas, precaucion,
+                tipo_coincidencia, ejemplos, descripcion_original
+         FROM atlas_catalogo_codigos
+         WHERE codigo_scot = ?"
+    );
+    $stmt->bind_param('s', $codigo);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row ?: null;
+}
+
+/**
+ * Fase 1 (Atlas) — Tokeniza un texto para la similitud por tokens (§5.5):
+ * normaliza con normalizarTextoPlano(), parte con el mismo patrón de
+ * procesarContextoBusqueda(), quita las mismas palabras de relleno y
+ * descarta tokens de 1 carácter. Devuelve tokens distintos.
+ */
+function atlasTokenizar($texto) {
+    $plano = normalizarTextoPlano((string) $texto);
+    $tokens = preg_split('/[^\p{L}\p{N}]+/u', $plano, -1, PREG_SPLIT_NO_EMPTY);
+    if (!is_array($tokens)) return [];
+    $relleno = ['de', 'del', 'la', 'el', 'los', 'las', 'con', 'por', 'para', 'en', 'un', 'una'];
+    $unicos = [];
+    foreach ($tokens as $t) {
+        // Descartar tokens de 1 carácter (sin depender de mbstring: '.'
+        // con /u casa exactamente un carácter Unicode, p. ej. 'Ω').
+        if (preg_match('/^.$/u', $t) === 1) continue;
+        if (in_array($t, $relleno, true)) continue;
+        $unicos[$t] = true;
+    }
+    return array_keys($unicos);
+}
+
+/**
+ * Fase 1 (Atlas) — Información experta del Atlas para un CDMESS ya encontrado.
+ *
+ * Lee las tablas atlas_* (solo eléctrica) DESPUÉS de que el retrieval ya
+ * encontró la clave; no cambia el código cotizado ni el precio (el
+ * principal solo se muestra; el re-base es Fase 2). Devuelve el subobjeto
+ * `atlas` de propuesta_ia (§5.2 del plan) o null si no hay fila Atlas y
+ * no hay sugerencia por similitud que supere el umbral. Ante cualquier
+ * error de consulta devuelve null y NO lanza excepción: el worker no debe
+ * marcar el ítem en 'error' por un fallo de lectura de Atlas (§12.2).
+ *
+ * @param string $cdmess  Clave ya encontrada ($cdmess_contexto del worker).
+ * @param mysqli $conn
+ * @param int|null $idclte  Mismo filtro de cliente que el ítem principal.
+ * @param string $descripcion_historica  Descripción histórica del ítem.
+ * @param string $entrada_usuario  Entrada del usuario (línea cargada).
+ */
+function obtenerInfoAtlas($cdmess, $conn, $idclte = null, $descripcion_historica = '', $entrada_usuario = '') {
+    $cdmess = trim((string) $cdmess);
+    if ($cdmess === '' || strcasecmp($cdmess, 'S/C') === 0) return null;
+
+    try {
+        // Q-A. Catálogo por código (1 fila o ninguna).
+        $cat = atlasFilaCatalogo($conn, $cdmess);
+        if (!$cat) {
+            // Sin fila Atlas: solo si la clave es L7-* se intenta la
+            // sugerencia por similitud (§5.5); si no, null como hoy.
+            if (preg_match('/^L7-/i', $cdmess)) {
+                return obtenerSugerenciasAtlasSimilares($cdmess, $descripcion_historica, $entrada_usuario, $conn, $idclte);
+            }
+            return null;
+        }
+
+        // Q-B. Modelos de ese código (0 a N).
+        $stmt = $conn->prepare(
+            "SELECT m.id_modelo, m.fabricante, m.modelo, m.nombre_completo, m.id_tipo,
+                    m.confianza, m.requiere_validacion, mc.es_principal
+             FROM atlas_modelo_codigo mc
+             INNER JOIN atlas_modelos m ON m.id_modelo = mc.id_modelo
+             WHERE mc.codigo_scot = ?
+             ORDER BY mc.es_principal DESC, m.fabricante, m.modelo"
+        );
+        $stmt->bind_param('s', $cdmess);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $modelos = [];
+        $requiere_por_modelo = false;
+        $encontrado_es_principal = false;
+        while ($row = $res->fetch_assoc()) {
+            $es_principal = !empty($row['es_principal']);
+            $requiere = !empty($row['requiere_validacion']);
+            if ($requiere) $requiere_por_modelo = true;
+            if ($es_principal) $encontrado_es_principal = true;
+            $modelos[] = [
+                'id_modelo' => $row['id_modelo'],
+                'fabricante' => $row['fabricante'],
+                'modelo' => $row['modelo'],
+                'nombre_completo' => $row['nombre_completo'],
+                'id_tipo' => $row['id_tipo'],
+                'confianza' => $row['confianza'],
+                'requiere_validacion' => $requiere,
+                'es_principal' => $es_principal,
+            ];
+        }
+        $stmt->close();
+
+        // Q-C. Códigos de esos modelos = alternativas (excluye el encontrado).
+        $stmt = $conn->prepare(
+            "SELECT DISTINCT mc2.codigo_scot, mc2.es_principal
+             FROM atlas_modelo_codigo mc1
+             INNER JOIN atlas_modelo_codigo mc2 ON mc2.id_modelo = mc1.id_modelo
+             WHERE mc1.codigo_scot = ? AND mc2.codigo_scot <> ?"
+        );
+        $stmt->bind_param('ss', $cdmess, $cdmess);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $codigos_alt = [];
+        while ($row = $res->fetch_assoc()) {
+            $codigos_alt[] = $row;
+        }
+        $stmt->close();
+
+        $alternativas = [];
+        $codigo_principal = $encontrado_es_principal ? $cdmess : null;
+        foreach ($codigos_alt as $alt) {
+            $codigo_alt = $alt['codigo_scot'];
+            $fila_alt = atlasFilaCatalogo($conn, $codigo_alt);
+            $stats_alt = obtenerEstadisticasCDMESS($codigo_alt, $conn, $idclte);
+            $n_muestras = (int) ($stats_alt['total'] ?? 0);
+            $alternativas[] = [
+                'codigo_scot' => $codigo_alt,
+                'servicio' => $fila_alt['servicio'] ?? null,
+                'tipo_coincidencia' => $fila_alt['tipo_coincidencia'] ?? null,
+                'es_principal' => !empty($alt['es_principal']),
+                // Sin historial (total = 0) el precio queda en null: nunca
+                // se muestra un $0.00 como precio (R6).
+                'precio_promedio' => $n_muestras > 0 ? round((float) $stats_alt['avg'], 2) : null,
+                'precio_promedio_mxn' => $n_muestras > 0 ? round((float) $stats_alt['avg_mxn'], 2) : null,
+                'n_muestras' => $n_muestras,
+            ];
+            if (!empty($alt['es_principal']) && $codigo_principal === null) {
+                $codigo_principal = $codigo_alt;
+            }
+        }
+        // Tope 5 alternativas: principal primero, luego las de más muestras.
+        usort($alternativas, static function ($a, $b) {
+            if ($a['es_principal'] !== $b['es_principal']) return $a['es_principal'] ? -1 : 1;
+            return $b['n_muestras'] <=> $a['n_muestras'];
+        });
+        $alternativas = array_slice($alternativas, 0, 5);
+
+        // Alerta de validación de experto (§5.4): algún modelo en revisión
+        // o coincidencia Parcial / Sin ejemplo directo (R10: cualquier otro
+        // valor o NULL no dispara la alerta por este motivo).
+        $tipo = (string) ($cat['tipo_coincidencia'] ?? '');
+        $motivo_validacion = [];
+        if ($requiere_por_modelo) $motivo_validacion[] = 'modelo en revisión';
+        if ($tipo === 'Parcial') $motivo_validacion[] = 'coincidencia parcial';
+        if ($tipo === 'Sin ejemplo directo') $motivo_validacion[] = 'sin ejemplo directo';
+        $requiere_validacion_experto = !empty($motivo_validacion);
+
+        return [
+            'encontrado' => true,
+            'origen' => 'exacta',
+            'codigo_scot' => $cat['codigo_scot'],
+            'servicio' => $cat['servicio'],
+            'usar_cuando' => $cat['usar_cuando'],
+            'preguntas' => $cat['preguntas'],
+            'precaucion' => $cat['precaucion'],
+            'tipo_coincidencia' => $cat['tipo_coincidencia'],
+            'ejemplos' => $cat['ejemplos'],
+            'descripcion_original' => $cat['descripcion_original'],
+            'modelos' => $modelos,
+            'alternativas' => $alternativas,
+            'codigo_principal' => $codigo_principal,
+            'codigo_encontrado' => $cdmess,
+            'requiere_validacion_experto' => $requiere_validacion_experto,
+            'motivo_validacion' => $motivo_validacion,
+        ];
+    } catch (Throwable $e) {
+        error_log('Atlas: obtenerInfoAtlas(' . $cdmess . ') falló: ' . $e->getMessage());
+        return null;
+    }
+}
+
+/**
+ * Fase 1 (Atlas) — Sugerencia por similitud (§5.5).
+ *
+ * Solo se llama cuando Q-A no trajo fila y la clave es L7-*. Puntúa los
+ * 45 códigos del catálogo por solapamiento de tokens (pesos: servicio 3,
+ * descripcion_original 2, usar_cuando 1) y devuelve la variante `similar`
+ * del subobjeto atlas (§5.2), o null si nada supera el umbral (puntaje
+ * >= 5, >= 2 tokens distintos, >= 1 de servicio o descripcion_original).
+ *
+ * Reglas duras: la sugerencia nunca es principal (codigo_principal =
+ * null siempre), nunca re-basa el código cotizado, nunca se etiqueta como
+ * validada por experto y siempre deja requiere_revision = true (el worker
+ * lo suma con el OR de §5.4). El precio de la sugerencia es solo
+ * referencial (histórico, sin Ollama); el cotizado sigue siendo el de la
+ * clave original. El catálogo se carga una sola vez por proceso del
+ * worker (variable static).
+ */
+function obtenerSugerenciasAtlasSimilares($codigo_buscado, $descripcion_historica, $entrada_usuario, $conn, $idclte = null) {
+    $codigo_buscado = trim((string) $codigo_buscado);
+    try {
+        $tokens_item = array_unique(array_merge(
+            atlasTokenizar($descripcion_historica),
+            atlasTokenizar($entrada_usuario)
+        ));
+        if (empty($tokens_item)) return null;
+
+        static $catalogo = null;
+        if ($catalogo === null) {
+            $catalogo = [];
+            $res = $conn->query("SELECT codigo_scot, servicio, descripcion_original, usar_cuando, tipo_coincidencia, ejemplos FROM atlas_catalogo_codigos");
+            if ($res) {
+                while ($row = $res->fetch_assoc()) $catalogo[] = $row;
+            }
+        }
+        if (empty($catalogo)) return null;
+
+        $candidatos = [];
+        foreach ($catalogo as $fila) {
+            $tokens_servicio = atlasTokenizar($fila['servicio'] ?? '');
+            $tokens_desc = atlasTokenizar($fila['descripcion_original'] ?? '');
+            $tokens_uso = atlasTokenizar($fila['usar_cuando'] ?? '');
+            $puntaje = 0.0;
+            $comunes = [];
+            $comunes_alto = [];
+            foreach ($tokens_item as $tok) {
+                $en_servicio = in_array($tok, $tokens_servicio, true);
+                $en_desc = in_array($tok, $tokens_desc, true);
+                $en_uso = in_array($tok, $tokens_uso, true);
+                if ($en_servicio || $en_desc || $en_uso) {
+                    $comunes[] = $tok;
+                    if ($en_servicio) { $puntaje += 3; $comunes_alto[] = $tok; }
+                    if ($en_desc) { $puntaje += 2; $comunes_alto[] = $tok; }
+                    if ($en_uso) { $puntaje += 1; }
+                }
+            }
+            // Umbral de arranque (§5.5).
+            if ($puntaje >= 5 && count($comunes) >= 2 && !empty($comunes_alto)) {
+                $candidatos[] = [
+                    'fila' => $fila,
+                    'puntaje' => $puntaje,
+                    'tokens_comunes' => $comunes,
+                ];
+            }
+        }
+        if (empty($candidatos)) return null;
+
+        usort($candidatos, static function ($a, $b) {
+            return $b['puntaje'] <=> $a['puntaje'];
+        });
+        $candidatos = array_slice($candidatos, 0, 3);
+
+        $sugerencias = [];
+        foreach ($candidatos as $cand) {
+            $fila = $cand['fila'];
+            $stats = obtenerEstadisticasCDMESS($fila['codigo_scot'], $conn, $idclte);
+            $n_muestras = (int) ($stats['total'] ?? 0);
+            $sugerencias[] = [
+                'codigo_scot' => $fila['codigo_scot'],
+                'viva' => true,
+                'servicio' => $fila['servicio'],
+                'tipo_coincidencia' => $fila['tipo_coincidencia'],
+                'puntaje_similitud' => $cand['puntaje'],
+                'tokens_comunes' => $cand['tokens_comunes'],
+                'precio_promedio' => $n_muestras > 0 ? round((float) $stats['avg'], 2) : null,
+                'precio_promedio_mxn' => $n_muestras > 0 ? round((float) $stats['avg_mxn'], 2) : null,
+                'n_muestras' => $n_muestras,
+                'ejemplos' => $fila['ejemplos'],
+            ];
+        }
+
+        return [
+            'encontrado' => false,
+            'origen' => 'similar',
+            'codigo_buscado' => $codigo_buscado,
+            'codigo_buscado_activo' => false,
+            'codigo_encontrado' => $codigo_buscado,
+            'codigo_principal' => null,
+            'sugerencias' => $sugerencias,
+            'requiere_validacion_experto' => true,
+            'motivo_validacion' => ['código no cubierto por Atlas; sugerencia por similitud, sin validar'],
+        ];
+    } catch (Throwable $e) {
+        error_log('Atlas: obtenerSugerenciasAtlasSimilares(' . $codigo_buscado . ') falló: ' . $e->getMessage());
+        return null;
+    }
+}
+
+/**
  * Folio y fecha de la cotización más reciente que sirvió de base para un CDMESS.
  * Con $idclte, la más reciente de ese cliente.
  */
@@ -840,3 +1132,4 @@ function obtenerFolioBase($cdmess, $conn, $idclte = null) {
         'fecha' => $row['fecha'] ?? ''
     ];
 }
+

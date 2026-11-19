@@ -14,63 +14,42 @@ if (empty($_SESSION['usuario_id'])) {
     <title>Cotizador | MessIAs</title>
     <link href="css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="css/bootstrap-icons.css">
+    <link rel="stylesheet" href="css/estilos.css">
+    <link rel="stylesheet" href="css/marco_messias.css">
     <script src="js/sweetalert2.all.min.js"></script>
     <style>
-        :root {
-            --mess-blue: #002d5a;
-            --mess-gold: #ffc107;
-        }
-        body { 
-            background-color: #f0f2f5; 
-            font-family: 'Inter', sans-serif;
-        }
-        .navbar-custom {
-            background-color: var(--mess-blue);
-            border-bottom: 3px solid var(--mess-gold);
-        }
-        .card-upload {
-            border: none;
-            border-radius: 10px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.08);
-            overflow: hidden;
-        }
-        .card-header-mess {
-            background: white;
-            border-bottom: 1px solid #edf2f7;
-            padding: 1.5rem 2rem;
-        }
+        /* Diseño marco messIAs real (css/estilos.css + css/marco_messias.css,
+           de agentesIA). Solo presentación: no se toca lógica PHP ni JavaScript.
+           Aquí solo van reglas propias de esta página que los CSS del marco
+           no cubren; los colores usan sus tokens (--mx-*, --accent). */
+
         .textarea-console {
-            background-color: #fafafa;
-            border: 2px dashed #cbd5e0;
-            border-radius: 10px;
+            background-color: #fff;
+            border: 1px solid var(--border);
+            border-radius: 6px;
             font-family: 'Fira Code', monospace;
             font-size: 0.9rem;
             resize: none;
             transition: all 0.3s ease;
         }
-        .textarea-console:focus {
-            background-color: #fff;
-            border-color: var(--mess-blue);
-            box-shadow: 0 0 0 4px rgba(0,45,90,0.05);
-        }
         .step-badge {
             width: 35px;
             height: 35px;
-            background: var(--mess-blue);
+            background: var(--accent);
             color: white;
-            border-radius: 50%;                         
-            flex-shrink: 0;             
-            box-sizing: border-box;             
+            border-radius: 50%;
+            flex-shrink: 0;
+            box-sizing: border-box;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             font-weight: bold;
             margin-right: 5px;
-            font-size: 14px; 
+            font-size: 14px;
             line-height: 1;
         }
         .btn-upload {
-            background: var(--mess-blue);
+            background: var(--accent);
             color: white;
             border-radius: 10px;
             padding: 1rem;
@@ -79,45 +58,41 @@ if (empty($_SESSION['usuario_id'])) {
             transition: all 0.3s;
         }
         .btn-upload:hover {
-            background: #004080;
+            background: var(--accent-dark);
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,45,90,0.2);
+            box-shadow: 0 5px 15px rgba(5, 13, 158, 0.2);
             color: white;
+        }
+
+        /* Modal de SweetAlert2: se ajusta por CSS, sin tocar el
+           JavaScript que lo dispara ni su contenido. */
+        .swal2-popup {
+            font-family: var(--mx-font);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+        .swal2-title { color: var(--text); }
+        .swal2-confirm { background-color: var(--accent) !important; }
+        .swal2-cancel { background-color: #fff !important; color: #212529 !important; border: 1px solid #6c757d !important; }
+        .swal2-confirm:focus, .swal2-cancel:focus {
+            box-shadow: 0 0 0 3px rgba(255, 201, 17, .55) !important;
         }
     </style>
 </head>
-<body>
+<body class="mx-marco">
 
-<nav class="navbar navbar-dark navbar-custom mb-2 shadow">
-    <div class="container">
-        <a class="navbar-brand d-flex align-items-center" href="index.php">
-            <img src="img/desarrollo-tecnologia.png" alt="Logo MESS" style="height: 55px; background: white; padding: 5px; border-radius: 8px;">            
-        </a>
-        <a href="index.php" class="btn btn-outline-light btn-sm rounded-pill">
-            <i class="bi bi-arrow-left"></i> Volver a Inicio
-        </a>
-    </div>
-</nav>
+<header class="mx-header">
+    <a class="mx-volver" href="index.php" title="Volver a Inicio" aria-label="Volver a Inicio"><img src="img/messias/volver.png" alt="Volver"></a>
+    <a class="mx-logo" href="index.php"><img src="img/messias/logo-messias.png" alt="messIAs, all about metrology at the speed of AI"></a>
+</header>
 
-<div class="container mb-0">
-    <div class="row justify-content-center">
-        <div class="col-lg-12">
-            <div class="card border-0 shadow-sm rounded-4 mb-0">
+<main class="mx-main">
+<div class="mx-hoja">
                 
-                <!-- Header -->
-                <div class="card-header bg-white border-bottom-0">
-                    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
-                        <div>
-                            <h5 class="fw-bold mb-1 text-dark">Nueva Carga de Proyecto (Cotización)</h5>                            
-                        </div>
-                        <!--<a href="monitor_precios_v2.php" class="btn btn-light btn-sm text-secondary fw-bold border">
-                            <i class="bi bi-view-list me-1"></i> Ir al monitor de proyectos activos
-                        </a>-->
-                    </div>
-                </div>
+                <h1 class="mx-hoja-titulo">Nueva Carga de Proyecto (Cotización)</h1>
 
                 <!-- Formulario -->
-                <form id="formCargaMasiva">
+                <form id="formCargaMasiva" class="form-card">
                     <div class="card-body px-2 px-md-4 pb-4 pt-2">
                         <div class="row gy-5 gx-lg-5">
                             
@@ -200,16 +175,11 @@ if (empty($_SESSION['usuario_id'])) {
                         </div>
                     </div>
                 </form>
-            </div>
-        </div>
-    </div>
 </div>
+</main>
 
-<footer class="py-2 text-center text-muted border-top bg-white mt-auto">
-    <div class="container">               
-        <p class="small mb-0">Business intelligence | MessIAs&copy;</p>
-        <small class="opacity-50">2026</small>
-    </div>
+<footer class="mx-footer">
+    <img src="img/messias/logo-mess-b1.png" alt="Grupo mess, all about metrology · B1 Business Intelligence">
 </footer>
 <!-- CSS de Select2 y su adaptador Bootstrap 5 -->
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />

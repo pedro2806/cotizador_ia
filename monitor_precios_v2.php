@@ -27,77 +27,31 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
     <link href="css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="css/bootstrap-icons.css">
     <link href="css/sweetalert2.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/estilos.css">
+    <link rel="stylesheet" href="css/marco_messias.css">
     <style>
-        :root { --mess-blue: #002d5a; --mess-gold: #ffc107; }
-        body { background-color: #f4f7f6; font-family: 'Inter', sans-serif; }
-        
-        .navbar-custom { background: var(--mess-blue); border-bottom: 3px solid var(--mess-gold); }
-        
-        /* Sidebar Estilizado */
-        .sidebar-card { border: none; border-radius: 15px; height: calc(100vh - 120px); display: flex; flex-direction: column; background: white; }
+        /* Diseño marco messIAs real (css/estilos.css + css/marco_messias.css,
+           de agentesIA). Solo presentación: no se toca lógica PHP ni JavaScript.
+           Aquí solo van reglas propias de esta página que los CSS del marco
+           no cubren; los colores usan sus tokens (--mx-*, --accent). */
+
+        /* Sidebar: altura ajustada al encabezado alto del marco (88-156 px)
+           más el pie, para no desbordar la hoja blanca. */
+        .sidebar-card { height: calc(100vh - 280px); display: flex; flex-direction: column; }
         .sidebar-scroll { flex-grow: 1; overflow-y: auto; }
         .list-group-item { border-left: none; border-right: none; padding: 1rem; border-bottom: 1px solid #f0f0f0; transition: 0.2s; }
-        .list-group-item.active { background-color: #eef4ff; border-color: transparent; color: var(--mess-blue); border-right: 4px solid var(--mess-blue); }
-        
-        /* Contenedor de Tabla */
-        .table-container { background: white; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); min-height: 600px; }
-        .table thead { background-color: var(--mess-blue); color: white; }
-        
+        .list-group-item.active { background-color: var(--accent-soft); border-color: transparent; color: var(--accent); border-right: 4px solid var(--accent); }
+        .sidebar-card .progress-bar { background-color: var(--mx-azul); }
+        .sidebar-card .btn-outline-secondary { color: var(--accent); border-color: var(--accent); }
+        .sidebar-card .btn-outline-secondary:hover { background-color: var(--accent); color: #fff; }
+
+        /* Contenedor de tabla: la hoja blanca del marco ya es la tarjeta;
+           este div queda como envoltorio sin caja propia. */
+        .table-container { background: transparent; border: 0; box-shadow: none; min-height: 0; }
+
         .font-small { font-size: 0.85rem; }
         .x-small { font-size: 0.75rem; }
-        .bg-sugerido { background-color: #f0f7ff !important; }
-        .badge-range { background-color: #f8f9fa; color: #6c757d; border: 1px solid #dee2e6; font-weight: normal; }
-
-        .bg-sugerido {
-            background-color: #f8f9fa;
-        }
-        .bg-sugerido input {
-            border: 1px solid #002d5a;
-            background-color: #fffceb;
-        }
-        textarea.x-small {
-            font-size: 0.75rem !important;
-            resize: none;
-        }
-        .text-muted { color: #6c757d !important; }
-
-        /* Mejora general de la tabla */
-        .table-container {
-            background: white; 
-            border-radius: 15px; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
-            padding: 20px;
-        }
-
-        #tabla-precios {
-            border-collapse: separate;
-            border-spacing: 0;
-        }
-
-        /* Encabezados con mejor contraste y espaciado */
-        #tabla-precios thead th {
-            background-color: var(--mess-blue) !important;
-            color: white;
-            font-weight: 600;
-            text-transform: uppercase;
-            font-size: 0.75rem;
-            padding: 12px 10px;
-            border-top: none;
-        }
-
-        /* Filas con efecto de tarjeta limpia */
-        .font-small { font-size: 0.85rem; }
-        .table-hover tbody tr:hover { background-color: #f8fbff; }
-
-        /* Inputs y Selects integrados (sin bordes pesados) */
-        .form-control-sm, .form-select-sm {
-            border: 1px solid #dee2e6;
-            border-radius: 6px;
-            transition: all 0.2s;
-        }
-        .form-control-sm:focus { border-color: var(--mess-blue); box-shadow: none; }
-
-        /* Etiquetas de rango más sutiles */
+        .bg-sugerido { background-color: #f8f9fa; }
         .badge-range {
             background: #f1f3f5;
             color: #495057;
@@ -107,24 +61,91 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
             margin-bottom: 2px;
             border-radius: 4px;
         }
+
+        .bg-sugerido input {
+            border: 1px solid var(--mx-navy);
+            background-color: #fffceb;
+        }
+        textarea.x-small {
+            font-size: 0.75rem !important;
+            resize: none;
+        }
+        /* Acentos de texto en el color primario del sistema (código CDMESS, "Sugerido", folio). */
+        .text-primary { color: var(--accent) !important; }
+
+        /* Mejora general de la tabla */
+        #tabla-precios {
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        /* Encabezados navy del marco, con mejor contraste y espaciado */
+        #tabla-precios thead th {
+            background-color: var(--mx-navy) !important;
+            color: white;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            padding: 12px 10px;
+            border-top: none;
+        }
+
+        /* Inputs y Selects integrados (sin bordes pesados) */
+        .form-control-sm, .form-select-sm {
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        .form-control-sm:focus { border-color: var(--accent); box-shadow: none; }
+
+        /* Botones en el color primario del sistema (Exportar, Validar):
+           se reestilan por CSS para no tocar el JavaScript que genera
+           las filas. El outline-primary ya lo cubre estilos.css. */
+        .table-container .btn-success,
+        #tabla-precios .btn-success {
+            background-color: var(--accent);
+            border-color: var(--accent);
+        }
+        .table-container .btn-success:hover,
+        #tabla-precios .btn-success:hover {
+            background-color: var(--accent-dark);
+            border-color: var(--accent-dark);
+        }
+
+        /* Estado vacío: el icono claro no se veía sobre la hoja blanca. */
+        .table-container .bi-clipboard2-check { color: var(--mx-azul) !important; }
+
+        /* Modal de veredicto (SweetAlert2): se ajusta por CSS, sin tocar el
+           JavaScript que lo dispara ni su contenido. Los colores de los
+           badges (Directa/Parcial/Sin ejemplo, alerta, principal) se
+           conservan tal cual para seguir distinguibles. */
+        .swal2-popup {
+            font-family: var(--mx-font);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+        .swal2-title { color: var(--text); }
+        .swal2-confirm { background-color: var(--accent) !important; }
+        .swal2-cancel { background-color: #fff !important; color: #212529 !important; border: 1px solid #6c757d !important; }
+        .swal2-confirm:focus, .swal2-cancel:focus {
+            box-shadow: 0 0 0 3px rgba(255, 201, 17, .55) !important;
+        }
     </style>
 </head>
-<body>
+<body class="mx-marco">
 
-<nav class="navbar navbar-dark navbar-custom mb-4 shadow-sm">
-    <div class="container-fluid px-4">
-        <a class="navbar-brand d-flex align-items-center" href="#">
-            <img src="img/desarrollo-tecnologia.png" alt="Logo MESS" style="height: 55px; background: white; padding: 5px; border-radius: 8px;">
-            <span class="border-start ps-3">Monitor de cotizaciones realizadas por el modelo MessIAs</span>
-        </a>
-        <div class="d-flex align-items-center gap-3">
-            <span class="text-white x-small" id="last-update">Sincronizando...</span>
-            <a href="cargador_masivo.php" class="btn btn-warning btn-sm fw-bold px-3">Nueva Carga</a>
-        </div>
+<header class="mx-header">
+    <a class="mx-volver" href="index.php" title="Volver a Inicio" aria-label="Volver a Inicio"><img src="img/messias/volver.png" alt="Volver"></a>
+    <a class="mx-logo" href="index.php"><img src="img/messias/logo-messias.png" alt="messIAs, all about metrology at the speed of AI"></a>
+</header>
+
+<main class="mx-main">
+<div class="mx-hoja">
+    <h1 class="mx-hoja-titulo">Monitor de cotizaciones realizadas por el modelo MessIAs</h1>
+    <div class="d-flex justify-content-end align-items-center gap-3 mb-3">
+        <span class="text-muted x-small" id="last-update">Sincronizando...</span>
+        <a href="cargador_masivo.php" class="btn btn-warning btn-sm fw-bold px-3">Nueva Carga</a>
     </div>
-</nav>
-
-<div class="container-fluid px-4">
     <div class="row">
         <div class="col-md-2">
             <div class="card sidebar-card shadow-sm">
@@ -212,6 +233,10 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
         </div>
     </div>
 </div>
+</main>
+<footer class="mx-footer">
+    <img src="img/messias/logo-mess-b1.png" alt="Grupo mess, all about metrology · B1 Business Intelligence">
+</footer>
 <script src="js/sweetalert2.all.min.js"></script>
 
 <script>
@@ -246,6 +271,8 @@ const renderFila = (item, esSugerencia = false) => {
             <td class="text-center align-middle"><input type="checkbox" class="form-check-input item-check" value="${item.id}"></td>
             <td class="fw-bold text-primary align-middle">
                 ${ia.cdmess || 'S/C'}                
+                ${ia.atlas && ia.atlas.origen === 'similar' ? `<br><span class="badge bg-secondary x-small">Ya no activa en Atlas</span>` : ''}
+                ${ia.atlas && ia.atlas.codigo_principal && String(ia.atlas.codigo_principal) === String(ia.cdmess) && ia.atlas.codigo_encontrado && String(ia.atlas.codigo_encontrado) !== String(ia.cdmess) ? `<br><span class="x-small text-muted">Principal de ${escAttr(ia.atlas.codigo_encontrado)}</span>` : ''}
                 ${item.entrada_usuario ? `<br><span class="x-small text-muted">Sugerencia para: ${item.entrada_usuario}</span>` : ''}
             </td>
             <td class="align-middle">
@@ -288,6 +315,20 @@ const renderFila = (item, esSugerencia = false) => {
                     }
                     if (ia.requiere_revision) {
                         badges += `<span class="badge bg-danger x-small">Revisar</span>`;
+                    }
+                    // Fase 1 (Atlas): badge de coincidencia y alerta de
+                    // validación de experto. En el caso similar nunca se
+                    // pinta como validado: "Sugerencia por similitud (sin validar)".
+                    if (ia.atlas) {
+                        if (ia.atlas.origen === 'similar') {
+                            badges += `<span class="badge bg-warning text-dark x-small me-1">Sugerencia por similitud (sin validar)</span>`;
+                        } else {
+                            const claseAtlas = ia.atlas.tipo_coincidencia === 'Directa' ? 'bg-success' : (ia.atlas.tipo_coincidencia === 'Parcial' ? 'bg-warning text-dark' : 'bg-secondary');
+                            badges += `<span class="badge ${claseAtlas} x-small me-1">Validación de experto técnico: ${escAttr(ia.atlas.tipo_coincidencia || 's/d')}</span>`;
+                        }
+                        if (ia.atlas.requiere_validacion_experto) {
+                            badges += `<span class="badge bg-danger x-small me-1" title="${escAttr('Requiere validación de experto, acércate al área correspondiente')}">Requiere validación de experto</span>`;
+                        }
                     }
                     return badges ? `<div class="mb-1">${badges}</div>` : '';
                 })()}
@@ -414,13 +455,99 @@ function mostrarVeredicto(id) {
         ? `<div class="x-small text-muted mt-2">Modelo: ${String(traza.modelo || 's/d').replace(/</g, '&lt;')} &middot; Intentos IA: ${ia.ia_intentos ?? 's/d'} &middot; Latencia IA: ${traza.latencia_ia_ms != null ? traza.latencia_ia_ms + ' ms' : 's/d'} &middot; Procesado: ${String(traza.fecha_hora_procesamiento || '').replace(/</g, '&lt;')}</div>`
         : '';
 
+    // Fase 1 (Atlas): sección Atlas en el modal. Solo si la propuesta trae
+    // atlas; ítems viejos sin él no muestran nada. Todo texto de Atlas se
+    // escapa antes de interpolarlo en innerHTML (R5).
+    const esc = v => String(v ?? '').replace(/</g, '&lt;');
+    const fmtPrecioAtlas = v => (v === null || v === undefined || v === '') ? 'sin historial' : '$' + parseFloat(v).toFixed(2);
+    const atlas = ia.atlas || null;
+    let atlasHtml = '';
+    if (atlas) {
+        const alertaHtml = atlas.requiere_validacion_experto
+            ? `<div class="alert alert-warning x-small mt-2 mb-0">Requiere validación de experto, acércate al área correspondiente${atlas.motivo_validacion && atlas.motivo_validacion.length ? ` (${atlas.motivo_validacion.map(m => esc(m)).join(', ')})` : ''}</div>`
+            : '';
+        if (atlas.origen === 'similar') {
+            // §5.7: se muestran AMBAS claves, cada una con su propio bloque.
+            // La cotizada es la original (su precio es precio_ia); la
+            // sugerencia lleva solo su precio histórico como referencia.
+            const sugs = Array.isArray(atlas.sugerencias) ? atlas.sugerencias : [];
+            const codigosVivos = sugs.map(s => esc(s.codigo_scot));
+            const encabezado = sugs.length === 0
+                ? `La clave ${esc(atlas.codigo_buscado)} ya no está activa en Atlas.`
+                : (sugs.length === 1
+                    ? `La clave ${esc(atlas.codigo_buscado)} ya no está activa en Atlas; se sugiere el código vivo ${codigosVivos[0]} por similitud.`
+                    : `La clave ${esc(atlas.codigo_buscado)} ya no está activa en Atlas; se sugieren los códigos vivos ${codigosVivos.slice(0, -1).join(', ')} y ${codigosVivos[codigosVivos.length - 1]} por similitud.`);
+            const tarjetasSug = sugs.map(s => `
+                <div class="card mt-2">
+                    <div class="card-body p-2 text-start">
+                        <div class="fw-bold">${esc(s.codigo_scot)} <span class="badge bg-success x-small">Clave viva de Atlas</span> <span class="badge bg-warning text-dark x-small">Sugerencia por similitud</span></div>
+                        ${s.servicio ? `<div class="x-small mt-1">${esc(s.servicio)}</div>` : ''}
+                        ${s.tipo_coincidencia ? `<div class="x-small text-muted">Coincidencia: ${esc(s.tipo_coincidencia)}</div>` : ''}
+                        <div class="x-small mt-1">Precio histórico (referencial, para comparar): <b>${fmtPrecioAtlas(s.precio_promedio)}</b>${s.precio_promedio_mxn != null ? ` / MXN ${fmtPrecioAtlas(s.precio_promedio_mxn)}` : ''}${s.n_muestras != null ? ` (${s.n_muestras} muestras)` : ''}</div>
+                        ${s.tokens_comunes && s.tokens_comunes.length ? `<div class="x-small text-muted">Coincide en: ${s.tokens_comunes.map(t => esc(t)).join(', ')} (puntaje ${s.puntaje_similitud})</div>` : ''}
+                        ${s.ejemplos ? `<div class="x-small text-muted">Ejemplos: ${esc(s.ejemplos)}</div>` : ''}
+                        <div class="alert alert-warning x-small mt-2 mb-0">Requiere validación de experto, acércate al área correspondiente</div>
+                    </div>
+                </div>`).join('');
+            atlasHtml = `
+                <div class="mt-3 text-start">
+                    <div class="x-small text-uppercase text-muted fw-bold mb-1">Validación de experto técnico — clave no activa</div>
+                    <div class="x-small">${encabezado}</div>
+                    <div class="x-small text-muted">Código no cubierto por Atlas. Sugerencia por similitud, no validada por experto.</div>
+                    <div class="card mt-2">
+                        <div class="card-body p-2 text-start">
+                            <div class="fw-bold">${esc(atlas.codigo_buscado)} <span class="badge bg-secondary x-small">Ya no activa — no está en Atlas</span></div>
+                            ${ia.desc ? `<div class="x-small mt-1">${esc(ia.desc)}</div>` : ''}
+                            <div class="x-small mt-1">Precio sugerido (cotizado): <b>$${parseFloat(ia.precio_ia || 0).toFixed(2)}</b> &middot; Promedio histórico: $${parseFloat(ia.precio_promedio || 0).toFixed(2)}</div>
+                        </div>
+                    </div>
+                    ${tarjetasSug}
+                </div>`;
+        } else {
+            const modelos = Array.isArray(atlas.modelos) ? atlas.modelos : [];
+            const modelosHtml = modelos.length
+                ? `<div class="x-small mt-1"><b>Modelos (${modelos.length}):</b> ${modelos.slice(0, 10).map(m => `${esc(m.fabricante || '')} ${esc(m.modelo || '')}${m.confianza ? ` (${esc(m.confianza)})` : ''}`).join(' &middot; ')}${modelos.length > 10 ? ` &middot; y ${modelos.length - 10} más` : ''}</div>`
+                : '';
+            const alts = Array.isArray(atlas.alternativas) ? atlas.alternativas : [];
+            // Fase 2 (D1): si el principal es el código cotizado (re-base),
+            // va primero con su precio de IA; las demás claves con su
+            // promedio histórico. El servidor ya ordena principal primero.
+            const principalCotizado = (atlas.codigo_principal && String(atlas.codigo_principal) === String(ia.cdmess)) ? String(atlas.codigo_principal) : null;
+            const altsHtml = alts.length
+                ? `<div class="x-small mt-1"><b>Otras claves que pueden aplicar:</b><ul class="mb-0 ps-3">${alts.map(a => {
+                    const esCotizado = principalCotizado !== null && String(a.codigo_scot) === principalCotizado;
+                    const precio = esCotizado
+                        ? `Precio IA: <b>$${parseFloat(ia.precio_ia || 0).toFixed(2)}</b> (prom. hist. ${fmtPrecioAtlas(a.precio_promedio)})`
+                        : fmtPrecioAtlas(a.precio_promedio);
+                    return `<li><b>${esc(a.codigo_scot)}</b>${a.es_principal ? ' <span class="badge bg-primary x-small">Principal</span>' : ''}${esCotizado ? ' <span class="badge bg-success x-small">Cotizado</span>' : ''}${a.servicio ? ` — ${esc(a.servicio)}` : ''} — ${precio}${a.n_muestras != null ? ` (${a.n_muestras} muestras)` : ''}</li>`;
+                }).join('')}</ul></div>`
+                : '';
+            const rebaseHtml = (principalCotizado !== null && atlas.codigo_encontrado && String(atlas.codigo_encontrado) !== principalCotizado)
+                ? `<div class="x-small mt-1">Código cotizado: el principal <b>${esc(principalCotizado)}</b> (la clave encontrada fue ${esc(atlas.codigo_encontrado)}).</div>`
+                : '';
+            atlasHtml = `
+                <div class="mt-3 text-start">
+                    <div class="x-small text-uppercase text-muted fw-bold mb-1">Validación de experto técnico — ${esc(atlas.codigo_scot)} ${atlas.codigo_principal ? `<span class="badge bg-primary x-small">Principal: ${esc(atlas.codigo_principal)}</span>` : ''}</div>
+                    <div><span class="badge ${atlas.tipo_coincidencia === 'Directa' ? 'bg-success' : (atlas.tipo_coincidencia === 'Parcial' ? 'bg-warning text-dark' : 'bg-secondary')} x-small">Validación de experto técnico: ${esc(atlas.tipo_coincidencia || 's/d')}</span></div>
+                    ${atlas.servicio ? `<div class="x-small mt-1"><b>Servicio:</b> ${esc(atlas.servicio)}</div>` : ''}
+                    ${atlas.usar_cuando ? `<div class="x-small mt-1"><b>Cuándo usar:</b> ${esc(atlas.usar_cuando)}</div>` : ''}
+                    ${atlas.precaucion ? `<div class="x-small mt-1"><b>Precaución:</b> ${esc(atlas.precaucion)}</div>` : ''}
+                    ${atlas.preguntas ? `<div class="x-small mt-1"><b>Preguntas:</b> ${esc(atlas.preguntas)}</div>` : ''}
+                    ${modelosHtml}
+                    ${altsHtml}
+                    ${rebaseHtml}
+                    ${alertaHtml}
+                </div>`;
+        }
+    }
+
     Swal.fire({
         title: 'Veredicto de MessIAs',
         confirmButtonColor: '#002d5a',
         confirmButtonText: 'Entendido',
         html: `
             <div class="text-start">
-                <div class="fw-bold text-primary mb-1">${ia.cdmess || 'S/C'} &mdash; ${ia.desc || item.entrada_usuario || ''}</div>
+                <div class="fw-bold text-primary mb-1">${String(ia.cdmess || 'S/C').replace(/</g, '&lt;')} &mdash; ${String(ia.desc || item.entrada_usuario || '').replace(/</g, '&lt;')}</div>
                 <div class="alert alert-light border mt-2 mb-2 text-start" style="white-space: pre-line;">${veredicto.replace(/</g, '&lt;')}</div>
                 <div class="d-flex justify-content-between x-small text-muted">
                     <span>Precio sugerido: <b class="text-dark">$${parseFloat(ia.precio_ia || 0).toFixed(2)}</b></span>
@@ -428,6 +555,7 @@ function mostrarVeredicto(id) {
                 </div>
                 ${rangoHtml}
                 ${trazaHtml}
+                ${atlasHtml}
             </div>
             ${coincidenciasHtml}
         `
