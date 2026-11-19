@@ -35,13 +35,6 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
            Aquí solo van reglas propias de esta página que los CSS del marco
            no cubren; los colores usan sus tokens (--mx-*, --accent). */
 
-        /* Botón naranja de regreso: el marco espera un <img> con el círculo;
-           en cotizador_ia no existe esa imagen, así que el círculo naranja
-           se pinta por CSS y la flecha es el SVG de Bootstrap Icons
-           (fill="currentColor", por eso color:#fff la vuelve blanca). */
-        .mx-volver { background: var(--mess-naranja, #EAAA00); display: flex; align-items: center; justify-content: center; }
-        .mx-volver img { width: 55%; height: 55%; color: #fff; }
-
         /* Sidebar: altura ajustada al encabezado alto del marco (88-156 px)
            más el pie, para no desbordar la hoja blanca. */
         .sidebar-card { height: calc(100vh - 280px); display: flex; flex-direction: column; }
@@ -142,7 +135,7 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
 <body class="mx-marco">
 
 <header class="mx-header">
-    <a class="mx-volver" href="index.php" title="Volver a Inicio" aria-label="Volver a Inicio"><img src="img/icons/arrow-return-left.svg" alt="Volver"></a>
+    <a class="mx-volver" href="index.php" title="Volver a Inicio" aria-label="Volver a Inicio"><img src="img/messias/volver.png" alt="Volver"></a>
     <a class="mx-logo" href="index.php"><img src="img/messias/logo-messias.png" alt="messIAs, all about metrology at the speed of AI"></a>
 </header>
 
