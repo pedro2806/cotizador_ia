@@ -119,6 +119,189 @@ function ajustePorCategoria($n) {
 }
 
 /**
+ * Fase 4 — Inserta las filas hermanas de un ítem con Atlas: una por cada
+ * alternativa validada (origen 'exacta') o, con clave muerta (origen
+ * 'similar'), una por cada sugerencia por similitud. Las hijas nacen
+ * 'completado' con su propuesta_ia ya llena (precio solo histórico, sin
+ * Ollama) y el worker NUNCA las reprocesa (su SELECT solo toma
+ * estatus='pendiente'). El vínculo padre/hija va en propuesta_ia.atlas
+ * (es_alternativa/alternativa_de o es_sugerencia/sugerencia_de); no hay
+ * cambio de esquema. Idempotente: si el padre se reprocesa, las hijas
+ * que ya existan no se duplican. Devuelve cuántas hijas insertó.
+ * No lanza excepción: ante error lo registra y devuelve lo insertado.
+ */
+function insertarFilasHermanasAtlas($conn, $idPadre, $idProyecto, $idclte, $idUsRegistro, $entrada, $atlas, $cdmessCotizado) {
+    if (empty($atlas) || !is_array($atlas)) return 0;
+    $origen = $atlas['origen'] ?? '';
+    $codigoEncontrado = (string) ($atlas['codigo_encontrado'] ?? '');
+    $codigoPrincipal = $atlas['codigo_principal'] ?? null;
+
+    // Candidatos: alternativas validadas (exacta) o sugerencias (similar,
+    // solo con clave muerta). Cualquier otro caso no genera hijas.
+    $candidatos = [];
+    $esSugerencia = false;
+    if ($origen === 'exacta' && !empty($atlas['alternativas']) && is_array($atlas['alternativas'])) {
+        foreach ($atlas['alternativas'] as $alt) {
+            $candidatos[] = ['codigo' => $alt['codigo_scot'] ?? '', 'alt' => $alt, 'sug' => null];
+        }
+    } elseif ($origen === 'similar' && !empty($atlas['sugerencias']) && is_array($atlas['sugerencias'])) {
+        $esSugerencia = true;
+        foreach ($atlas['sugerencias'] as $sug) {
+            $candidatos[] = ['codigo' => $sug['codigo_scot'] ?? '', 'alt' => null, 'sug' => $sug];
+        }
+    }
+    if (empty($candidatos)) return 0;
+
+    $insertados = 0;
+    try {
+        // Idempotencia: hija igual = mismo proyecto, mismo padre
+        // (alternativa_de) y mismo cdmess_historico. El guard JSON_VALID
+        // va primero: hay filas viejas con propuesta_ia no válido y el
+        // ->> tronaría al evaluarlas (mismo patrón de fase3_medicion.sql).
+        $chk = $conn->prepare(
+            "SELECT id FROM cola_procesamiento
+             WHERE id_proyecto = ? AND propuesta_ia IS NOT NULL AND JSON_VALID(propuesta_ia)
+               AND propuesta_ia ->> '$.atlas.alternativa_de' = ?
+               AND cdmess_historico = ?
+             LIMIT 1"
+        );
+        $ins = $conn->prepare(
+            "INSERT INTO cola_procesamiento
+                (id_proyecto, idclte, entrada_usuario, cdmess_historico, descripcion_historica,
+                 precio_historico, estatus, es_sugerencia, id_us_registro, propuesta_ia, fecha_registro)
+             VALUES (?, ?, ?, ?, ?, ?, 'completado', 1, ?, ?, NOW())"
+        );
+        foreach ($candidatos as $cand) {
+            $codigo = trim((string) ($cand['codigo'] ?? ''));
+            // Nunca una hija con el código cotizado del padre (el principal
+            // tras el re-base D1) ni con la clave encontrada.
+            if ($codigo === '' || $codigo === $cdmessCotizado || $codigo === $codigoEncontrado) continue;
+            $chk->bind_param('sss', $idProyecto, (string) $idPadre, $codigo);
+            $chk->execute();
+            if ($chk->get_result()->fetch_assoc()) continue;
+
+            if ($esSugerencia) {
+                $sug = $cand['sug'];
+                $precio = isset($sug['precio_promedio']) && $sug['precio_promedio'] !== null ? round((float) $sug['precio_promedio'], 2) : null;
+                $precioMxn = isset($sug['precio_promedio_mxn']) && $sug['precio_promedio_mxn'] !== null ? round((float) $sug['precio_promedio_mxn'], 2) : null;
+                $nMuestras = (int) ($sug['n_muestras'] ?? 0);
+                $filaCat = atlasFilaCatalogo($conn, $codigo);
+                $servicio = $sug['servicio'] ?? ($filaCat['servicio'] ?? null);
+                $histTxt = $nMuestras > 0 ? "Precio histórico con {$nMuestras} cotizaciones" : 'Sin historial';
+                $notaCorta = 'Similitud de ' . $codigoEncontrado . ', ya no activa';
+                $detalle = $notaCorta . ' | ' . $histTxt;
+                $veredicto = 'Sugerencia por similitud de ' . $codigoEncontrado . ', ya no activa. Precio por histórico, sin propuesta de IA.';
+                $atlasHija = [
+                    'encontrado' => true,
+                    'origen' => 'exacta',
+                    'codigo_scot' => $codigo,
+                    'servicio' => $servicio,
+                    'usar_cuando' => $filaCat['usar_cuando'] ?? null,
+                    'preguntas' => $filaCat['preguntas'] ?? null,
+                    'precaucion' => $filaCat['precaucion'] ?? null,
+                    'tipo_coincidencia' => $sug['tipo_coincidencia'] ?? ($filaCat['tipo_coincidencia'] ?? null),
+                    'ejemplos' => $sug['ejemplos'] ?? ($filaCat['ejemplos'] ?? null),
+                    'descripcion_original' => $filaCat['descripcion_original'] ?? null,
+                    'modelos' => [],
+                    'alternativas' => [],
+                    'codigo_principal' => null,
+                    'codigo_encontrado' => $codigoEncontrado,
+                    // La sugerencia siempre exige validación de experto
+                    // (nunca es principal ni validada como elección).
+                    'requiere_validacion_experto' => true,
+                    'motivo_validacion' => ['código no cubierto por la validación de experto técnico; sugerencia por similitud, sin validar'],
+                    'puntaje_similitud' => $sug['puntaje_similitud'] ?? null,
+                    'tokens_comunes' => $sug['tokens_comunes'] ?? [],
+                    'es_sugerencia' => true,
+                    'sugerencia_de' => $codigoEncontrado,
+                    'alternativa_de' => (int) $idPadre,
+                ];
+                $requiere = true;
+            } else {
+                $alt = $cand['alt'];
+                $precio = isset($alt['precio_promedio']) && $alt['precio_promedio'] !== null ? round((float) $alt['precio_promedio'], 2) : null;
+                $precioMxn = isset($alt['precio_promedio_mxn']) && $alt['precio_promedio_mxn'] !== null ? round((float) $alt['precio_promedio_mxn'], 2) : null;
+                $nMuestras = (int) ($alt['n_muestras'] ?? 0);
+                $val = atlasValidacionCodigo($conn, $codigo);
+                $filaCat = $val['fila'];
+                $servicio = $alt['servicio'] ?? ($filaCat['servicio'] ?? null);
+                $histTxt = $nMuestras > 0 ? "Precio histórico con {$nMuestras} cotizaciones" : 'Sin historial';
+                $detalle = 'Alternativa validada por experto técnico de ' . $codigoEncontrado . ' | ' . $histTxt;
+                $notaCorta = 'Alternativa de ' . $codigoEncontrado . ' validada por experto técnico.';
+                $veredicto = 'Clave alternativa validada por experto técnico de ' . $codigoEncontrado . '. Precio por histórico, sin propuesta de IA.';
+                $atlasHija = [
+                    'encontrado' => true,
+                    'origen' => 'exacta',
+                    'codigo_scot' => $codigo,
+                    'servicio' => $servicio,
+                    'usar_cuando' => $filaCat['usar_cuando'] ?? null,
+                    'preguntas' => $filaCat['preguntas'] ?? null,
+                    'precaucion' => $filaCat['precaucion'] ?? null,
+                    'tipo_coincidencia' => $alt['tipo_coincidencia'] ?? ($filaCat['tipo_coincidencia'] ?? null),
+                    'ejemplos' => $filaCat['ejemplos'] ?? null,
+                    'descripcion_original' => $filaCat['descripcion_original'] ?? null,
+                    'modelos' => [],
+                    'alternativas' => [],
+                    'codigo_principal' => $codigoPrincipal,
+                    'codigo_encontrado' => $codigoEncontrado,
+                    'requiere_validacion_experto' => $val['requiere'],
+                    'motivo_validacion' => $val['motivos'],
+                    'es_alternativa' => true,
+                    'alternativa_de' => (int) $idPadre,
+                ];
+                $requiere = $val['requiere'];
+            }
+
+            $dataHija = [
+                'cdmess' => $codigo,
+                'desc' => $servicio,
+                'folio' => null,
+                'fecha' => null,
+                'detalle_calculo' => $detalle,
+                'precio_min' => null,
+                'precio_max' => null,
+                'precio_promedio' => $precio,
+                'precio_ia' => null,
+                'precio_ia_min' => null,
+                'precio_ia_max' => null,
+                'precio_min_mxn' => null,
+                'precio_max_mxn' => null,
+                'precio_promedio_mxn' => $precioMxn,
+                'precio_ia_mxn' => null,
+                'notas' => $notaCorta,
+                'veredicto_ia' => $veredicto,
+                'coincidencias' => '',
+                'aprendizaje_aplicado' => false,
+                'num_correcciones' => 0,
+                'peso_aprendizaje' => null,
+                'precio_humano_ponderado' => null,
+                'aprendizaje_detalle' => '',
+                'banda_min' => null,
+                'banda_max' => null,
+                'contexto_precio' => null,
+                'requiere_revision' => $requiere,
+                'origen_precio' => $esSugerencia ? 'sugerencia' : 'alternativa',
+                'ia_intentos' => 0,
+                'ia_error' => null,
+                'ia_degradado' => false,
+                'trazabilidad' => null,
+                'atlas' => $atlasHija,
+            ];
+            $jsonHija = json_encode($dataHija, JSON_UNESCAPED_UNICODE);
+            $precioHist = $precio;
+            $ins->bind_param('sisssdis', $idProyecto, $idclte, $entrada, $codigo, $servicio, $precioHist, $idUsRegistro, $jsonHija);
+            $ins->execute();
+            if ($ins->affected_rows > 0) $insertados++;
+        }
+        $chk->close();
+        $ins->close();
+    } catch (Throwable $e) {
+        error_log('Atlas: insertarFilasHermanasAtlas(padre ' . $idPadre . ') falló: ' . $e->getMessage());
+    }
+    return $insertados;
+}
+
+/**
  * Procesa un único ítem pendiente (si hay alguno) de principio a fin:
  * lo marca 'procesando', calcula la propuesta de la IA, y guarda el
  * resultado final. Aislado en su propia función para que el try/catch de
@@ -135,7 +318,7 @@ function procesarSiguientePendiente() {
     // (que solo existe en Windows y ya está deprecado ahí también).
     @file_put_contents(WORKER_HEARTBEAT_FILE, (string) time());
 
-    $res = $conn->query("SELECT id, idclte, entrada_usuario, cdmess_historico, precio_historico, descripcion_historica
+    $res = $conn->query("SELECT id, id_proyecto, idclte, entrada_usuario, cdmess_historico, precio_historico, descripcion_historica, id_us_registro
                          FROM cola_procesamiento
                          WHERE estatus = 'pendiente' 
                          LIMIT 1");
@@ -578,7 +761,7 @@ function procesarSiguientePendiente() {
         'folio_base' => $folio_base['folio'] ?? '',
         'fecha_base' => $folio_base['fecha'] ?? '',
         // Rama de trabajo (literal documentado; no se lee git en runtime).
-        'rama' => 'atlas-implementacion',
+        'rama' => 'atlas-alternativas-filas',
     ];
 
     $data = [
@@ -673,6 +856,18 @@ function procesarSiguientePendiente() {
     $stmt = $conn->prepare("UPDATE cola_procesamiento SET propuesta_ia =?, estatus =?, fecha_registro = NOW() WHERE id =?");
     $stmt->bind_param("ssi", $json_final, $estado_final, $id);
     $stmt->execute();
+
+    // Fase 4: filas hermanas (alternativas validadas o, con clave muerta,
+    // sugerencias por similitud). Solo si el padre quedó completado; no
+    // tocan el resultado del padre y un fallo aquí no tumba el worker
+    // (la inserción ya trae su propio try/catch y este también).
+    if ($estado_final === 'completado') {
+        try {
+            insertarFilasHermanasAtlas($conn, $id, $item['id_proyecto'] ?? '', $idclte, $item['id_us_registro'] ?? null, $entrada, $atlas, $cdmess_contexto);
+        } catch (Throwable $e) {
+            error_log('Atlas: hijas del ítem ' . $id . ' fallaron: ' . $e->getMessage());
+        }
+    }
 
     $t_total = microtime(true);
     echo sprintf("[OK] ID %d -> %s | TOTAL:%.3fs\n", $id, $estado_final, $t_total - $t_inicio);

@@ -826,6 +826,37 @@ function atlasFilaCatalogo($conn, $codigo) {
 }
 
 /**
+ * Fase 4 — Validación de experto de UN código Atlas (para las filas
+ * hermanas): fila de catálogo + si algún modelo del código requiere
+ * validación + motivos, con las mismas reglas del §5.4 del plan.
+ * Devuelve ['fila' => ?array, 'requiere' => bool, 'motivos' => []].
+ * No lanza excepción: ante error devuelve requiere=false sin motivos.
+ */
+function atlasValidacionCodigo($conn, $codigo) {
+    $codigo = trim((string) $codigo);
+    $fila = ($codigo === '') ? null : atlasFilaCatalogo($conn, $codigo);
+    $tipo = (string) ($fila['tipo_coincidencia'] ?? '');
+    $motivos = [];
+    try {
+        $stmt = $conn->prepare(
+            "SELECT 1 FROM atlas_modelo_codigo mc
+             INNER JOIN atlas_modelos m ON m.id_modelo = mc.id_modelo
+             WHERE mc.codigo_scot = ? AND m.requiere_validacion = 1 LIMIT 1"
+        );
+        $stmt->bind_param('s', $codigo);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        if ($res && $res->fetch_assoc()) $motivos[] = 'modelo en revisión';
+        $stmt->close();
+    } catch (Throwable $e) {
+        error_log('Atlas: atlasValidacionCodigo(' . $codigo . ') falló: ' . $e->getMessage());
+    }
+    if ($tipo === 'Parcial') $motivos[] = 'coincidencia parcial';
+    if ($tipo === 'Sin ejemplo directo') $motivos[] = 'sin ejemplo directo';
+    return ['fila' => $fila, 'requiere' => !empty($motivos), 'motivos' => $motivos];
+}
+
+/**
  * Fase 1 (Atlas) — Tokeniza un texto para la similitud por tokens (§5.5):
  * normaliza con normalizarTextoPlano(), parte con el mismo patrón de
  * procesarContextoBusqueda(), quita las mismas palabras de relleno y

@@ -256,11 +256,18 @@ let datosProyecto = [];
  */
 const fmt = v => parseFloat(v || 0).toFixed(2);
 
-const renderFila = (item, esSugerencia = false) => {
+const renderFila = (item, modo = false) => {
     if (item.estatus !== 'completado') return `<tr><td colspan="8" class="text-center py-3 text-muted x-small italic">Analizando...</td></tr>`;
 
     const ia = item.propuesta_ia || {};
-    const rowClass = esSugerencia ? 'table-warning font-small' : 'font-small';
+    // Fase 4: modo false = original; true = sugerencia de la carga masiva;
+    // 'alternativa' = clave alternativa validada (hija); 'sugerencia' = clave
+    // sugerida por similitud con clave muerta (hija). Las hijas van en
+    // segundo plano bajo su padre (ver cargarDatos).
+    const esAlt = modo === 'alternativa';
+    const esSugHija = modo === 'sugerencia';
+    const esHermana = esAlt || esSugHija;
+    const rowClass = modo === true ? 'table-warning font-small' : (esHermana ? 'table-light font-small' : 'font-small');
     const fmt = v => parseFloat(v || 0).toFixed(2);
     // A7: escapa la nota guardada para poder ponerla en el value del input
     // resp_u_ sin romper el atributo si trae comillas o < >.
@@ -270,10 +277,10 @@ const renderFila = (item, esSugerencia = false) => {
         <tr class="${rowClass}">
             <td class="text-center align-middle"><input type="checkbox" class="form-check-input item-check" value="${item.id}"></td>
             <td class="fw-bold text-primary align-middle">
-                ${ia.cdmess || 'S/C'}                
+                ${esHermana ? '↳ ' : ''}${ia.cdmess || 'S/C'}                
                 ${ia.atlas && ia.atlas.origen === 'similar' ? `<br><span class="badge bg-secondary x-small">Ya no activa — validación de experto</span>` : ''}
                 ${ia.atlas && ia.atlas.codigo_principal && String(ia.atlas.codigo_principal) === String(ia.cdmess) && ia.atlas.codigo_encontrado && String(ia.atlas.codigo_encontrado) !== String(ia.cdmess) ? `<br><span class="x-small text-muted">Principal de ${escAttr(ia.atlas.codigo_encontrado)}</span>` : ''}
-                ${item.entrada_usuario ? `<br><span class="x-small text-muted">Sugerencia para: ${item.entrada_usuario}</span>` : ''}
+                ${!esHermana && item.entrada_usuario ? `<br><span class="x-small text-muted">Sugerencia para: ${item.entrada_usuario}</span>` : ''}
             </td>
             <td class="align-middle">
                 <div class="fw-bold">${ia.desc || ''}</div>
@@ -283,8 +290,10 @@ const renderFila = (item, esSugerencia = false) => {
                 ${ia.folio ? `<b>${ia.folio}</b><br>${ia.fecha?.substring(0,10) || ''}` : '-'}
             </td>
             <td class="align-middle text-center x-small">
-                <div class="text-muted">USD: $${fmt(ia.precio_min)} - $${fmt(ia.precio_max)}</div>
-                <div class="text-muted">MXN: $${fmt(ia.precio_min_mxn)} - $${fmt(ia.precio_max_mxn)}</div>
+                ${esHermana
+                    ? `<div class="text-muted">Histórico: ${ia.precio_promedio != null ? '$' + fmt(ia.precio_promedio) : 'sin historial'}</div>${ia.precio_promedio_mxn != null ? `<div class="text-muted">MXN: $${fmt(ia.precio_promedio_mxn)}</div>` : ''}`
+                    : `<div class="text-muted">USD: $${fmt(ia.precio_min)} - $${fmt(ia.precio_max)}</div>
+                <div class="text-muted">MXN: $${fmt(ia.precio_min_mxn)} - $${fmt(ia.precio_max_mxn)}</div>`}
             </td>
             <td class="align-middle text-center x-small">
                 <div><b>USD:</b> $${fmt(ia.precio_promedio)}</div>
@@ -292,7 +301,7 @@ const renderFila = (item, esSugerencia = false) => {
             </td>
             <td class="align-middle bg-light">
                 <div class="x-small text-primary mb-1 d-flex align-items-center justify-content-between">
-                    <span>Sugerido: $${fmt(ia.precio_ia)}</span>
+                    <span>${esHermana ? 'Histórico' : 'Sugerido'}: $${esHermana ? (ia.precio_promedio != null ? fmt(ia.precio_promedio) : '—') : fmt(ia.precio_ia)}</span>
                     ${ia.veredicto_ia ? `<button type="button" class="btn btn-link btn-sm p-0 ms-1" title="Ver veredicto de MessIAs" onclick='mostrarVeredicto(${JSON.stringify(item.id)})'><i class="bi bi-chat-square-quote-fill"></i></button>` : ''}
                 </div>
                 ${(() => {
@@ -309,7 +318,10 @@ const renderFila = (item, esSugerencia = false) => {
                     const etiquetas = {ia: 'IA', promedio: 'Promedio (respaldo)', humano: 'Humano', mixto: 'Mixto'};
                     const etiqueta = ia.origen_precio ? (etiquetas[ia.origen_precio] || ia.origen_precio) : '';
                     let badges = '';
-                    if (etiqueta) {
+                    // Fase 4: en las hijas no se pinta el badge de origen de
+                    // precio (siempre es histórico); el badge de clase ya
+                    // dice si es alternativa o sugerencia.
+                    if (etiqueta && !esHermana) {
                         const clase = ia.origen_precio === 'promedio' ? 'bg-warning text-dark' : 'bg-secondary';
                         badges += `<span class="badge ${clase} x-small me-1" title="${escAttr(ia.veredicto_ia || '')}">${etiqueta}</span>`;
                     }
@@ -319,8 +331,13 @@ const renderFila = (item, esSugerencia = false) => {
                     // Fase 1 (Atlas): badge de coincidencia y alerta de
                     // validación de experto. En el caso similar nunca se
                     // pinta como validado: "Sugerencia por similitud (sin validar)".
+                    // Fase 4: las hijas alternativa llevan su propio badge;
+                    // las hijas sugerencia usan el de similitud.
                     if (ia.atlas) {
-                        if (ia.atlas.origen === 'similar') {
+                        if (esAlt) {
+                            badges += `<span class="badge bg-info text-dark x-small me-1">Alternativa — validación de experto</span>`;
+                        }
+                        if (ia.atlas.es_sugerencia || ia.atlas.origen === 'similar') {
                             badges += `<span class="badge bg-warning text-dark x-small me-1">Sugerencia por similitud (sin validar)</span>`;
                         } else {
                             const claseAtlas = ia.atlas.tipo_coincidencia === 'Directa' ? 'bg-success' : (ia.atlas.tipo_coincidencia === 'Parcial' ? 'bg-warning text-dark' : 'bg-secondary');
@@ -332,7 +349,7 @@ const renderFila = (item, esSugerencia = false) => {
                     }
                     return badges ? `<div class="mb-1">${badges}</div>` : '';
                 })()}
-                <input type="number" id="precio_u_${item.id}" class="form-control form-control-sm fw-bold" value="${parseFloat(item.precio_usuario) > 0 ? fmt(item.precio_usuario) : fmt(ia.precio_ia)}">
+                <input type="number" id="precio_u_${item.id}" class="form-control form-control-sm fw-bold" value="${parseFloat(item.precio_usuario) > 0 ? fmt(item.precio_usuario) : (esHermana ? (ia.precio_promedio != null ? fmt(ia.precio_promedio) : '') : fmt(ia.precio_ia))}">
             </td>
             <td class="align-middle">
                 <select id="cat_u_${item.id}" class="form-select form-select-sm mb-1 x-small">
@@ -384,7 +401,21 @@ async function cargarDatos(soloDesviaciones = false) {
         document.getElementById('last-update').innerHTML = `<i class="bi bi-clock-history me-1"></i> Sync: ${new Date().toLocaleTimeString()}`;
 
         const originales = data.filter(i => !i.es_sugerencia);
-        const sugerencias = data.filter(i => i.es_sugerencia);
+        // Fase 4: los renglones hermanos (es_sugerencia=1 con atlas.alternativa_de)
+        // se agrupan inmediatamente debajo de su padre; las sugerencias de la
+        // carga masiva (es_sugerencia=1 sin alternativa_de) siguen al final
+        // bajo el divisor "Sugerencias de MessIAs". Los hermanos huérfanos
+        // (padre no en este proyecto) también van al final, con su badge.
+        const hermanas = data.filter(i => i.es_sugerencia && i.propuesta_ia && i.propuesta_ia.atlas && i.propuesta_ia.atlas.alternativa_de != null);
+        const sugerencias = data.filter(i => i.es_sugerencia && !(i.propuesta_ia && i.propuesta_ia.atlas && i.propuesta_ia.atlas.alternativa_de != null));
+        const porPadre = {};
+        hermanas.forEach(h => {
+            const p = h.propuesta_ia.atlas.alternativa_de;
+            (porPadre[p] = porPadre[p] || []).push(h);
+        });
+        const esHuerfana = h => !originales.some(o => String(o.id) === String(h.propuesta_ia.atlas.alternativa_de));
+        const huerfanas = hermanas.filter(esHuerfana);
+        const modoHermana = h => (h.propuesta_ia.atlas.es_sugerencia ? 'sugerencia' : 'alternativa');
         
         const total = originales.length;
         const listos = originales.filter(i => i.estatus === 'completado').length;
@@ -397,7 +428,7 @@ async function cargarDatos(soloDesviaciones = false) {
             </div>
         `;
 
-        const filaDivisora = sugerencias.length > 0 ? `
+        const filaDivisora = (sugerencias.length + huerfanas.length > 0) ? `
             <tr class="table-secondary">
                 <td colspan="9" class="text-center py-2 x-small fw-bold text-uppercase text-muted">
                     <i class="bi bi-stars me-1"></i> Sugerencias de MessIAs
@@ -406,9 +437,10 @@ async function cargarDatos(soloDesviaciones = false) {
         ` : '';
 
         contenedor.innerHTML =
-            originales.map(i => renderFila(i, false)).join('') +
+            originales.map(i => renderFila(i, false) + (porPadre[i.id] || []).filter(h => !esHuerfana(h)).map(h => renderFila(h, modoHermana(h))).join('')).join('') +
             filaDivisora +
-            sugerencias.map(i => renderFila(i, true)).join('');
+            sugerencias.map(i => renderFila(i, true)).join('') +
+            huerfanas.map(h => renderFila(h, modoHermana(h))).join('');
 
         // Restaurar checks previos
         document.querySelectorAll('.item-check').forEach(cb => {
@@ -528,11 +560,15 @@ function mostrarVeredicto(id) {
             atlasHtml = `
                 <div class="mt-3 text-start">
                     <div class="x-small text-uppercase text-muted fw-bold mb-1">Validación de experto técnico — ${esc(atlas.codigo_scot)} ${atlas.codigo_principal ? `<span class="badge bg-primary x-small">Principal: ${esc(atlas.codigo_principal)}</span>` : ''}</div>
+                    ${atlas.es_sugerencia ? `<div class="x-small mt-1">Similitud de ${esc(atlas.sugerencia_de || atlas.codigo_buscado || '')}, ya no activa.</div><div class="mt-1"><span class="badge bg-warning text-dark x-small">Sugerencia por similitud (sin validar)</span></div>${atlas.puntaje_similitud != null ? `<div class="x-small text-muted mt-1">Similitud: puntaje ${atlas.puntaje_similitud}${atlas.tokens_comunes && atlas.tokens_comunes.length ? ` (coincide en: ${atlas.tokens_comunes.map(t => esc(t)).join(', ')})` : ''}</div>` : ''}` : ''}
                     <div><span class="badge ${atlas.tipo_coincidencia === 'Directa' ? 'bg-success' : (atlas.tipo_coincidencia === 'Parcial' ? 'bg-warning text-dark' : 'bg-secondary')} x-small">Validación de experto técnico: ${esc(atlas.tipo_coincidencia || 's/d')}</span></div>
                     ${atlas.servicio ? `<div class="x-small mt-1"><b>Servicio:</b> ${esc(atlas.servicio)}</div>` : ''}
-                    ${atlas.usar_cuando ? `<div class="x-small mt-1"><b>Cuándo usar:</b> ${esc(atlas.usar_cuando)}</div>` : ''}
-                    ${atlas.precaucion ? `<div class="x-small mt-1"><b>Precaución:</b> ${esc(atlas.precaucion)}</div>` : ''}
-                    ${atlas.preguntas ? `<div class="x-small mt-1"><b>Preguntas:</b> ${esc(atlas.preguntas)}</div>` : ''}
+                    ${(atlas.usar_cuando || atlas.precaucion || atlas.preguntas) ? `<div class="alert alert-info mt-2 mb-1 text-start">
+                        <div class="x-small fw-bold text-uppercase mb-1"><i class="bi bi-info-circle me-1"></i>Para cotizar este código</div>
+                        ${atlas.usar_cuando ? `<div class="x-small mt-1"><b>Cuándo usar:</b> ${esc(atlas.usar_cuando)}</div>` : ''}
+                        ${atlas.precaucion ? `<div class="x-small mt-1"><b>Precaución:</b> ${esc(atlas.precaucion)}</div>` : ''}
+                        ${atlas.preguntas ? `<div class="x-small mt-1"><b>Preguntas:</b> ${esc(atlas.preguntas)}</div>` : ''}
+                    </div>` : ''}
                     ${modelosHtml}
                     ${altsHtml}
                     ${rebaseHtml}
@@ -540,6 +576,13 @@ function mostrarVeredicto(id) {
                 </div>`;
         }
     }
+
+    // Fase 4: las hijas (alternativas y sugerencias) no tienen precio de IA:
+    // el precio que se muestra es el histórico.
+    const esHermana = !!(atlas && (atlas.es_alternativa || atlas.es_sugerencia));
+    const precioLinea = esHermana
+        ? `<span>Precio histórico: <b class="text-dark">${ia.precio_promedio != null ? '$' + parseFloat(ia.precio_promedio).toFixed(2) : 'sin historial'}</b></span><span>Sin precio de IA (se cotiza por histórico)</span>`
+        : `<span>Precio sugerido: <b class="text-dark">$${parseFloat(ia.precio_ia || 0).toFixed(2)}</b></span><span>Promedio histórico: $${parseFloat(ia.precio_promedio || 0).toFixed(2)}</span>`;
 
     Swal.fire({
         title: 'Veredicto de MessIAs',
@@ -550,8 +593,7 @@ function mostrarVeredicto(id) {
                 <div class="fw-bold text-primary mb-1">${String(ia.cdmess || 'S/C').replace(/</g, '&lt;')} &mdash; ${String(ia.desc || item.entrada_usuario || '').replace(/</g, '&lt;')}</div>
                 <div class="alert alert-light border mt-2 mb-2 text-start" style="white-space: pre-line;">${veredicto.replace(/</g, '&lt;')}</div>
                 <div class="d-flex justify-content-between x-small text-muted">
-                    <span>Precio sugerido: <b class="text-dark">$${parseFloat(ia.precio_ia || 0).toFixed(2)}</b></span>
-                    <span>Promedio histórico: $${parseFloat(ia.precio_promedio || 0).toFixed(2)}</span>
+                    ${precioLinea}
                 </div>
                 ${rangoHtml}
                 ${trazaHtml}
