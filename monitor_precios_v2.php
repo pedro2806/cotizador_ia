@@ -247,6 +247,7 @@ const renderFila = (item, esSugerencia = false) => {
             <td class="fw-bold text-primary align-middle">
                 ${ia.cdmess || 'S/C'}                
                 ${ia.atlas && ia.atlas.origen === 'similar' ? `<br><span class="badge bg-secondary x-small">Ya no activa en Atlas</span>` : ''}
+                ${ia.atlas && ia.atlas.codigo_principal && String(ia.atlas.codigo_principal) === String(ia.cdmess) && ia.atlas.codigo_encontrado && String(ia.atlas.codigo_encontrado) !== String(ia.cdmess) ? `<br><span class="x-small text-muted">Principal de ${escAttr(ia.atlas.codigo_encontrado)}</span>` : ''}
                 ${item.entrada_usuario ? `<br><span class="x-small text-muted">Sugerencia para: ${item.entrada_usuario}</span>` : ''}
             </td>
             <td class="align-middle">
@@ -292,13 +293,13 @@ const renderFila = (item, esSugerencia = false) => {
                     }
                     // Fase 1 (Atlas): badge de coincidencia y alerta de
                     // validación de experto. En el caso similar nunca se
-                    // pinta como validado: "Sugerencia Atlas (sin validar)".
+                    // pinta como validado: "Sugerencia por similitud (sin validar)".
                     if (ia.atlas) {
                         if (ia.atlas.origen === 'similar') {
-                            badges += `<span class="badge bg-warning text-dark x-small me-1">Sugerencia Atlas (sin validar)</span>`;
+                            badges += `<span class="badge bg-warning text-dark x-small me-1">Sugerencia por similitud (sin validar)</span>`;
                         } else {
                             const claseAtlas = ia.atlas.tipo_coincidencia === 'Directa' ? 'bg-success' : (ia.atlas.tipo_coincidencia === 'Parcial' ? 'bg-warning text-dark' : 'bg-secondary');
-                            badges += `<span class="badge ${claseAtlas} x-small me-1">Atlas: ${escAttr(ia.atlas.tipo_coincidencia || 's/d')}</span>`;
+                            badges += `<span class="badge ${claseAtlas} x-small me-1">Validación de experto técnico: ${escAttr(ia.atlas.tipo_coincidencia || 's/d')}</span>`;
                         }
                         if (ia.atlas.requiere_validacion_experto) {
                             badges += `<span class="badge bg-danger x-small me-1" title="${escAttr('Requiere validación de experto, acércate al área correspondiente')}">Requiere validación de experto</span>`;
@@ -465,7 +466,7 @@ function mostrarVeredicto(id) {
                 </div>`).join('');
             atlasHtml = `
                 <div class="mt-3 text-start">
-                    <div class="x-small text-uppercase text-muted fw-bold mb-1">Atlas — clave no activa</div>
+                    <div class="x-small text-uppercase text-muted fw-bold mb-1">Validación de experto técnico — clave no activa</div>
                     <div class="x-small">${encabezado}</div>
                     <div class="x-small text-muted">Código no cubierto por Atlas. Sugerencia por similitud, no validada por experto.</div>
                     <div class="card mt-2">
@@ -501,8 +502,8 @@ function mostrarVeredicto(id) {
                 : '';
             atlasHtml = `
                 <div class="mt-3 text-start">
-                    <div class="x-small text-uppercase text-muted fw-bold mb-1">Atlas — ${esc(atlas.codigo_scot)} ${atlas.codigo_principal ? `<span class="badge bg-primary x-small">Principal: ${esc(atlas.codigo_principal)}</span>` : ''}</div>
-                    <div><span class="badge ${atlas.tipo_coincidencia === 'Directa' ? 'bg-success' : (atlas.tipo_coincidencia === 'Parcial' ? 'bg-warning text-dark' : 'bg-secondary')} x-small">Atlas: ${esc(atlas.tipo_coincidencia || 's/d')}</span></div>
+                    <div class="x-small text-uppercase text-muted fw-bold mb-1">Validación de experto técnico — ${esc(atlas.codigo_scot)} ${atlas.codigo_principal ? `<span class="badge bg-primary x-small">Principal: ${esc(atlas.codigo_principal)}</span>` : ''}</div>
+                    <div><span class="badge ${atlas.tipo_coincidencia === 'Directa' ? 'bg-success' : (atlas.tipo_coincidencia === 'Parcial' ? 'bg-warning text-dark' : 'bg-secondary')} x-small">Validación de experto técnico: ${esc(atlas.tipo_coincidencia || 's/d')}</span></div>
                     ${atlas.servicio ? `<div class="x-small mt-1"><b>Servicio:</b> ${esc(atlas.servicio)}</div>` : ''}
                     ${atlas.usar_cuando ? `<div class="x-small mt-1"><b>Cuándo usar:</b> ${esc(atlas.usar_cuando)}</div>` : ''}
                     ${atlas.precaucion ? `<div class="x-small mt-1"><b>Precaución:</b> ${esc(atlas.precaucion)}</div>` : ''}
