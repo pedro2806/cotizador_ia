@@ -527,7 +527,7 @@ function procesarSiguientePendiente() {
     // como completado sin marca de revisión.
     if (!empty($atlas['requiere_validacion_experto'])) {
         $requiere_revision = true;
-        $nota_final .= " | Requiere validación de experto (Atlas)";
+        $nota_final .= " | Requiere validación de experto técnico";
     }
 
     // A6 — Trazabilidad completa de esta propuesta (subobjeto nuevo en

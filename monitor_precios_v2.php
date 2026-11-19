@@ -271,7 +271,7 @@ const renderFila = (item, esSugerencia = false) => {
             <td class="text-center align-middle"><input type="checkbox" class="form-check-input item-check" value="${item.id}"></td>
             <td class="fw-bold text-primary align-middle">
                 ${ia.cdmess || 'S/C'}                
-                ${ia.atlas && ia.atlas.origen === 'similar' ? `<br><span class="badge bg-secondary x-small">Ya no activa en Atlas</span>` : ''}
+                ${ia.atlas && ia.atlas.origen === 'similar' ? `<br><span class="badge bg-secondary x-small">Ya no activa — validación de experto</span>` : ''}
                 ${ia.atlas && ia.atlas.codigo_principal && String(ia.atlas.codigo_principal) === String(ia.cdmess) && ia.atlas.codigo_encontrado && String(ia.atlas.codigo_encontrado) !== String(ia.cdmess) ? `<br><span class="x-small text-muted">Principal de ${escAttr(ia.atlas.codigo_encontrado)}</span>` : ''}
                 ${item.entrada_usuario ? `<br><span class="x-small text-muted">Sugerencia para: ${item.entrada_usuario}</span>` : ''}
             </td>
@@ -473,14 +473,14 @@ function mostrarVeredicto(id) {
             const sugs = Array.isArray(atlas.sugerencias) ? atlas.sugerencias : [];
             const codigosVivos = sugs.map(s => esc(s.codigo_scot));
             const encabezado = sugs.length === 0
-                ? `La clave ${esc(atlas.codigo_buscado)} ya no está activa en Atlas.`
+                ? `La clave ${esc(atlas.codigo_buscado)} ya no está activa en la validación de experto técnico.`
                 : (sugs.length === 1
-                    ? `La clave ${esc(atlas.codigo_buscado)} ya no está activa en Atlas; se sugiere el código vivo ${codigosVivos[0]} por similitud.`
-                    : `La clave ${esc(atlas.codigo_buscado)} ya no está activa en Atlas; se sugieren los códigos vivos ${codigosVivos.slice(0, -1).join(', ')} y ${codigosVivos[codigosVivos.length - 1]} por similitud.`);
+                    ? `La clave ${esc(atlas.codigo_buscado)} ya no está activa en la validación de experto técnico; se sugiere el código vivo ${codigosVivos[0]} por similitud.`
+                    : `La clave ${esc(atlas.codigo_buscado)} ya no está activa en la validación de experto técnico; se sugieren los códigos vivos ${codigosVivos.slice(0, -1).join(', ')} y ${codigosVivos[codigosVivos.length - 1]} por similitud.`);
             const tarjetasSug = sugs.map(s => `
                 <div class="card mt-2">
                     <div class="card-body p-2 text-start">
-                        <div class="fw-bold">${esc(s.codigo_scot)} <span class="badge bg-success x-small">Clave viva de Atlas</span> <span class="badge bg-warning text-dark x-small">Sugerencia por similitud</span></div>
+                        <div class="fw-bold">${esc(s.codigo_scot)} <span class="badge bg-success x-small">Clave viva (validación de experto)</span> <span class="badge bg-warning text-dark x-small">Sugerencia por similitud</span></div>
                         ${s.servicio ? `<div class="x-small mt-1">${esc(s.servicio)}</div>` : ''}
                         ${s.tipo_coincidencia ? `<div class="x-small text-muted">Coincidencia: ${esc(s.tipo_coincidencia)}</div>` : ''}
                         <div class="x-small mt-1">Precio histórico (referencial, para comparar): <b>${fmtPrecioAtlas(s.precio_promedio)}</b>${s.precio_promedio_mxn != null ? ` / MXN ${fmtPrecioAtlas(s.precio_promedio_mxn)}` : ''}${s.n_muestras != null ? ` (${s.n_muestras} muestras)` : ''}</div>
@@ -493,10 +493,10 @@ function mostrarVeredicto(id) {
                 <div class="mt-3 text-start">
                     <div class="x-small text-uppercase text-muted fw-bold mb-1">Validación de experto técnico — clave no activa</div>
                     <div class="x-small">${encabezado}</div>
-                    <div class="x-small text-muted">Código no cubierto por Atlas. Sugerencia por similitud, no validada por experto.</div>
+                    <div class="x-small text-muted">Código no cubierto por la validación de experto técnico. Sugerencia por similitud, no validada por experto.</div>
                     <div class="card mt-2">
                         <div class="card-body p-2 text-start">
-                            <div class="fw-bold">${esc(atlas.codigo_buscado)} <span class="badge bg-secondary x-small">Ya no activa — no está en Atlas</span></div>
+                            <div class="fw-bold">${esc(atlas.codigo_buscado)} <span class="badge bg-secondary x-small">Ya no activa — validación de experto</span></div>
                             ${ia.desc ? `<div class="x-small mt-1">${esc(ia.desc)}</div>` : ''}
                             <div class="x-small mt-1">Precio sugerido (cotizado): <b>$${parseFloat(ia.precio_ia || 0).toFixed(2)}</b> &middot; Promedio histórico: $${parseFloat(ia.precio_promedio || 0).toFixed(2)}</div>
                         </div>

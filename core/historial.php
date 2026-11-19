@@ -1091,7 +1091,7 @@ function obtenerSugerenciasAtlasSimilares($codigo_buscado, $descripcion_historic
             'codigo_principal' => null,
             'sugerencias' => $sugerencias,
             'requiere_validacion_experto' => true,
-            'motivo_validacion' => ['código no cubierto por Atlas; sugerencia por similitud, sin validar'],
+            'motivo_validacion' => ['código no cubierto por la validación de experto técnico; sugerencia por similitud, sin validar'],
         ];
     } catch (Throwable $e) {
         error_log('Atlas: obtenerSugerenciasAtlasSimilares(' . $codigo_buscado . ') falló: ' . $e->getMessage());
