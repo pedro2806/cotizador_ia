@@ -16,23 +16,69 @@ if (empty($_SESSION['usuario_id'])) {
     <link rel="stylesheet" href="css/bootstrap-icons.css">
     <script src="js/sweetalert2.all.min.js"></script>
     <style>
+        /* Diseño messIAs tomado de index.php (diseño aprobado "MessIAs Login.pptx").
+           Solo presentación: no se toca lógica PHP ni JavaScript. */
         :root {
-            --mess-blue: #002d5a;
-            --mess-gold: #ffc107;
+            --mx-navy: #002060;        /* encabezado y pie */
+            --mx-oro: #FFC911;         /* filetes bajo el encabezado y sobre el pie */
+            --mx-azul: #2E75B6;        /* banda central */
+            --mx-azul-btn: #013569;    /* botones */
+            --mx-azul-btn-hover: #02478c;
+            --mx-rojo: #C00000;        /* botón Salir / cancelar */
+            --mx-rojo-hover: #9a0000;
+            --mx-borde-tarjeta: #172C51;
+            --mx-texto-titulo: #3B3838;
+            --mx-texto-desc: #767171;
+            --mx-gris-bienvenido: #D9D6D6;
+            --mx-fondo: #F8F9FA;
         }
-        body { 
-            background-color: #f0f2f5; 
-            font-family: 'Inter', sans-serif;
+
+        html, body { height: 100%; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            /* Banda azul con la red de nodos de index.php (.mx-main). */
+            background: var(--mx-azul) url("img/messias/red-fondo.png") no-repeat right bottom / cover fixed;
+            font-family: Calibri, Carlito, "Segoe UI", system-ui, -apple-system, sans-serif;
+            font-size: 16px;
+            color: var(--mx-texto-titulo);
         }
+        body > .container { flex: 1 0 auto; }
+
+        /* Encabezado: mismo marco que index.php (.mx-header). */
         .navbar-custom {
-            background-color: var(--mess-blue);
-            border-bottom: 3px solid var(--mess-gold);
+            background-color: var(--mx-navy);
+            border-bottom: 3px solid var(--mx-oro);
         }
+        /* Pie: mismo marco que index.php (.mx-footer). */
+        .mx-footer {
+            flex: 0 0 auto;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 4px;
+            padding: 8px 16px;
+            background: var(--mx-navy);
+            border-top: 3px solid var(--mx-oro);
+            color: var(--mx-gris-bienvenido, #D9D6D6);
+        }
+        .mx-footer img { height: 56px; width: auto; max-width: 100%; display: block; }
+        .mx-footer p, .mx-footer small { color: #D9D6D6; }
+
         .card-upload {
-            border: none;
-            border-radius: 10px;
+            border: 1px solid var(--mx-borde-tarjeta);
+            border-radius: 12px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.08);
             overflow: hidden;
+        }
+        /* Tarjeta principal del formulario: blanca como .mx-card. */
+        .mx-card-form {
+            border: 1px solid var(--mx-borde-tarjeta);
+            border-radius: 12px;
         }
         .card-header-mess {
             background: white;
@@ -50,27 +96,27 @@ if (empty($_SESSION['usuario_id'])) {
         }
         .textarea-console:focus {
             background-color: #fff;
-            border-color: var(--mess-blue);
-            box-shadow: 0 0 0 4px rgba(0,45,90,0.05);
+            border-color: var(--mx-azul-btn);
+            box-shadow: 0 0 0 4px rgba(1, 53, 105, 0.08);
         }
         .step-badge {
             width: 35px;
             height: 35px;
-            background: var(--mess-blue);
+            background: var(--mx-azul-btn);
             color: white;
-            border-radius: 50%;                         
-            flex-shrink: 0;             
-            box-sizing: border-box;             
+            border-radius: 50%;
+            flex-shrink: 0;
+            box-sizing: border-box;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             font-weight: bold;
             margin-right: 5px;
-            font-size: 14px; 
+            font-size: 14px;
             line-height: 1;
         }
         .btn-upload {
-            background: var(--mess-blue);
+            background: var(--mx-azul-btn);
             color: white;
             border-radius: 10px;
             padding: 1rem;
@@ -79,10 +125,29 @@ if (empty($_SESSION['usuario_id'])) {
             transition: all 0.3s;
         }
         .btn-upload:hover {
-            background: #004080;
+            background: var(--mx-azul-btn-hover);
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,45,90,0.2);
+            box-shadow: 0 5px 15px rgba(1, 53, 105, 0.2);
             color: white;
+        }
+        /* Selects del formulario en azul messIAs. */
+        .form-select:focus {
+            border-color: var(--mx-azul-btn);
+            box-shadow: 0 0 0 3px rgba(1, 53, 105, 0.12);
+        }
+
+        /* Modal de SweetAlert2: se ajusta por CSS, sin tocar el
+           JavaScript que lo dispara ni su contenido. */
+        .swal2-popup {
+            font-family: Calibri, Carlito, "Segoe UI", system-ui, -apple-system, sans-serif;
+            border-radius: 12px;
+            border: 1px solid var(--mx-borde-tarjeta);
+        }
+        .swal2-title { color: var(--mx-texto-titulo); }
+        .swal2-confirm { background-color: var(--mx-azul-btn) !important; }
+        .swal2-cancel { background-color: var(--mx-rojo) !important; }
+        .swal2-confirm:focus, .swal2-cancel:focus {
+            box-shadow: 0 0 0 3px rgba(255, 201, 17, .55) !important;
         }
     </style>
 </head>
@@ -91,7 +156,7 @@ if (empty($_SESSION['usuario_id'])) {
 <nav class="navbar navbar-dark navbar-custom mb-2 shadow">
     <div class="container">
         <a class="navbar-brand d-flex align-items-center" href="index.php">
-            <img src="img/desarrollo-tecnologia.png" alt="Logo MESS" style="height: 55px; background: white; padding: 5px; border-radius: 8px;">            
+            <img src="img/messias/logo-messias.png" alt="messIAs, all about metrology at the speed of AI" style="height: 64px;">            
         </a>
         <a href="index.php" class="btn btn-outline-light btn-sm rounded-pill">
             <i class="bi bi-arrow-left"></i> Volver a Inicio
@@ -102,7 +167,7 @@ if (empty($_SESSION['usuario_id'])) {
 <div class="container mb-0">
     <div class="row justify-content-center">
         <div class="col-lg-12">
-            <div class="card border-0 shadow-sm rounded-4 mb-0">
+            <div class="card shadow-sm mb-0 mx-card-form">
                 
                 <!-- Header -->
                 <div class="card-header bg-white border-bottom-0">
@@ -205,11 +270,10 @@ if (empty($_SESSION['usuario_id'])) {
     </div>
 </div>
 
-<footer class="py-2 text-center text-muted border-top bg-white mt-auto">
-    <div class="container">               
-        <p class="small mb-0">Business intelligence | MessIAs&copy;</p>
-        <small class="opacity-50">2026</small>
-    </div>
+<footer class="mx-footer mt-auto">
+    <img src="img/messias/logo-mess-b1.png" alt="Grupo mess, all about metrology · B1 Business Intelligence">
+    <p class="small mb-0">Business intelligence | MessIAs&copy;</p>
+    <small class="opacity-75">2026</small>
 </footer>
 <!-- CSS de Select2 y su adaptador Bootstrap 5 -->
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
