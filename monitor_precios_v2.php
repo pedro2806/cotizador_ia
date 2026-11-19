@@ -483,8 +483,21 @@ function mostrarVeredicto(id) {
                 ? `<div class="x-small mt-1"><b>Modelos (${modelos.length}):</b> ${modelos.slice(0, 10).map(m => `${esc(m.fabricante || '')} ${esc(m.modelo || '')}${m.confianza ? ` (${esc(m.confianza)})` : ''}`).join(' &middot; ')}${modelos.length > 10 ? ` &middot; y ${modelos.length - 10} más` : ''}</div>`
                 : '';
             const alts = Array.isArray(atlas.alternativas) ? atlas.alternativas : [];
+            // Fase 2 (D1): si el principal es el código cotizado (re-base),
+            // va primero con su precio de IA; las demás claves con su
+            // promedio histórico. El servidor ya ordena principal primero.
+            const principalCotizado = (atlas.codigo_principal && String(atlas.codigo_principal) === String(ia.cdmess)) ? String(atlas.codigo_principal) : null;
             const altsHtml = alts.length
-                ? `<div class="x-small mt-1"><b>Otras claves que pueden aplicar:</b><ul class="mb-0 ps-3">${alts.map(a => `<li><b>${esc(a.codigo_scot)}</b>${a.es_principal ? ' <span class="badge bg-primary x-small">Principal</span>' : ''}${a.servicio ? ` — ${esc(a.servicio)}` : ''} — ${fmtPrecioAtlas(a.precio_promedio)}${a.n_muestras != null ? ` (${a.n_muestras} muestras)` : ''}</li>`).join('')}</ul></div>`
+                ? `<div class="x-small mt-1"><b>Otras claves que pueden aplicar:</b><ul class="mb-0 ps-3">${alts.map(a => {
+                    const esCotizado = principalCotizado !== null && String(a.codigo_scot) === principalCotizado;
+                    const precio = esCotizado
+                        ? `Precio IA: <b>$${parseFloat(ia.precio_ia || 0).toFixed(2)}</b> (prom. hist. ${fmtPrecioAtlas(a.precio_promedio)})`
+                        : fmtPrecioAtlas(a.precio_promedio);
+                    return `<li><b>${esc(a.codigo_scot)}</b>${a.es_principal ? ' <span class="badge bg-primary x-small">Principal</span>' : ''}${esCotizado ? ' <span class="badge bg-success x-small">Cotizado</span>' : ''}${a.servicio ? ` — ${esc(a.servicio)}` : ''} — ${precio}${a.n_muestras != null ? ` (${a.n_muestras} muestras)` : ''}</li>`;
+                }).join('')}</ul></div>`
+                : '';
+            const rebaseHtml = (principalCotizado !== null && atlas.codigo_encontrado && String(atlas.codigo_encontrado) !== principalCotizado)
+                ? `<div class="x-small mt-1">Código cotizado: el principal <b>${esc(principalCotizado)}</b> (la clave encontrada fue ${esc(atlas.codigo_encontrado)}).</div>`
                 : '';
             atlasHtml = `
                 <div class="mt-3 text-start">
@@ -496,6 +509,7 @@ function mostrarVeredicto(id) {
                     ${atlas.preguntas ? `<div class="x-small mt-1"><b>Preguntas:</b> ${esc(atlas.preguntas)}</div>` : ''}
                     ${modelosHtml}
                     ${altsHtml}
+                    ${rebaseHtml}
                     ${alertaHtml}
                 </div>`;
         }

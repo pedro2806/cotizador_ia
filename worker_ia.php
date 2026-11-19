@@ -187,20 +187,62 @@ function procesarSiguientePendiente() {
         ];
     }
 
-    // Folio y fecha de la cotización que se usó como base (la más reciente del CDMESS)
-    $cdmess_folio = !empty($cdmess_actual) ? $cdmess_actual : ($stats['cdmess'] ?? '');
-    $folio_base   = obtenerFolioBase($cdmess_folio, $conn, $idclte);
-
     // A1: contexto estadístico completo del CDMESS exacto del ítem
     // (null si no hay historial válido; el flujo sigue como antes).
     $cdmess_contexto = !empty($cdmess_actual) ? $cdmess_actual : ($stats['cdmess'] ?? '');
-    $contexto_precio = obtenerContextoPrecio($cdmess_contexto, $conn, $idclte);
 
     // Fase 1 (Atlas): info experta del Atlas para la clave ya encontrada.
-    // Solo lectura: no cambia el código cotizado ni el precio (el
-    // principal solo se muestra; el re-base es Fase 2). null si no hay
-    // fila Atlas ni sugerencia por similitud que supere el umbral.
+    // null si no hay fila Atlas ni sugerencia por similitud que supere
+    // el umbral. Se llama ANTES de folio/contexto/aprendizaje/Ollama
+    // porque la Fase 2 puede re-basar el código cotizado al principal.
     $atlas = obtenerInfoAtlas($cdmess_contexto, $conn, $idclte, $item['descripcion_historica'] ?? '', $entrada);
+
+    // Fase 2 (D1, lectura literal): si entre las claves relacionadas hay
+    // un principal distinto de la clave encontrada, EL CÓDIGO COTIZADO
+    // PASA A SER EL PRINCIPAL y todo se recalcula sobre él (stats,
+    // contexto, aprendizaje, Ollama, banda, folio). La clave encontrada
+    // queda en $atlas['codigo_encontrado'] para auditarlo. No se re-basa
+    // si no hay Atlas, si el origen es 'similar' (su codigo_principal es
+    // null por construcción) o si el principal es la propia clave.
+    // Guarda: si el principal no tiene historial (total = 0) no se
+    // re-basa, para no cotizar en $0 pudiendo cotizar la clave encontrada.
+    if (!empty($atlas)
+        && ($atlas['origen'] ?? '') === 'exacta'
+        && !empty($atlas['codigo_principal'])
+        && $atlas['codigo_principal'] !== $cdmess_contexto
+    ) {
+        $stats_principal = obtenerEstadisticasCDMESS($atlas['codigo_principal'], $conn, $idclte);
+        if (!empty($stats_principal['total'])) {
+            $codigo_principal = $atlas['codigo_principal'];
+            $cdmess_contexto = $codigo_principal;
+            $cdmess_actual = $codigo_principal;
+            $stats_item = $stats_principal;
+            $cdmess_para_aprendizaje = $codigo_principal;
+            // El prompt de Ollama se arma con $stats (CDMESS/MIN/MAX/AVG
+            // y el "cdmess" del JSON de respuesta): sin esto seguiría
+            // nombrando la clave original. Las coincidencias
+            // (alternativas/items) se dejan como las dio la búsqueda por
+            // texto: describen lo que se buscó, no el código cotizado.
+            $stats['cdmess'] = $codigo_principal;
+            $stats['min'] = $stats_item['min'];
+            $stats['max'] = $stats_item['max'];
+            $stats['avg'] = $stats_item['avg'];
+            $stats['min_mxn'] = $stats_item['min_mxn'];
+            $stats['max_mxn'] = $stats_item['max_mxn'];
+            $stats['avg_mxn'] = $stats_item['avg_mxn'];
+        }
+    }
+
+    // Folio y fecha de la cotización que se usó como base (la más reciente del CDMESS).
+    // Se calcula DESPUÉS del re-base de la Fase 2: si hay principal, el
+    // folio es el del principal, no el de la clave encontrada.
+    $cdmess_folio = !empty($cdmess_actual) ? $cdmess_actual : ($stats['cdmess'] ?? '');
+    $folio_base   = obtenerFolioBase($cdmess_folio, $conn, $idclte);
+
+    // A1: contexto estadístico completo del CDMESS exacto del ítem.
+    // Se calcula DESPUÉS del re-base: si hay principal, el contexto es
+    // el del principal, no el de la clave encontrada.
+    $contexto_precio = obtenerContextoPrecio($cdmess_contexto, $conn, $idclte);
 
     $aprendizaje = obtenerAprendizajeHumano($cdmess_para_aprendizaje, $conn);
 
@@ -540,7 +582,9 @@ function procesarSiguientePendiente() {
     ];
 
     $data = [
-        "cdmess" => $item['cdmess_historico'],
+        // Fase 2 (D1): tras el re-base $cdmess_contexto es el principal;
+        // sin re-base es la clave encontrada (igual que antes).
+        "cdmess" => $cdmess_contexto,
         "desc" => $item['descripcion_historica']?? $entrada,
         "folio" => $folio_base['folio'],
         "fecha" => $folio_base['fecha'],
