@@ -153,15 +153,23 @@ function insertarFilasHermanasAtlas($conn, $idPadre, $idProyecto, $idclte, $idUs
     if (empty($candidatos)) return 0;
 
     $insertados = 0;
+    // OJO: mysqli_stmt::bind_param() recibe los valores POR REFERENCIA;
+    // pasarle una expresión como (string)$idPadre lanza Error en PHP 8
+    // ("could not be passed by reference") y el catch de abajo lo tragaba
+    // en silencio, así que NUNCA se insertaba ninguna hija. Por eso el
+    // cast va en una variable antes del bucle.
+    $idPadreStr = (string) $idPadre;
     try {
         // Idempotencia: hija igual = mismo proyecto, mismo padre
-        // (alternativa_de) y mismo cdmess_historico. El guard JSON_VALID
-        // va primero: hay filas viejas con propuesta_ia no válido y el
-        // ->> tronaría al evaluarlas (mismo patrón de fase3_medicion.sql).
+        // (alternativa_de) y mismo cdmess_historico. El CASE es
+        // deliberado: hay filas viejas con propuesta_ia no válido y MySQL
+        // no garantiza en qué orden evalúa el WHERE; sin el CASE, el ->>
+        // podría evaluarse sobre un JSON inválido y tronar la consulta
+        // (mismo patrón de fase3_medicion.sql).
         $chk = $conn->prepare(
             "SELECT id FROM cola_procesamiento
              WHERE id_proyecto = ? AND propuesta_ia IS NOT NULL AND JSON_VALID(propuesta_ia)
-               AND propuesta_ia ->> '$.atlas.alternativa_de' = ?
+               AND CASE WHEN JSON_VALID(propuesta_ia) THEN propuesta_ia ->> '$.atlas.alternativa_de' END = ?
                AND cdmess_historico = ?
              LIMIT 1"
         );
@@ -176,9 +184,20 @@ function insertarFilasHermanasAtlas($conn, $idPadre, $idProyecto, $idclte, $idUs
             // Nunca una hija con el código cotizado del padre (el principal
             // tras el re-base D1) ni con la clave encontrada.
             if ($codigo === '' || $codigo === $cdmessCotizado || $codigo === $codigoEncontrado) continue;
-            $chk->bind_param('sss', $idProyecto, (string) $idPadre, $codigo);
-            $chk->execute();
-            if ($chk->get_result()->fetch_assoc()) continue;
+            $chk->bind_param('sss', $idProyecto, $idPadreStr, $codigo);
+            // En PHP < 8.1 mysqli NO lanza excepciones: execute() devuelve
+            // false y el fallo quedaba en silencio (así se perdió el bug
+            // del bind_param en producción). Registrarlo siempre.
+            if ($chk->execute() === false) {
+                error_log('Atlas: insertarFilasHermanasAtlas(padre ' . $idPadre . ') la comprobación de idempotencia falló: ' . $conn->error);
+                return $insertados;
+            }
+            $resChk = $chk->get_result();
+            if ($resChk === false) {
+                error_log('Atlas: insertarFilasHermanasAtlas(padre ' . $idPadre . ') get_result falló (¿sin mysqlnd?): ' . $conn->error);
+                return $insertados;
+            }
+            if ($resChk->fetch_assoc()) continue;
 
             if ($esSugerencia) {
                 $sug = $cand['sug'];
@@ -290,7 +309,10 @@ function insertarFilasHermanasAtlas($conn, $idPadre, $idProyecto, $idclte, $idUs
             $jsonHija = json_encode($dataHija, JSON_UNESCAPED_UNICODE);
             $precioHist = $precio;
             $ins->bind_param('sisssdis', $idProyecto, $idclte, $entrada, $codigo, $servicio, $precioHist, $idUsRegistro, $jsonHija);
-            $ins->execute();
+            if ($ins->execute() === false) {
+                error_log('Atlas: insertarFilasHermanasAtlas(padre ' . $idPadre . ') no se pudo insertar la hija ' . $codigo . ': ' . $ins->error . ' / ' . $conn->error);
+                continue;
+            }
             if ($ins->affected_rows > 0) $insertados++;
         }
         $chk->close();

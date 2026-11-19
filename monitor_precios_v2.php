@@ -416,9 +416,20 @@ async function cargarDatos(soloDesviaciones = false) {
         const esHuerfana = h => !originales.some(o => String(o.id) === String(h.propuesta_ia.atlas.alternativa_de));
         const huerfanas = hermanas.filter(esHuerfana);
         const modoHermana = h => (h.propuesta_ia.atlas.es_sugerencia ? 'sugerencia' : 'alternativa');
-        
-        const total = originales.length;
-        const listos = originales.filter(i => i.estatus === 'completado').length;
+        const hijasDe = id => (porPadre[id] || []).filter(h => !esHuerfana(h));
+        // Fase 4b (2026-11-19, reporte de Pedro): un padre con clave muerta
+        // (atlas.origen 'similar') que TIENE hijas sugeridas NO se pinta en
+        // la lista: sus hijas ocupan su lugar. Sin hijas, el padre se sigue
+        // mostrando (es el único rastro de esa línea). La regla es por datos:
+        // si el endpoint de desviaciones no trae las hijas, el padre se ve.
+        const esPadreMuertoConHijas = o => {
+            const ia = o.propuesta_ia || {};
+            return !!(ia.atlas && ia.atlas.origen === 'similar' && hijasDe(o.id).length > 0);
+        };
+        const visibles = originales.filter(o => !esPadreMuertoConHijas(o));
+
+        const total = visibles.length;
+        const listos = visibles.filter(i => i.estatus === 'completado').length;
         const pct = total > 0 ? Math.round((listos/total)*100) : 0;
         
         document.getElementById('progreso-header').innerHTML = `
@@ -437,7 +448,7 @@ async function cargarDatos(soloDesviaciones = false) {
         ` : '';
 
         contenedor.innerHTML =
-            originales.map(i => renderFila(i, false) + (porPadre[i.id] || []).filter(h => !esHuerfana(h)).map(h => renderFila(h, modoHermana(h))).join('')).join('') +
+            originales.map(i => (esPadreMuertoConHijas(i) ? '' : renderFila(i, false)) + hijasDe(i.id).map(h => renderFila(h, modoHermana(h))).join('')).join('') +
             filaDivisora +
             sugerencias.map(i => renderFila(i, true)).join('') +
             huerfanas.map(h => renderFila(h, modoHermana(h))).join('');
