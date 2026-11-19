@@ -413,7 +413,12 @@ async function cargarDatos(soloDesviaciones = false) {
             const p = h.propuesta_ia.atlas.alternativa_de;
             (porPadre[p] = porPadre[p] || []).push(h);
         });
-        const esHuerfana = h => !originales.some(o => String(o.id) === String(h.propuesta_ia.atlas.alternativa_de));
+        // Fase 4c (2026-11-19): un padre puede ser renglón normal
+        // (es_sugerencia=0) o sugerencia de la carga masiva (es_sugerencia=1
+        // sin alternativa_de), como la L7-126 muerta de Pedro (id 1745). El
+        // padre válido para agrupar hijas es cualquier renglón no-hija.
+        const padres = data.filter(i => !(i.propuesta_ia && i.propuesta_ia.atlas && i.propuesta_ia.atlas.alternativa_de != null));
+        const esHuerfana = h => !padres.some(o => String(o.id) === String(h.propuesta_ia.atlas.alternativa_de));
         const huerfanas = hermanas.filter(esHuerfana);
         const modoHermana = h => (h.propuesta_ia.atlas.es_sugerencia ? 'sugerencia' : 'alternativa');
         const hijasDe = id => (porPadre[id] || []).filter(h => !esHuerfana(h));
@@ -422,6 +427,8 @@ async function cargarDatos(soloDesviaciones = false) {
         // la lista: sus hijas ocupan su lugar. Sin hijas, el padre se sigue
         // mostrando (es el único rastro de esa línea). La regla es por datos:
         // si el endpoint de desviaciones no trae las hijas, el padre se ve.
+        // Fase 4c: la regla aplica a cualquier padre (normal o sugerencia de
+        // carga masiva); ver `padres` arriba.
         const esPadreMuertoConHijas = o => {
             const ia = o.propuesta_ia || {};
             return !!(ia.atlas && ia.atlas.origen === 'similar' && hijasDe(o.id).length > 0);
@@ -450,7 +457,11 @@ async function cargarDatos(soloDesviaciones = false) {
         contenedor.innerHTML =
             originales.map(i => (esPadreMuertoConHijas(i) ? '' : renderFila(i, false)) + hijasDe(i.id).map(h => renderFila(h, modoHermana(h))).join('')).join('') +
             filaDivisora +
-            sugerencias.map(i => renderFila(i, true)).join('') +
+            // Fase 4c: la regla de ocultar al padre muerto con hijas aplica
+            // también a un padre que es sugerencia de carga masiva: no se
+            // pinta y sus hijas ocupan su lugar en esta misma sección (bajo
+            // el divisor), no al final como huérfanas.
+            sugerencias.map(i => (esPadreMuertoConHijas(i) ? '' : renderFila(i, true)) + hijasDe(i.id).map(h => renderFila(h, modoHermana(h))).join('')).join('') +
             huerfanas.map(h => renderFila(h, modoHermana(h))).join('');
 
         // Restaurar checks previos
@@ -571,7 +582,7 @@ function mostrarVeredicto(id) {
             atlasHtml = `
                 <div class="mt-3 text-start">
                     <div class="x-small text-uppercase text-muted fw-bold mb-1">Validación de experto técnico — ${esc(atlas.codigo_scot)} ${atlas.codigo_principal ? `<span class="badge bg-primary x-small">Principal: ${esc(atlas.codigo_principal)}</span>` : ''}</div>
-                    ${atlas.es_sugerencia ? `<div class="x-small mt-1">Similitud de ${esc(atlas.sugerencia_de || atlas.codigo_buscado || '')}, ya no activa.</div><div class="mt-1"><span class="badge bg-warning text-dark x-small">Sugerencia por similitud (sin validar)</span></div>${atlas.puntaje_similitud != null ? `<div class="x-small text-muted mt-1">Similitud: puntaje ${atlas.puntaje_similitud}${atlas.tokens_comunes && atlas.tokens_comunes.length ? ` (coincide en: ${atlas.tokens_comunes.map(t => esc(t)).join(', ')})` : ''}</div>` : ''}` : ''}
+                    ${atlas.es_sugerencia ? `<div class="x-small mt-1">Sugerencia para ${esc(atlas.sugerencia_de || atlas.codigo_buscado || '')}, ya no activa.</div><div class="mt-1"><span class="badge bg-warning text-dark x-small">Sugerencia por similitud (sin validar)</span></div>${atlas.puntaje_similitud != null ? `<div class="x-small text-muted mt-1">Similitud: puntaje ${atlas.puntaje_similitud}${atlas.tokens_comunes && atlas.tokens_comunes.length ? ` (coincide en: ${atlas.tokens_comunes.map(t => esc(t)).join(', ')})` : ''}</div>` : ''}` : ''}
                     <div><span class="badge ${atlas.tipo_coincidencia === 'Directa' ? 'bg-success' : (atlas.tipo_coincidencia === 'Parcial' ? 'bg-warning text-dark' : 'bg-secondary')} x-small">Validación de experto técnico: ${esc(atlas.tipo_coincidencia || 's/d')}</span></div>
                     ${atlas.servicio ? `<div class="x-small mt-1"><b>Servicio:</b> ${esc(atlas.servicio)}</div>` : ''}
                     ${(atlas.usar_cuando || atlas.precaucion || atlas.preguntas) ? `<div class="alert alert-info mt-2 mb-1 text-start">

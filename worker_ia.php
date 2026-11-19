@@ -207,7 +207,7 @@ function insertarFilasHermanasAtlas($conn, $idPadre, $idProyecto, $idclte, $idUs
                 $filaCat = atlasFilaCatalogo($conn, $codigo);
                 $servicio = $sug['servicio'] ?? ($filaCat['servicio'] ?? null);
                 $histTxt = $nMuestras > 0 ? "Precio histórico con {$nMuestras} cotizaciones" : 'Sin historial';
-                $notaCorta = 'Similitud de ' . $codigoEncontrado . ', ya no activa';
+                $notaCorta = 'Sugerencia para ' . $codigoEncontrado . ', ya no activa';
                 $detalle = $notaCorta . ' | ' . $histTxt;
                 $veredicto = 'Sugerencia por similitud de ' . $codigoEncontrado . ', ya no activa. Precio por histórico, sin propuesta de IA.';
                 $atlasHija = [
