@@ -51,6 +51,12 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
 
         .font-small { font-size: 0.85rem; }
         .x-small { font-size: 0.75rem; }
+
+        /* Hijas (alternativas/sugerencias): anidadas bajo su padre con un
+           tab en la celda del código; el resto de las celdas no se indenta.
+           El selector lleva #tabla-precios porque el padding de Bootstrap
+           (.table > :not(caption) > * > *) pisa una clase sola. */
+        #tabla-precios td.hija-indent { padding-left: 2rem; }
         .bg-sugerido { background-color: #f8f9fa; }
         .badge-range {
             background: #f1f3f5;
@@ -276,7 +282,7 @@ const renderFila = (item, modo = false) => {
     return `
         <tr class="${rowClass}">
             <td class="text-center align-middle"><input type="checkbox" class="form-check-input item-check" value="${item.id}"></td>
-            <td class="fw-bold text-primary align-middle">
+            <td class="fw-bold text-primary align-middle${esHermana ? ' hija-indent' : ''}">
                 ${esHermana ? '↳ ' : ''}${ia.cdmess || 'S/C'}                
                 ${ia.atlas && ia.atlas.origen === 'similar' ? `<br><span class="badge bg-secondary x-small">Ya no activa — validación de experto</span>` : ''}
                 ${ia.atlas && ia.atlas.codigo_principal && String(ia.atlas.codigo_principal) === String(ia.cdmess) && ia.atlas.codigo_encontrado && String(ia.atlas.codigo_encontrado) !== String(ia.cdmess) ? `<br><span class="x-small text-muted">Principal de ${escAttr(ia.atlas.codigo_encontrado)}</span>` : ''}
