@@ -69,6 +69,10 @@ function ordenarPorRelevancia(array $resultados, array $tokens, $accion) {
  * de opciones, o un array vacío si no hay coincidencias.
  */
 function obtenerOpcionesUnicasHistoricas($busqueda, $tipoBusqueda, $cliente, $conn) {
+    // Experimento rendimiento-filtro-accion: el marcador se resetea por
+    // línea; si esta línea sale por 'noValido' o sin resultados, el filtro
+    // no corrió y no debe heredarse el valor de la línea anterior.
+    $GLOBALS['filtro_ollama_aplicado'] = false;
     $contexto = procesarContextoBusqueda($busqueda);
     $busqueda_limpia = $contexto['busqueda_limpia'];
     $termino = $contexto['termino'];

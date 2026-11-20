@@ -52,8 +52,8 @@ try {
         // 2. Preparamos la consulta UNA SOLA VEZ fuera del bucle (Optimización de rendimiento)
         // Requiere: ALTER TABLE cola_procesamiento ADD COLUMN idclte INT NULL AFTER id_proyecto, ADD KEY idx_idclte (idclte);
         $query_insert = "INSERT INTO cola_procesamiento
-            (id_proyecto, idclte, entrada_usuario, cdmess_historico, descripcion_historica, precio_historico, estatus, es_sugerencia, id_us_registro)
-            VALUES (?, ?, ?, ?, ?, ?, 'pendiente', ?, ?)";
+            (id_proyecto, idclte, entrada_usuario, cdmess_historico, descripcion_historica, precio_historico, estatus, es_sugerencia, id_us_registro, propuesta_ia)
+            VALUES (?, ?, ?, ?, ?, ?, 'pendiente', ?, ?, ?)";
         $stmt = $conn->prepare($query_insert);
 
         foreach ($lineas as $linea) {
@@ -71,6 +71,13 @@ try {
             }
 
             if (is_array($opciones) && count($opciones) > 0) {
+                // Experimento rendimiento-filtro-accion: si el filtro de
+                // Ollama corrió para esta línea (true) o se saltó por
+                // retorno temprano (false: R1 o la bandera). Se guarda en
+                // propuesta_ia y el worker lo conserva en la propuesta
+                // final para medir el experimento por renglón. El valor
+                // es el mismo para todas las opciones de esta línea.
+                $propuesta_carga = json_encode(['filtro_ia' => (bool) ($GLOBALS['filtro_ollama_aplicado'] ?? false)], JSON_UNESCAPED_UNICODE);
                 $claves_insertadas = [];
                 $es_primera = true;
 
@@ -82,9 +89,10 @@ try {
                     $es_primera = false;
 
                     // 3. Solo vinculamos parámetros y ejecutamos de forma rápida
-                    $stmt->bind_param("sisssdii",
+                    $stmt->bind_param("sisssdiis",
                         $id_proyecto, $idclte, $linea, $clave, $opcion['descripcion'],
-                        $opcion['precio_promedio'], $es_sugerencia, $_SESSION['usuario_id']
+                        $opcion['precio_promedio'], $es_sugerencia, $_SESSION['usuario_id'],
+                        $propuesta_carga
                     );
                     $stmt->execute();
                     
