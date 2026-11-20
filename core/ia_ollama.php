@@ -65,10 +65,26 @@ if (!defined('OLLAMA_PRECIO_TOP_P')) define('OLLAMA_PRECIO_TOP_P', 0.94);
 if (!defined('OLLAMA_PRECIO_NUM_PREDICT')) define('OLLAMA_PRECIO_NUM_PREDICT', 300);
 if (!defined('OLLAMA_FILTRO_TEMPERATURE')) define('OLLAMA_FILTRO_TEMPERATURE', 0.45);
 if (!defined('OLLAMA_FILTRO_NUM_PREDICT')) define('OLLAMA_FILTRO_NUM_PREDICT', 200);
+// Experimento rendimiento-filtro-accion — bandera APAGADA por defecto.
+// Vive en core/config.php (no está en el repo). En true, el retorno
+// temprano de R1 también se aplica CON acción pedida y ≤8 candidatos
+// (se devuelven los primeros 8 en el orden del SQL, ya ordenado por
+// ordenarPorRelevancia() con prioridad de acción). RIESGO: saltar el
+// filtro con acción debilita la protección R1: una revisión (u otra
+// acción distinta) podría colarse cuando se pidió calibrar. Por eso es
+// un experimento medido con bandera, no un cambio por defecto.
+if (!defined('OLLAMA_FILTRO_SALTAR_CON_ACCION')) define('OLLAMA_FILTRO_SALTAR_CON_ACCION', false);
 $GLOBALS['ollama_intentos'] = 0;
 $GLOBALS['ollama_ultimo_error'] = null;
+// Experimento rendimiento-filtro-accion: true si la última llamada a
+// filtrarOpcionesConOllama() gastó una generación de Ollama en el filtro,
+// false si se resolvió por retorno temprano. Lo lee procesar_carga.php
+// para guardarlo por renglón y medir el experimento.
+$GLOBALS['filtro_ollama_aplicado'] = false;
 
 function filtrarOpcionesConOllama($busqueda_usuario, $resultados_sql, $accion = null) {
+    // El marcador se resetea en cada entrada (ver $GLOBALS arriba).
+    $GLOBALS['filtro_ollama_aplicado'] = false;
     // R1: sin acción, si SQL arrojó 8 o menos resultados no gastamos
     // tiempo en IA. CON acción (p. ej. 'calibracion'), el filtro corre
     // aunque haya pocos candidatos: es el que debe descartar las
@@ -76,7 +92,13 @@ function filtrarOpcionesConOllama($busqueda_usuario, $resultados_sql, $accion = 
     if (count($resultados_sql) <= 1) {
         return $resultados_sql;
     }
-    if ($accion === null && count($resultados_sql) <= 8) {
+    // Experimento rendimiento-filtro-accion (bandera
+    // OLLAMA_FILTRO_SALTAR_CON_ACCION, apagada por defecto): también CON
+    // acción pedida y ≤8 candidatos se devuelven los primeros 8 en el
+    // orden del SQL — que ya viene ordenado por ordenarPorRelevancia()
+    // con prioridad de acción — sin llamar a Ollama. RIESGO: debilita
+    // R1; una acción distinta podría colarse cuando se pidió calibrar.
+    if (($accion === null || OLLAMA_FILTRO_SALTAR_CON_ACCION) && count($resultados_sql) <= 8) {
         return array_slice($resultados_sql, 0, 8);
     }
 
@@ -129,6 +151,10 @@ $linea_accion
         ]
     ];
 
+    // El filtro sí va a gastar una generación de Ollama: el marcador
+    // queda en true aunque la llamada falle y se caiga al fallback
+    // (la generación se intentó igual).
+    $GLOBALS['filtro_ollama_aplicado'] = true;
     $res = ollamaRequest($data, OLLAMA_TIMEOUT_FILTRO);
 
     if ($res !== null) {

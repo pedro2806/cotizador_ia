@@ -135,7 +135,7 @@ function procesarSiguientePendiente() {
     // (que solo existe en Windows y ya está deprecado ahí también).
     @file_put_contents(WORKER_HEARTBEAT_FILE, (string) time());
 
-    $res = $conn->query("SELECT id, idclte, entrada_usuario, cdmess_historico, precio_historico, descripcion_historica
+    $res = $conn->query("SELECT id, idclte, entrada_usuario, cdmess_historico, precio_historico, descripcion_historica, propuesta_ia
                          FROM cola_procesamiento
                          WHERE estatus = 'pendiente' 
                          LIMIT 1");
@@ -581,6 +581,22 @@ function procesarSiguientePendiente() {
         'rama' => 'atlas-implementacion',
     ];
 
+    // Experimento rendimiento-filtro-accion: el marcador filtro_ia lo pone
+    // la carga masiva (procesar_carga.php) según si el filtro de Ollama
+    // corrió para esa línea; el worker lo conserva en la propuesta final
+    // para medir el experimento por renglón. null = sin dato (filas viejas
+    // o cargadas sin marca). OJO: el filtro NO corre en el worker — la
+    // única llamada a Ollama aquí es la de precio — así que este marcador
+    // no explica la latencia del worker; el experimento mide el tiempo
+    // que el filtro cuesta en la carga, no en el procesado por ítem.
+    $filtro_ia_carga = null;
+    if (!empty($item['propuesta_ia'])) {
+        $propuesta_previa = json_decode($item['propuesta_ia'], true);
+        if (is_array($propuesta_previa) && array_key_exists('filtro_ia', $propuesta_previa)) {
+            $filtro_ia_carga = (bool) $propuesta_previa['filtro_ia'];
+        }
+    }
+
     $data = [
         // Fase 2 (D1): tras el re-base $cdmess_contexto es el principal;
         // sin re-base es la clave encontrada (igual que antes).
@@ -639,6 +655,10 @@ function procesarSiguientePendiente() {
         "origen_precio" => $origen_precio,
         // A5: diagnóstico de la llamada a Ollama en esta vuelta.
         "ia_intentos" => $ia_intentos,
+        // Experimento rendimiento-filtro-accion: si el filtro de Ollama
+        // corrió para esta línea en la carga (true) o se saltó (false);
+        // null si la fila no trae marca (ver $filtro_ia_carga arriba).
+        "filtro_ia" => $filtro_ia_carga,
         "ia_error" => $ia_error,
         "ia_degradado" => $ia_degradado,
         // A6: trazabilidad completa de esta propuesta (ver arriba).
