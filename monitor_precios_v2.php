@@ -337,7 +337,7 @@ const renderFila = (item, modo = false) => {
                         badges += `<span class="badge ${clase} x-small me-1" title="${escAttr(ia.veredicto_ia || '')}">${etiqueta}</span>`;
                     }
                     if (ia.requiere_revision) {
-                        badges += `<span class="badge bg-danger x-small">Revisar</span>`;
+                        badges += `<span class="badge bg-warning text-dark x-small">Revisar</span>`;
                     }
                     // Fase 1 (Atlas): badge de coincidencia y alerta de
                     // validación de experto. En el caso similar nunca se
@@ -355,7 +355,7 @@ const renderFila = (item, modo = false) => {
                             badges += `<span class="badge ${claseAtlas} x-small me-1">Validación de experto técnico: ${escAttr(ia.atlas.tipo_coincidencia || 's/d')}</span>`;
                         }
                         if (ia.atlas.requiere_validacion_experto) {
-                            badges += `<span class="badge bg-danger x-small me-1" title="${escAttr('Requiere validación de experto, acércate al área correspondiente')}">Requiere validación de experto</span>`;
+                            badges += `<span class="badge bg-warning text-dark x-small me-1" title="${escAttr('Requiere validación de experto, acércate al área correspondiente')}">Requiere validación de experto</span>`;
                         }
                     }
                     return badges ? `<div class="mb-1">${badges}</div>` : '';
