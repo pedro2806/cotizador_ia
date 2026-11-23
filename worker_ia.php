@@ -479,7 +479,21 @@ function procesarSiguientePendiente() {
     //error_log("APRENDIZAJE PARA $cdmess_para_aprendizaje: ". json_encode($aprendizaje));
 
     $precio_base = round($stats_item['avg']?? 0, 2);
-    $precio_final = $precio_base;
+    // A+B (2026-11-23): el precio de RESPALDO ("Promedio (respaldo)",
+    // origen_precio 'promedio', cuando Ollama no propuso precio válido)
+    // es el promedio PONDERADO por antigüedad del contexto (A3), no el
+    // simple: lo reciente pesa más. Solo afecta al respaldo: $precio_base
+    // (simple) se conserva para $ratio_mxn, para el ancla del aprendizaje
+    // humano (A4) y para el campo precio_promedio que muestra el monitor
+    // (promedio simple histórico). Sin contexto o con ponderado no válido,
+    // se queda el simple de hoy. NO se reasigna $precio_base: hacerlo
+    // cambiaría precio_promedio a ponderado y movería el ancla de la
+    // categoría A4 sin IA; el humano seguiría mandando en sus ramas, pero
+    // el respaldo es lo único que debe cambiar.
+    $precio_base_respaldo = (!empty($contexto_precio) && isset($contexto_precio['promedio_ponderado']) && (float) $contexto_precio['promedio_ponderado'] > 0)
+        ? round((float) $contexto_precio['promedio_ponderado'], 2)
+        : $precio_base;
+    $precio_final = $precio_base_respaldo;
     $precio_final_min = round($stats_item['min']?? 0, 2);
     $precio_final_max = round($stats_item['max']?? 0, 2);
     $precio_base_mxn = round($stats_item['avg_mxn']?? 0, 2);
@@ -490,6 +504,9 @@ function procesarSiguientePendiente() {
     // del histórico (la usa tanto el precio humano como el de la IA).
     list($banda_min, $banda_max) = calcularBandaPrecio($contexto_precio, $stats_item);
     $ratio_mxn = ($precio_base > 0) ? ($precio_base_mxn / $precio_base) : 1;
+    // A+B: el MXN del respaldo deriva del base ponderado con el ratio
+    // simple, para que USD y MXN queden consistentes.
+    $precio_final_mxn = round($precio_base_respaldo * $ratio_mxn, 2);
     // A5: el Rango que muestra el monitor (precio_min/max en propuesta_ia)
     // usa los extremos LIMPIOS por IQR cuando hay contexto (A3), no los
     // crudos con atípicos como el Min $5.67 / Max $6650 de S2-5. El contexto

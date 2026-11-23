@@ -570,6 +570,12 @@ function calcularPercentil(array $valores_ordenados, float $percentil) {
  * quedaran menos de 3 muestras, se conservan las originales y se marca
  * que no se limpió. Si IQR=0 los límites colapsan a Q1=Q3 y solo sobreviven
  * los valores iguales a ese precio (con el mismo rescate de <3 muestras).
+ * A+B (2026-11-23) — Regla del 60%: segundo paso sobre las muestras ya
+ * limpias por IQR: se calcula su mediana y se descartan las que se desvíen
+ * más del 60% de ella (|p - mediana| / mediana > 0.60). Mismas guardas:
+ * solo con n>=8 y si tras aplicar la regla quedaran menos de 3 muestras
+ * se revierte a las limpias por IQR (la regla no descarta nada). Las
+ * descartadas por esta regla también cuentan en n_atipicos.
  * Devuelve ['muestras'=>..., 'n_atipicos'=>int, 'aplicada'=>bool].
  */
 function limpiarAtipicosIQR(array $muestras) {
@@ -587,6 +593,20 @@ function limpiarAtipicosIQR(array $muestras) {
         if ($m['precio_usd'] >= $lim_inf && $m['precio_usd'] <= $lim_sup) $limpias[] = $m;
     }
     if (count($limpias) < 3) return ['muestras' => $muestras, 'n_atipicos' => 0, 'aplicada' => false];
+    // A+B: regla del 60% sobre la mediana de las limpias por IQR.
+    $precios_limpios = array_column($limpias, 'precio_usd');
+    sort($precios_limpios, SORT_NUMERIC);
+    $mediana = calcularPercentil($precios_limpios, 50);
+    if ($mediana > 0) {
+        $limpias60 = [];
+        foreach ($limpias as $m) {
+            if (abs($m['precio_usd'] - $mediana) / $mediana <= 0.60) $limpias60[] = $m;
+        }
+        if (count($limpias60) >= 3) {
+            return ['muestras' => $limpias60, 'n_atipicos' => $n - count($limpias60), 'aplicada' => true];
+        }
+        // Si quedaran <3, se revierte a las limpias por IQR.
+    }
     return ['muestras' => $limpias, 'n_atipicos' => $n - count($limpias), 'aplicada' => true];
 }
 
