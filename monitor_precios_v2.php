@@ -51,6 +51,12 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
 
         .font-small { font-size: 0.85rem; }
         .x-small { font-size: 0.75rem; }
+
+        /* Hijas (alternativas/sugerencias): anidadas bajo su padre con un
+           tab en la celda del código; el resto de las celdas no se indenta.
+           El selector lleva #tabla-precios porque el padding de Bootstrap
+           (.table > :not(caption) > * > *) pisa una clase sola. */
+        #tabla-precios td.hija-indent { padding-left: 2rem; }
         .bg-sugerido { background-color: #f8f9fa; }
         .badge-range {
             background: #f1f3f5;
@@ -115,15 +121,20 @@ $proyectos_query = ejecutarAccion('OBTENER_RESUMEN_PAGINADO', ['pagina' => $p_pa
         /* Estado vacío: el icono claro no se veía sobre la hoja blanca. */
         .table-container .bi-clipboard2-check { color: var(--mx-azul) !important; }
 
-        /* Modal de veredicto (SweetAlert2): se ajusta por CSS, sin tocar el
-           JavaScript que lo dispara ni su contenido. Los colores de los
+        /* Modal de veredicto (SweetAlert2): se ajusta por CSS, sin tocar
+           el JavaScript que lo dispara ni su contenido. Los colores de los
            badges (Directa/Parcial/Sin ejemplo, alerta, principal) se
-           conservan tal cual para seguir distinguibles. */
+           conservan tal cual para seguir distinguibles. El ancho del
+           veredicto (60rem) va por clase propia (.swal-veredicto) puesta
+           en la llamada de mostrarVeredicto: los demás avisos SweetAlert
+           (confirmar, errores) deben seguir angostos con el ancho por
+           defecto de la librería (32rem). */
         .swal2-popup {
             font-family: var(--mx-font);
             border-radius: 12px;
             border: 1px solid var(--border);
         }
+        .swal-veredicto { width: 60rem; max-width: 95vw; }
         .swal2-title { color: var(--text); }
         .swal2-confirm { background-color: var(--accent) !important; }
         .swal2-cancel { background-color: #fff !important; color: #212529 !important; border: 1px solid #6c757d !important; }
@@ -276,7 +287,7 @@ const renderFila = (item, modo = false) => {
     return `
         <tr class="${rowClass}">
             <td class="text-center align-middle"><input type="checkbox" class="form-check-input item-check" value="${item.id}"></td>
-            <td class="fw-bold text-primary align-middle">
+            <td class="fw-bold text-primary align-middle${esHermana ? ' hija-indent' : ''}">
                 ${esHermana ? '↳ ' : ''}${ia.cdmess || 'S/C'}                
                 ${ia.atlas && ia.atlas.origen === 'similar' ? `<br><span class="badge bg-secondary x-small">Ya no activa — validación de experto</span>` : ''}
                 ${ia.atlas && ia.atlas.codigo_principal && String(ia.atlas.codigo_principal) === String(ia.cdmess) && ia.atlas.codigo_encontrado && String(ia.atlas.codigo_encontrado) !== String(ia.cdmess) ? `<br><span class="x-small text-muted">Principal de ${escAttr(ia.atlas.codigo_encontrado)}</span>` : ''}
@@ -608,6 +619,7 @@ function mostrarVeredicto(id) {
 
     Swal.fire({
         title: 'Veredicto de MessIAs',
+        customClass: { popup: 'swal-veredicto' },
         confirmButtonColor: '#002d5a',
         confirmButtonText: 'Entendido',
         html: `
