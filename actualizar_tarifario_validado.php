@@ -26,6 +26,17 @@
  * tarifario, y NO reactiva nada: un código des-validado a mano
  * (activo = 0) sigue en 0 aunque siga ACTIVE en el tarifario.
  *
+ * ÁREAS: en tarifario_validado va ÚNICAMENTE lo de las áreas
+ * validadas, que viven en la tabla areas_validadas (una fila por
+ * área; el script la crea sola si no existe y la siembra con las 15
+ * áreas iniciales si está vacía). El formulario trae un textarea con
+ * las áreas actuales, una por línea: Pedro agrega o quita áreas ahí
+ * y el refresco actualiza tarifario_validado en base a esa lista.
+ * Las filas con otro AREASCOT —por ejemplo los productos con
+ * 'Ventas Galdabini' o 'Ventas Scantech'— o con AREASCOT NULL/vacío
+ * quedan fuera: se reportan como omitidas y, si ya estaban en la
+ * tabla, se desactivan por área (sin borrar).
+ *
  * Se asume que tarifario_validado ya existe con su carga inicial (el
  * script NO verifica su existencia).
  *
@@ -35,23 +46,140 @@
  * ========================================================================
  */
 
+/** Áreas validadas iniciales (siembra de areas_validadas cuando está vacía). */
+function areasValidadasPorDefecto()
+{
+    return [
+        'Servicios Electrica',
+        'Laboratorio Electrica',
+        'Servicios Temperatura',
+        'Laboratorio Temperatura',
+        'Laboratorio Calibraciones',
+        'Servicios Fuerza',
+        'Servicios Presion',
+        'Laboratorio Fuerza',
+        'Servicios Calibraciones',
+        'Laboratorio Presion',
+        'Servicios Par Torsional',
+        'Laboratorio Par Torsional',
+        'Laboratorio Volumen',
+        'Laboratorio ensayos fuerza',
+        'Laboratorio Tiempo y Frecuencia',
+    ];
+}
+
+/** Crea la tabla de áreas validadas, si no existe. */
+function crearTablaAreasValidadas($conn)
+{
+    $conn->query(
+        'CREATE TABLE IF NOT EXISTS areas_validadas (' .
+        'area VARCHAR(100) NOT NULL, ' .
+        'PRIMARY KEY (area)' .
+        ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+    );
+}
+
+/** Siembra las 15 áreas iniciales cuando la tabla está vacía. */
+function sembrarAreasValidadas($conn)
+{
+    $stmt = $conn->prepare('INSERT IGNORE INTO areas_validadas (area) VALUES (?)');
+    foreach (areasValidadasPorDefecto() as $area) {
+        $stmt->bind_param('s', $area);
+        $stmt->execute();
+    }
+    $stmt->close();
+}
+
+/** Áreas validadas actuales, ordenadas. */
+function obtenerAreasValidadas($conn)
+{
+    $stmt = $conn->prepare('SELECT area FROM areas_validadas ORDER BY area');
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $areas = [];
+    foreach ($res ? $res->fetch_all(MYSQLI_ASSOC) : [] as $fila) {
+        $areas[] = (string) $fila['area'];
+    }
+    $stmt->close();
+    return $areas;
+}
+
+/**
+ * Reemplazo completo de la lista de áreas validadas (DELETE + INSERT).
+ * Se llama dentro de la transacción del refresco, así que si el
+ * refresco falla, el cambio de lista también se revierte.
+ */
+function guardarAreasValidadas($conn, array $areas)
+{
+    $stmt = $conn->prepare('DELETE FROM areas_validadas');
+    $stmt->execute();
+    $stmt->close();
+    $stmt = $conn->prepare('INSERT INTO areas_validadas (area) VALUES (?)');
+    foreach ($areas as $area) {
+        $stmt->bind_param('s', $area);
+        $stmt->execute();
+    }
+    $stmt->close();
+}
+
+/**
+ * Lee el textarea de áreas línea por línea: TRIM, se descartan las
+ * vacías y se eliminan duplicados (se conserva el orden). Devuelve
+ * la lista (posiblemente vacía: el llamador debe rechazarla).
+ */
+function normalizarAreasTextarea($raw)
+{
+    $areas = [];
+    $vistos = [];
+    foreach (preg_split('/\r\n|\r|\n/', (string) ($raw ?? '')) as $linea) {
+        $area = trim($linea);
+        if ($area === '' || isset($vistos[$area])) {
+            continue;
+        }
+        $vistos[$area] = true;
+        $areas[] = $area;
+    }
+    return $areas;
+}
+
+/**
+ * Lista de áreas como valores entre comillas para un IN de SQL (los
+ * valores vienen de la tabla areas_validadas, no del usuario directo;
+ * se escapan las comillas simples por seguridad).
+ */
+function areasInSql(array $areas)
+{
+    $partes = array_map(
+        static fn($a) => "'" . str_replace("'", "''", $a) . "'",
+        $areas
+    );
+    return implode(', ', $partes);
+}
+
 /**
  * Refresca tarifario_validado desde el tarifario, en una transacción.
  *
  * Solo escribe cuando hay cambio real: inserta los códigos nuevos y
  * actualiza los que cambiaron de precio o divisa; las filas idénticas
- * no se reescriben y cuentan como "sin cambio".
+ * no se reescriben y cuentan como "sin cambio". Solo entran los
+ * códigos cuya AREASCOT está en la lista de áreas validadas.
  *
  * @param object $conn        Conexión mysqli (o compatible en pruebas).
  * @param float  $tipoMxnUsd Pesos por 1 dólar.
  * @param float  $tipoEurUsd Dólares por 1 euro.
+ * @param array|null $areas   Lista de áreas validadas a usar. Si se
+ *               pasa, primero se guarda (reemplazo completo) en
+ *               areas_validadas dentro de la misma transacción. Si es
+ *               null, se lee la lista actual de areas_validadas.
  * @return array Reporte: nuevos, actualizados, sin_cambio, desactivados,
- *               omitidos (lista de ['cdmess','motivo']), total,
+ *               desactivados_por_area, omitidos (lista de
+ *               ['cdmess','motivo']), total, areas (lista usada),
  *               tipo_mxn_usd, tipo_eur_usd.
- * @throws InvalidArgumentException si algún tipo de cambio falta o <= 0.
+ * @throws InvalidArgumentException si algún tipo de cambio falta o <= 0,
+ *               o si la lista de áreas queda vacía.
  * @throws Throwable si falla la BD (la transacción se revierte).
  */
-function refrescarTarifarioValidado($conn, $tipoMxnUsd, $tipoEurUsd)
+function refrescarTarifarioValidado($conn, $tipoMxnUsd, $tipoEurUsd, $areas = null)
 {
     if (!is_numeric($tipoMxnUsd) || (float) $tipoMxnUsd <= 0) {
         throw new InvalidArgumentException(
@@ -65,24 +193,49 @@ function refrescarTarifarioValidado($conn, $tipoMxnUsd, $tipoEurUsd)
     }
     $tipoMxnUsd = (float) $tipoMxnUsd;
     $tipoEurUsd = (float) $tipoEurUsd;
+    if ($areas !== null) {
+        $areas = normalizarAreasTextarea(implode("\n", $areas));
+        if ($areas === []) {
+            throw new InvalidArgumentException(
+                'No hay áreas validadas: agrega al menos un área en el formulario.'
+            );
+        }
+    }
 
     $reporte = [
         'nuevos' => 0,
         'actualizados' => 0,
         'sin_cambio' => 0,
         'desactivados' => 0,
+        'desactivados_por_area' => 0,
         'omitidos' => [],
         'total' => 0,
+        'areas' => [],
         'tipo_mxn_usd' => $tipoMxnUsd,
         'tipo_eur_usd' => $tipoEurUsd,
     ];
 
     $conn->begin_transaction();
     try {
+        // 0. Lista de áreas: si viene del formulario se guarda primero
+        //    (reemplazo completo, en la misma transacción: si el
+        //    refresco falla, el cambio de lista también se revierte).
+        //    Si no viene, se lee la actual de la tabla.
+        if ($areas !== null) {
+            guardarAreasValidadas($conn, $areas);
+        } else {
+            $areas = obtenerAreasValidadas($conn);
+            if ($areas === []) {
+                throw new InvalidArgumentException(
+                    'No hay áreas validadas configuradas en areas_validadas.'
+                );
+            }
+        }
+        $reporte['areas'] = $areas;
         // 1. Candidatos ACTIVE del tarifario (se clasifica en PHP para
         //    poder listar los omitidos con su motivo).
         $stmt = $conn->prepare(
-            "SELECT TRIM(CDMESS) AS cdmess, PRECIO, Divisa FROM tarifario WHERE STATUS = 'ACTIVE'"
+            "SELECT TRIM(CDMESS) AS cdmess, PRECIO, Divisa, AREASCOT FROM tarifario WHERE STATUS = 'ACTIVE'"
         );
         $stmt->execute();
         $res = $stmt->get_result();
@@ -120,6 +273,18 @@ function refrescarTarifarioValidado($conn, $tipoMxnUsd, $tipoEurUsd)
             $divisa = strtoupper(trim((string) ($c['Divisa'] ?? '')));
             if ($codigo === '') {
                 continue; // Sin clave: no hay nada que sincronizar.
+            }
+            // Área: solo las de la lista de áreas validadas. Otro
+            // AREASCOT (p. ej. los productos 'Ventas Galdabini' /
+            // 'Ventas Scantech') o sin área queda fuera y se reporta
+            // como omitido.
+            $area = trim((string) ($c['AREASCOT'] ?? ''));
+            if (!in_array($area, $areas, true)) {
+                $reporte['omitidos'][] = [
+                    'cdmess' => $codigo,
+                    'motivo' => 'área no validada (' . ($area === '' ? 'sin área' : $area) . ')',
+                ];
+                continue;
             }
             if (!is_numeric($precio) || (float) $precio <= 0) {
                 $reporte['omitidos'][] = ['cdmess' => $codigo, 'motivo' => 'precio inválido o en cero'];
@@ -172,6 +337,22 @@ function refrescarTarifarioValidado($conn, $tipoMxnUsd, $tipoEurUsd)
         $desactivar->execute();
         $reporte['desactivados'] = (int) $desactivar->affected_rows;
         $desactivar->close();
+
+        // 4b. Desactivar por área (sin borrar): códigos que sí están
+        // ACTIVE en el tarifario pero con un AREASCOT fuera de la lista
+        // de áreas validadas (o sin área). Se cuentan aparte. Son un
+        // conjunto disjunto del paso anterior (esos no están ACTIVE).
+        // La subquery es correlacionada con EXISTS, no un FROM sobre
+        // la tabla destino, así que MySQL la acepta.
+        $desactivarArea = $conn->prepare(
+            'UPDATE tarifario_validado SET activo = 0 ' .
+            'WHERE activo = 1 AND EXISTS (SELECT 1 FROM tarifario t ' .
+            'WHERE TRIM(t.CDMESS) = tarifario_validado.cdmess AND t.STATUS = \'ACTIVE\' ' .
+            "AND (t.AREASCOT IS NULL OR TRIM(t.AREASCOT) = '' OR TRIM(t.AREASCOT) NOT IN (" . areasInSql($areas) . ')))'
+        );
+        $desactivarArea->execute();
+        $reporte['desactivados_por_area'] = (int) $desactivarArea->affected_rows;
+        $desactivarArea->close();
 
         // 5. Total en la tabla tras el refresco.
         $stmt = $conn->prepare('SELECT COUNT(*) AS total FROM tarifario_validado');
@@ -305,8 +486,15 @@ if (php_sapi_name() !== 'cli') {
     // los últimos tipos guardados (o vacío si nunca se ha refrescado).
     $tipoMxnForm = '';
     $tipoEurForm = '';
+    $areasForm = '';
     try {
         crearTablaConfigTiposCambio($conn);
+        // La tabla de áreas se crea sola si no existe y se siembra con
+        // las 15 iniciales si está vacía (fuera de la transacción del
+        // refresco: un CREATE TABLE haría commit implícito en MySQL).
+        crearTablaAreasValidadas($conn);
+        sembrarAreasValidadas($conn);
+        $areasForm = implode("\n", obtenerAreasValidadas($conn));
         $guardados = obtenerTiposCambioGuardados($conn);
         $tipoMxnForm = formatoTipoCambio($guardados['MXN_USD']);
         $tipoEurForm = formatoTipoCambio($guardados['EUR_USD']);
@@ -314,6 +502,7 @@ if (php_sapi_name() !== 'cli') {
         if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             $tipoMxnForm = trim((string) ($_POST['tipo_mxn_usd'] ?? ''));
             $tipoEurForm = trim((string) ($_POST['tipo_eur_usd'] ?? ''));
+            $areasForm = (string) ($_POST['areas_validadas'] ?? '');
             $tipoMxnUsd = normalizarTipoCambio($tipoMxnForm);
             $tipoEurUsd = normalizarTipoCambio($tipoEurForm);
             if ($tipoMxnUsd === null || $tipoEurUsd === null) {
@@ -321,12 +510,19 @@ if (php_sapi_name() !== 'cli') {
                     'Teclea los dos tipos de cambio con el valor del día: deben ser números mayores que 0.'
                 );
             }
-            $reporte = refrescarTarifarioValidado($conn, $tipoMxnUsd, $tipoEurUsd);
+            $areas = normalizarAreasTextarea($areasForm);
+            if ($areas === []) {
+                throw new InvalidArgumentException(
+                    'Agrega al menos un área validada en el textarea: no se puede refrescar sin áreas.'
+                );
+            }
+            $reporte = refrescarTarifarioValidado($conn, $tipoMxnUsd, $tipoEurUsd, $areas);
             // Solo se guardan los tipos de un refresco exitoso: el
             // próximo formulario se pre-llena con estos.
             guardarTiposCambio($conn, $tipoMxnUsd, $tipoEurUsd);
             $tipoMxnForm = formatoTipoCambio($tipoMxnUsd);
             $tipoEurForm = formatoTipoCambio($tipoEurUsd);
+            $areasForm = implode("\n", $areas);
         }
     } catch (Throwable $e) {
         error_log('Refresco tarifario_validado: ' . $e->getMessage());
@@ -365,6 +561,11 @@ if (php_sapi_name() !== 'cli') {
                        placeholder="p. ej. 1.08" required>
             </div>
             <p class="text-muted small">Teclea los valores del día. Si ya refrescaste antes, los campos traen los últimos tipos usados.</p>
+            <div class="mb-3">
+                <label for="areas_validadas" class="form-label">Áreas validadas (una por línea)</label>
+                <textarea class="form-control" id="areas_validadas" name="areas_validadas" rows="16" required><?php echo htmlspecialchars($areasForm, ENT_QUOTES, 'UTF-8'); ?></textarea>
+                <p class="text-muted small">Solo los códigos de estas áreas entran en tarifario_validado. Para agregar un área nueva, escribe su descripción tal cual está en AREASCOT; para quitarla, borra su línea. El cambio se guarda al refrescar.</p>
+            </div>
             <button type="submit" class="btn btn-primary">Actualizar tarifario validado</button>
         </form>
         <?php if ($reporte !== null): ?>
@@ -377,12 +578,16 @@ if (php_sapi_name() !== 'cli') {
                 <tr><th scope="row">Actualizados</th><td><?php echo (int) $reporte['actualizados']; ?></td></tr>
                 <tr><th scope="row">Sin cambio</th><td><?php echo (int) $reporte['sin_cambio']; ?></td></tr>
                 <tr><th scope="row">Desactivados</th><td><?php echo (int) $reporte['desactivados']; ?></td></tr>
+                <tr><th scope="row">Desactivados por área</th><td><?php echo (int) $reporte['desactivados_por_area']; ?></td></tr>
+                <tr><th scope="row">Áreas validadas usadas</th><td><?php echo count($reporte['areas']); ?></td></tr>
                 <tr><th scope="row">Omitidos</th><td><?php echo count($reporte['omitidos']); ?></td></tr>
                 <tr><th scope="row">Total en tarifario_validado</th><td><?php echo (int) $reporte['total']; ?></td></tr>
                 <tr><th scope="row">Tipo de cambio MXN/USD</th><td><?php echo htmlspecialchars((string) $reporte['tipo_mxn_usd'], ENT_QUOTES, 'UTF-8'); ?> pesos por dólar</td></tr>
                 <tr><th scope="row">Tipo de cambio EUR/USD</th><td><?php echo htmlspecialchars((string) $reporte['tipo_eur_usd'], ENT_QUOTES, 'UTF-8'); ?> dólares por euro</td></tr>
                 </tbody>
             </table>
+            <h2 class="h6 mt-4">Áreas validadas usadas en este refresco (<?php echo count($reporte['areas']); ?>)</h2>
+            <p class="small bg-white border rounded p-2"><?php echo htmlspecialchars(implode(', ', $reporte['areas']), ENT_QUOTES, 'UTF-8'); ?></p>
             <?php if (!empty($reporte['omitidos'])): ?>
                 <h2 class="h6 mt-4">Omitidos (siguen sin sembrarse)</h2>
                 <table class="table table-bordered table-sm bg-white">
