@@ -203,8 +203,14 @@ $linea_accion
  * contexto estadístico completo (mediana, P25/P75, desviación, tendencia y
  * referencias con folio/fecha) en vez de solo MIN/MAX/AVG; si no llega,
  * el prompt se arma como antes.
+ *
+ * Precio validado (tarifario): $precio_validado_usd es opcional (null si
+ * el código no tiene precio validado activo). Cuando llega, se inyecta
+ * como ANCLA en el prompt ("úsalo como base y solo apártate de él con
+ * justificación en el veredicto"), no como orden: Ollama sigue proponiendo
+ * con libertad, pero anclada también a ese precio.
  */
-function preguntarOllamaConPrecios($stats, $consulta_usuario, $aprendizaje = '', $contexto_precio = null) {
+function preguntarOllamaConPrecios($stats, $consulta_usuario, $aprendizaje = '', $contexto_precio = null, $precio_validado_usd = null) {
     $contexto = "CDMESS:{$stats['cdmess']} MIN:{$stats['min']} MAX:{$stats['max']} AVG:{$stats['avg']}";
     $prompt = "Contexto Histórico: $contexto\n";
 
@@ -248,6 +254,13 @@ function preguntarOllamaConPrecios($stats, $consulta_usuario, $aprendizaje = '',
         }
         $prompt .= $bloque . "\n";
         $prompt .= "Usa la mediana y los percentiles (P25/P75) como ancla principal, no solo el promedio: el promedio se distorsiona con valores atípicos. Los percentiles y la mediana ya excluyen atípicos por IQR, y el promedio ponderado da más peso a las cotizaciones recientes: úsalo como referencia de precio actual, no el promedio simple. Si propones un precio fuera de la banda [P25 x 0.85, P75 x 1.15] (o [mediana x 0.8, mediana x 1.2] con pocas muestras), cita en el veredicto el folio y la fecha de la referencia que lo justifica.\n";
+    }
+
+    // Precio validado (tarifario): ancla, no orden. Solo cuando el código
+    // tiene precio validado activo. Ollama lo usa como base y solo se
+    // aparta de él con justificación en el veredicto.
+    if ($precio_validado_usd !== null && (float) $precio_validado_usd > 0) {
+        $prompt .= "Precio validado por el área responsable (tarifario): USD " . number_format((float) $precio_validado_usd, 2) . ". Úsalo como base y solo apártate de él con justificación en el veredicto.\n";
     }
 
     $alternativas = trim((string) ($stats['alternativas'] ?? ''));

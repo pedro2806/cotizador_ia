@@ -321,20 +321,30 @@ const renderFila = (item, modo = false) => {
                     // pasa el JSON completo): 'ia' = propuesto por Ollama,
                     // 'promedio' = respaldo del promedio porque Ollama no
                     // devolvió propuesta válida (se marca en ámbar para que
-                    // no se vea como sugerencia de la IA), 'humano'/'mixto'
+                    // no se vea como sugerencia de la IA), 'validado' =
+                    // respaldo del precio validado del tarifario porque
+                    // Ollama no devolvió propuesta válida, 'humano'/'mixto'
                     // = con aprendizaje humano (A4). El veredicto va como
                     // tooltip (escapado con escAttr). En ítems viejos sin
                     // origen_precio no se muestra nada. 'Revisar' sale solo
                     // si requiere_revision es true.
-                    const etiquetas = {ia: 'IA', promedio: 'Promedio (respaldo)', humano: 'Humano', mixto: 'Mixto'};
+                    const etiquetas = {ia: 'IA', promedio: 'Promedio (respaldo)', validado: 'Precio validado', humano: 'Humano', mixto: 'Mixto'};
                     const etiqueta = ia.origen_precio ? (etiquetas[ia.origen_precio] || ia.origen_precio) : '';
                     let badges = '';
                     // Fase 4: en las hijas no se pinta el badge de origen de
                     // precio (siempre es histórico); el badge de clase ya
                     // dice si es alternativa o sugerencia.
                     if (etiqueta && !esHermana) {
-                        const clase = ia.origen_precio === 'promedio' ? 'bg-warning text-dark' : 'bg-secondary';
+                        const clase = ia.origen_precio === 'promedio' ? 'bg-warning text-dark' : (ia.origen_precio === 'validado' ? 'bg-info text-dark' : 'bg-secondary');
                         badges += `<span class="badge ${clase} x-small me-1" title="${escAttr(ia.veredicto_ia || '')}">${etiqueta}</span>`;
+                    }
+                    // Precio validado (tarifario): si el ítem tiene precio
+                    // validado pero el origen no es 'validado' (la IA ganó
+                    // y el validado solo fue ancla), se muestra igual la
+                    // insignia; con origen 'validado' ya la trae el badge
+                    // de origen de arriba, no se duplica.
+                    if (ia.tiene_precio_validado && ia.origen_precio !== 'validado' && !esHermana) {
+                        badges += `<span class="badge bg-info text-dark x-small me-1" title="Precio validado por el área responsable (tarifario)">Precio validado</span>`;
                     }
                     if (ia.requiere_revision) {
                         badges += `<span class="badge bg-warning text-dark x-small">Revisar</span>`;
@@ -617,6 +627,13 @@ function mostrarVeredicto(id) {
         ? `<span>Precio histórico: <b class="text-dark">${ia.precio_promedio != null ? '$' + parseFloat(ia.precio_promedio).toFixed(2) : 'sin historial'}</b></span><span>Sin precio de IA (se cotiza por histórico)</span>`
         : `<span>Precio sugerido: <b class="text-dark">$${parseFloat(ia.precio_ia || 0).toFixed(2)}</b></span><span>Promedio histórico: $${parseFloat(ia.precio_promedio || 0).toFixed(2)}</span>`;
 
+    // Precio validado (tarifario): línea en el modal cuando el ítem tiene
+    // precio validado (sea o no el origen del precio final). Ítems viejos
+    // sin el campo no muestran nada.
+    const validadoHtml = (ia.tiene_precio_validado && ia.precio_validado_usd != null)
+        ? `<div class="x-small mt-1">Precio validado (tarifario): <b>$${parseFloat(ia.precio_validado_usd).toFixed(2)} USD</b>${ia.precio_validado_mxn != null ? ` / MXN $${parseFloat(ia.precio_validado_mxn).toFixed(2)}` : ''}</div>`
+        : '';
+
     Swal.fire({
         title: 'Veredicto de MessIAs',
         customClass: { popup: 'swal-veredicto' },
@@ -629,6 +646,7 @@ function mostrarVeredicto(id) {
                 <div class="d-flex justify-content-between x-small text-muted">
                     ${precioLinea}
                 </div>
+                ${validadoHtml}
                 ${rangoHtml}
                 ${trazaHtml}
                 ${atlasHtml}
