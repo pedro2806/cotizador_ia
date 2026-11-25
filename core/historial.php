@@ -903,6 +903,50 @@ function atlasTokenizar($texto) {
 }
 
 /**
+ * Precio validado del tarifario (tarifario_validado).
+ *
+ * Lee el precio unitario validado por el área responsable para un CDMESS.
+ * Solo filas con activo = 1. Devuelve ['usd' => float, 'mxn' => float|null]
+ * o null si el código no tiene precio validado activo (o el precio no es
+ * válido). 'mxn' es null cuando la fila no trae precio en MXN: el worker
+ * lo deriva del USD con el ratio USD/MXN del histórico.
+ *
+ * Ante cualquier error de consulta devuelve null y NO lanza excepción: el
+ * validado es referencia (ancla en el prompt) y respaldo, nunca un
+ * requisito; sin él el worker sigue como hoy. Solo tabla de consulta: no
+ * lleva quién/cuándo (eso vive en otro lado).
+ */
+function obtenerPrecioValidado($cdmess, $conn) {
+    $cdmess = trim((string) $cdmess);
+    if ($cdmess === '' || strcasecmp($cdmess, 'S/C') === 0) return null;
+
+    try {
+        $stmt = $conn->prepare(
+            "SELECT precio_validado_usd, precio_validado_mxn
+             FROM tarifario_validado
+             WHERE cdmess = ? AND activo = 1"
+        );
+        $stmt->bind_param('s', $cdmess);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $row = $res ? $res->fetch_assoc() : null;
+        $stmt->close();
+        if (!$row || !isset($row['precio_validado_usd']) || (float) $row['precio_validado_usd'] <= 0) {
+            return null;
+        }
+        return [
+            'usd' => round((float) $row['precio_validado_usd'], 2),
+            'mxn' => ($row['precio_validado_mxn'] !== null && (float) $row['precio_validado_mxn'] > 0)
+                ? round((float) $row['precio_validado_mxn'], 2)
+                : null,
+        ];
+    } catch (Throwable $e) {
+        error_log('tarifario_validado: obtenerPrecioValidado(' . $cdmess . ') falló: ' . $e->getMessage());
+        return null;
+    }
+}
+
+/**
  * Fase 1 (Atlas) — Información experta del Atlas para un CDMESS ya encontrado.
  *
  * Lee las tablas atlas_* (solo eléctrica) DESPUÉS de que el retrieval ya
