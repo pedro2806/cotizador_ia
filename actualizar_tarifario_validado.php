@@ -32,8 +32,8 @@
  * áreas iniciales si está vacía). El formulario trae un textarea con
  * las áreas actuales, una por línea: Pedro agrega o quita áreas ahí
  * y el refresco actualiza tarifario_validado en base a esa lista.
- * Las filas con otro AREASCOT —por ejemplo los productos con
- * 'Ventas Galdabini' o 'Ventas Scantech'— o con AREASCOT NULL/vacío
+ * Las filas con otro AREA —por ejemplo los productos con
+ * 'Ventas Galdabini' o 'Ventas Scantech'— o con AREA NULL/vacío
  * quedan fuera: se reportan como omitidas y, si ya estaban en la
  * tabla, se desactivan por área (sin borrar).
  *
@@ -162,7 +162,7 @@ function areasInSql(array $areas)
  * Solo escribe cuando hay cambio real: inserta los códigos nuevos y
  * actualiza los que cambiaron de precio o divisa; las filas idénticas
  * no se reescriben y cuentan como "sin cambio". Solo entran los
- * códigos cuya AREASCOT está en la lista de áreas validadas.
+ * códigos cuya AREA está en la lista de áreas validadas.
  *
  * @param object $conn        Conexión mysqli (o compatible en pruebas).
  * @param float  $tipoMxnUsd Pesos por 1 dólar.
@@ -235,7 +235,7 @@ function refrescarTarifarioValidado($conn, $tipoMxnUsd, $tipoEurUsd, $areas = nu
         // 1. Candidatos ACTIVE del tarifario (se clasifica en PHP para
         //    poder listar los omitidos con su motivo).
         $stmt = $conn->prepare(
-            "SELECT TRIM(CDMESS) AS cdmess, PRECIO, Divisa, AREASCOT FROM tarifario WHERE STATUS = 'ACTIVE'"
+            "SELECT TRIM(CDMESS) AS cdmess, PRECIO, Divisa, AREA FROM tarifario WHERE STATUS = 'ACTIVE'"
         );
         $stmt->execute();
         $res = $stmt->get_result();
@@ -275,10 +275,10 @@ function refrescarTarifarioValidado($conn, $tipoMxnUsd, $tipoEurUsd, $areas = nu
                 continue; // Sin clave: no hay nada que sincronizar.
             }
             // Área: solo las de la lista de áreas validadas. Otro
-            // AREASCOT (p. ej. los productos 'Ventas Galdabini' /
+            // AREA (p. ej. los productos 'Ventas Galdabini' /
             // 'Ventas Scantech') o sin área queda fuera y se reporta
             // como omitido.
-            $area = trim((string) ($c['AREASCOT'] ?? ''));
+            $area = trim((string) ($c['AREA'] ?? ''));
             if (!in_array($area, $areas, true)) {
                 $reporte['omitidos'][] = [
                     'cdmess' => $codigo,
@@ -339,7 +339,7 @@ function refrescarTarifarioValidado($conn, $tipoMxnUsd, $tipoEurUsd, $areas = nu
         $desactivar->close();
 
         // 4b. Desactivar por área (sin borrar): códigos que sí están
-        // ACTIVE en el tarifario pero con un AREASCOT fuera de la lista
+        // ACTIVE en el tarifario pero con un AREA fuera de la lista
         // de áreas validadas (o sin área). Se cuentan aparte. Son un
         // conjunto disjunto del paso anterior (esos no están ACTIVE).
         // La subquery es correlacionada con EXISTS, no un FROM sobre
@@ -348,7 +348,7 @@ function refrescarTarifarioValidado($conn, $tipoMxnUsd, $tipoEurUsd, $areas = nu
             'UPDATE tarifario_validado SET activo = 0 ' .
             'WHERE activo = 1 AND EXISTS (SELECT 1 FROM tarifario t ' .
             'WHERE TRIM(t.CDMESS) = tarifario_validado.cdmess AND t.STATUS = \'ACTIVE\' ' .
-            "AND (t.AREASCOT IS NULL OR TRIM(t.AREASCOT) = '' OR TRIM(t.AREASCOT) NOT IN (" . areasInSql($areas) . ')))'
+            "AND (t.AREA IS NULL OR TRIM(t.AREA) = '' OR TRIM(t.AREA) NOT IN (" . areasInSql($areas) . ')))'
         );
         $desactivarArea->execute();
         $reporte['desactivados_por_area'] = (int) $desactivarArea->affected_rows;
@@ -564,7 +564,7 @@ if (php_sapi_name() !== 'cli') {
             <div class="mb-3">
                 <label for="areas_validadas" class="form-label">Áreas validadas (una por línea)</label>
                 <textarea class="form-control" id="areas_validadas" name="areas_validadas" rows="16" required><?php echo htmlspecialchars($areasForm, ENT_QUOTES, 'UTF-8'); ?></textarea>
-                <p class="text-muted small">Solo los códigos de estas áreas entran en tarifario_validado. Para agregar un área nueva, escribe su descripción tal cual está en AREASCOT; para quitarla, borra su línea. El cambio se guarda al refrescar.</p>
+                <p class="text-muted small">Solo los códigos de estas áreas entran en tarifario_validado. Para agregar un área nueva, escribe su descripción tal cual está en AREA; para quitarla, borra su línea. El cambio se guarda al refrescar.</p>
             </div>
             <button type="submit" class="btn btn-primary">Actualizar tarifario validado</button>
         </form>
