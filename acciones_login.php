@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // directo contra la BD, lo cual expone las contraseñas de todos los
     // usuarios ante cualquier fuga o acceso a la base de datos.
     $stmt = $conn->prepare(
-        'SELECT id_usuario, nombre, correo, password FROM usuarios WHERE correo = ? AND estatus = 1 LIMIT 1'
+        'SELECT id_usuario, nombre, correo, password, noEmpleado FROM usuarios WHERE correo = ? AND estatus = 1 LIMIT 1'
     );
     $stmt->bind_param('s', $correo);
     $stmt->execute();
@@ -54,6 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['usuario_id'] = $row['id_usuario'];
         $_SESSION['nombre']     = $row['nombre'];
         $_SESSION['correo']     = $row['correo'];
+        setcookie('noEmpleado', (string) $row['noEmpleado'], 0, '/');
         $_SESSION['login_success'] = true;
         header('Location: index.php');
     } else {
