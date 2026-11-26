@@ -12,12 +12,8 @@ $v_proyecto = $flt('proyecto');
 $v_cdmess = $flt('cdmess');
 $v_desde = $flt('desde');
 $v_hasta = $flt('hasta');
-$v_origen = $flt('origen');
-$v_estatus = $flt('estatus');
+$v_usuario = $flt('usuario');
 $v_q = $flt('q');
-$chk_revision = !empty($_GET['solo_revision']) ? 'checked' : '';
-$chk_validacion = !empty($_GET['solo_validacion']) ? 'checked' : '';
-$sel = function ($campo, $valor) use ($flt) { return ($flt($campo) === $valor) ? 'selected' : ''; };
 ?>
 
 <!DOCTYPE html>
@@ -130,39 +126,17 @@ $sel = function ($campo, $valor) use ($flt) { return ($flt($campo) === $valor) ?
                             </div>
                         </div>
                         <div class="mb-2">
-                            <label class="form-label x-small fw-bold mb-1" for="f-origen">Origen del precio</label>
-                            <select id="f-origen" class="form-select form-select-sm">
+                            <label class="form-label x-small fw-bold mb-1" for="f-usuario">Solicitante</label>
+                            <select id="f-usuario" class="form-select form-select-sm">
                                 <option value="">Todos</option>
-                                <option value="ia" <?php echo $sel('origen', 'ia'); ?>>IA</option>
-                                <option value="promedio" <?php echo $sel('origen', 'promedio'); ?>>Promedio (respaldo)</option>
-                                <option value="validado" <?php echo $sel('origen', 'validado'); ?>>Precio validado</option>
-                                <option value="humano" <?php echo $sel('origen', 'humano'); ?>>Humano</option>
-                                <option value="mixto" <?php echo $sel('origen', 'mixto'); ?>>Mixto</option>
                             </select>
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label x-small fw-bold mb-1" for="f-estatus">Estatus</label>
-                            <select id="f-estatus" class="form-select form-select-sm">
-                                <option value="">Todos</option>
-                                <option value="completado" <?php echo $sel('estatus', 'completado'); ?>>Completado</option>
-                                <option value="procesando" <?php echo $sel('estatus', 'procesando'); ?>>Procesando</option>
-                                <option value="pendiente" <?php echo $sel('estatus', 'pendiente'); ?>>Pendiente</option>
-                                <option value="error" <?php echo $sel('estatus', 'error'); ?>>Error</option>
-                            </select>
-                        </div>
-                        <div class="form-check mb-1">
-                            <input type="checkbox" id="f-revision" class="form-check-input" <?php echo $chk_revision; ?>>
-                            <label class="form-check-label x-small" for="f-revision">Solo requieren revisión</label>
-                        </div>
-                        <div class="form-check mb-2">
-                            <input type="checkbox" id="f-validacion" class="form-check-input" <?php echo $chk_validacion; ?>>
-                            <label class="form-check-label x-small" for="f-validacion">Solo validación de experto pendiente</label>
                         </div>
                         <div class="mb-3">
                             <label class="form-label x-small fw-bold mb-1" for="f-q">Buscar en descripción</label>
                             <input type="text" id="f-q" class="form-control form-control-sm" placeholder="Texto de la línea..." value="<?php echo $v_q; ?>">
                         </div>
                         <input type="hidden" id="f-proyecto-inicial" value="<?php echo $v_proyecto; ?>">
+                        <input type="hidden" id="f-usuario-inicial" value="<?php echo $v_usuario; ?>">
                         <div class="d-grid gap-2">
                             <button type="button" class="btn btn-success btn-sm fw-bold" onclick="aplicarFiltros()">Aplicar filtros</button>
                             <button type="button" class="btn btn-outline-secondary btn-sm" onclick="limpiarFiltros()">Limpiar filtros</button>
@@ -288,6 +262,7 @@ let paginaActual = 1;
 let totalPaginas = 1;
 let porPagina = 10;
 let proyectoInicial = null;
+let usuarioInicial = null;
 
 const fmt = v => parseFloat(v || 0).toFixed(2);
 // R5: todo texto que viene de la BD o del JSON se escapa antes de
@@ -298,16 +273,12 @@ const escAttr = v => esc(v);
 
 function leerFiltros() {
     const val = id => { const e = document.getElementById(id); return e ? e.value : ''; };
-    const chk = id => { const e = document.getElementById(id); return e ? e.checked : false; };
     return {
         proyecto: val('f-proyecto'),
         cdmess: val('f-cdmess').trim(),
         desde: val('f-desde'),
         hasta: val('f-hasta'),
-        origen: val('f-origen'),
-        estatus: val('f-estatus'),
-        solo_revision: chk('f-revision') ? '1' : '',
-        solo_validacion: chk('f-validacion') ? '1' : '',
+        usuario: val('f-usuario'),
         q: val('f-q').trim(),
     };
 }
@@ -318,13 +289,9 @@ function aplicarFiltros() {
 }
 
 function limpiarFiltros() {
-    ['f-proyecto', 'f-cdmess', 'f-desde', 'f-hasta', 'f-origen', 'f-estatus', 'f-q'].forEach(id => {
+    ['f-proyecto', 'f-cdmess', 'f-desde', 'f-hasta', 'f-usuario', 'f-q'].forEach(id => {
         const e = document.getElementById(id);
         if (e) e.value = '';
-    });
-    ['f-revision', 'f-validacion'].forEach(id => {
-        const e = document.getElementById(id);
-        if (e) e.checked = false;
     });
     paginaActual = 1;
     cargarDatos();
@@ -549,6 +516,24 @@ async function cargarDatos() {
             if (proyectoInicial) { selProy.value = proyectoInicial; proyectoInicial = null; }
         }
 
+        // Lista de solicitantes del filtro (se rellena del endpoint; se
+        // conserva la selección actual y el valor inicial de la URL).
+        // La opción "Sin registro" solo aparece cuando hay ítems sin
+        // usuario (data.sin_registro_total > 0).
+        const selUsu = document.getElementById('f-usuario');
+        if (selUsu) {
+            const actualU = selUsu.value || usuarioInicial || '';
+            let optsU = '<option value="">Todos</option>' + (data.usuarios || []).map(u =>
+                `<option value="${u.id_us_registro}">${esc(u.solicitante)}</option>`).join('');
+            if (data.sin_registro_total > 0) optsU += '<option value="sin_registro">Sin registro</option>';
+            selUsu.innerHTML = optsU;
+            const existeU = actualU === 'sin_registro'
+                ? data.sin_registro_total > 0
+                : (data.usuarios || []).some(u => String(u.id_us_registro) === actualU);
+            if (actualU && existeU) selUsu.value = actualU;
+            if (usuarioInicial) { selUsu.value = usuarioInicial; usuarioInicial = null; }
+        }
+
         if (data.dashboard) renderDashboard(data.dashboard);
 
         const contenedor = document.getElementById('contenedor-historial');
@@ -722,10 +707,13 @@ function mostrarVeredictoHistorial(id) {
     });
 }
 
-// Inicialización: el proyecto inicial viene del input oculto (URL).
+// Inicialización: el proyecto y el usuario iniciales vienen de los
+// inputs ocultos (URL).
 (function () {
     const ini = document.getElementById('f-proyecto-inicial');
     if (ini && ini.value) proyectoInicial = ini.value;
+    const iniU = document.getElementById('f-usuario-inicial');
+    if (iniU && iniU.value) usuarioInicial = iniU.value;
     cargarDatos();
 })();
 </script>

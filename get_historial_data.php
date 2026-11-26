@@ -10,6 +10,12 @@
  *     "proyectos":   [{id_proyecto, solicitante, total, fecha_reciente}, ...],
  *                    // ordenados por id_proyecto DESC (el más reciente
  *                    // primero); solicitante es u.nombre o null ("Sin registro")
+ *     "usuarios":    [{id_us_registro, solicitante, total}, ...],
+ *                    // usuarios distintos con ítems, ordenados por nombre;
+ *                    // solo con solicitante real (los sin usuario van en
+ *                    // sin_registro_total)
+ *     "sin_registro_total": 0, // ítems sin usuario (id NULL o sin fila
+ *                    // en usuarios)
  *     "dashboard":   { total, completados, pendientes, requieren_revision,
  *                       validacion_pendiente, con_precio_validado,
  *                       propuesta_invalida, propuesta_valida,
@@ -35,13 +41,19 @@
  *
  * Filtros (GET, todos opcionales y combinables):
  *   proyecto, cdmess (LIKE sobre el código cotizado), desde / hasta
- *   (fecha_registro), origen (ia/promedio/validado/humano/mixto),
- *   estatus (completado/procesando/pendiente/error), solo_revision=1,
- *   solo_validacion=1, q (texto en entrada_usuario), pagina, por_pagina
- *   (10 por defecto; permitidos 10/25/50/100, cualquier otro se ignora).
+ *   (fecha_registro), usuario (id de usuario entero, o el literal
+ *   'sin_registro' para los ítems sin usuario), q (texto en
+ *   entrada_usuario), pagina, por_pagina (10 por defecto; permitidos
+ *   10/25/50/100, cualquier otro se ignora).
+ *   (Los filtros de origen, estatus, solo_revision y solo_validacion
+ *   se quitaron el 2026-11-26 a petición de Pedro; el dashboard sigue
+ *   mostrando su desglose por origen y sus tarjetas.)
  *
- * El dashboard respeta SOLO los filtros de proyecto y fechas; si no hay
- * filtro, es global. La tabla sí aplica todos los filtros.
+ * El dashboard respeta los filtros de proyecto, fechas y usuario; si
+ * no hay filtro, es global. La lista de proyectos se acota por fechas
+ * y usuario (no por el propio filtro de proyecto) y la lista de
+ * usuarios por proyecto y fechas (no por el propio filtro de usuario).
+ * La tabla sí aplica todos los filtros.
  *
  * Seguridad: misma protección de sesión que get_proyecto_data.php y el
  * monitor (401 sin usuario). Todo con sentencias preparadas.
@@ -60,14 +72,15 @@
 // propuesta_ia.origen_precio). 'sin_origen' = JSON válido sin la clave;
 // 'sin_propuesta' = sin propuesta_ia válida (NULL o JSON inválido).
 const HISTORIAL_ORIGENES = ['ia', 'promedio', 'validado', 'humano', 'mixto'];
-const HISTORIAL_ESTATUS = ['completado', 'procesando', 'pendiente', 'error'];
 const HISTORIAL_POR_PAGINA = 10;
 const HISTORIAL_POR_PAGINA_PERMITIDOS = [10, 25, 50, 100];
 
 /**
  * Normaliza los filtros que vienen por GET: recorta texto, valida fechas
- * (Y-m-d), origen y estatus contra las listas conocidas, y acota la
- * paginación. Todo lo inválido o vacío se vuelve null (sin filtro).
+ * (Y-m-d) y el usuario (entero > 0 o el literal 'sin_registro'), y acota
+ * la paginación. Todo lo inválido o vacío se vuelve null (sin filtro).
+ * Las claves de filtros quitados (origen, estatus, solo_revision,
+ * solo_validacion) ya no se leen: si vienen por GET se ignoran.
  */
 function historialNormalizarFiltros(array $get) {
     $f = [];
@@ -80,14 +93,17 @@ function historialNormalizarFiltros(array $get) {
     $f['desde'] = historialFechaValida($get['desde'] ?? null);
     $f['hasta'] = historialFechaValida($get['hasta'] ?? null);
 
-    $origen = isset($get['origen']) ? trim((string) $get['origen']) : '';
-    $f['origen'] = in_array($origen, HISTORIAL_ORIGENES, true) ? $origen : null;
-
-    $estatus = isset($get['estatus']) ? trim((string) $get['estatus']) : '';
-    $f['estatus'] = in_array($estatus, HISTORIAL_ESTATUS, true) ? $estatus : null;
-
-    $f['solo_revision'] = !empty($get['solo_revision']) && (string) $get['solo_revision'] !== '0';
-    $f['solo_validacion'] = !empty($get['solo_validacion']) && (string) $get['solo_validacion'] !== '0';
+    // Solicitante: id de usuario entero (> 0) o el literal
+    // 'sin_registro' (ítems sin usuario). Cualquier otro valor se ignora.
+    $f['usuario'] = null;
+    if (isset($get['usuario'])) {
+        $u = trim((string) $get['usuario']);
+        if ($u === 'sin_registro') {
+            $f['usuario'] = 'sin_registro';
+        } elseif (ctype_digit($u) && (int) $u > 0) {
+            $f['usuario'] = (int) $u;
+        }
+    }
 
     $f['q'] = isset($get['q']) ? trim((string) $get['q']) : '';
     if ($f['q'] === '') $f['q'] = null;
@@ -112,10 +128,12 @@ function historialFechaValida($v) {
  * Arma el WHERE con sentencias preparadas. Devuelve
  * [sql_sin_where, tipos, params].
  *
- * $ambitoSolo = true: solo proyecto + fechas (el ámbito del dashboard).
+ * $ambitoSolo = true: proyecto + fechas + usuario (el ámbito del
+ * dashboard; la lista de proyectos y la de usuarios se arman con una
+ * copia de $f que anula su propio filtro antes de llamar aquí).
  * $ambitoSolo = false: todos los filtros (la tabla).
  * El orden de las condiciones es fijo porque el orden de los parámetros
- * ligados va con él.
+ * ligados va con él: proyecto, desde, hasta, usuario, cdmess, q.
  */
 function historialCondiciones(array $f, $ambitoSolo) {
     $conds = [];
@@ -137,6 +155,17 @@ function historialCondiciones(array $f, $ambitoSolo) {
         $tipos .= 's';
         $params[] = $f['hasta'];
     }
+    if (!empty($f['usuario'])) {
+        if ($f['usuario'] === 'sin_registro') {
+            // Sin usuario: id NULL o sin fila en usuarios (el LEFT JOIN
+            // deja u.nombre en NULL; también vale nombre vacío).
+            $conds[] = "(u.nombre IS NULL OR u.nombre = '')";
+        } else {
+            $conds[] = 'c.id_us_registro = ?';
+            $tipos .= 'i';
+            $params[] = (int) $f['usuario'];
+        }
+    }
 
     if ($ambitoSolo) {
         return [$conds ? 'WHERE ' . implode(' AND ', $conds) : '', $tipos, $params];
@@ -148,22 +177,6 @@ function historialCondiciones(array $f, $ambitoSolo) {
         $conds[] = "JSON_VALID(c.propuesta_ia) AND JSON_UNQUOTE(JSON_EXTRACT(c.propuesta_ia, '\$.cdmess')) LIKE ?";
         $tipos .= 's';
         $params[] = '%' . $f['cdmess'] . '%';
-    }
-    if (!empty($f['origen'])) {
-        $conds[] = "JSON_VALID(c.propuesta_ia) AND JSON_UNQUOTE(JSON_EXTRACT(c.propuesta_ia, '\$.origen_precio')) = ?";
-        $tipos .= 's';
-        $params[] = $f['origen'];
-    }
-    if (!empty($f['estatus'])) {
-        $conds[] = 'c.estatus = ?';
-        $tipos .= 's';
-        $params[] = $f['estatus'];
-    }
-    if (!empty($f['solo_revision'])) {
-        $conds[] = "JSON_VALID(c.propuesta_ia) AND JSON_UNQUOTE(JSON_EXTRACT(c.propuesta_ia, '\$.requiere_revision')) = 'true'";
-    }
-    if (!empty($f['solo_validacion'])) {
-        $conds[] = "JSON_VALID(c.propuesta_ia) AND JSON_UNQUOTE(JSON_EXTRACT(c.propuesta_ia, '\$.atlas.requiere_validacion_experto')) = 'true'";
     }
     if (!empty($f['q'])) {
         $conds[] = 'c.entrada_usuario LIKE ?';
@@ -197,7 +210,7 @@ function historialConsultar($conn, $sql, $tipos = '', $params = []) {
 }
 
 /**
- * Dashboard sobre el ámbito (proyecto + fechas). Devuelve el bloque
+ * Dashboard sobre el ámbito (proyecto + fechas + usuario). Devuelve el bloque
  * 'dashboard' de la respuesta, con el desglose por origen ordenado en
  * orden fijo (ia, promedio, validado, humano, mixto, sin_origen) y el
  * bucket 'sin_propuesta' (sin propuesta_ia válida) para que los
@@ -310,13 +323,19 @@ function historialObtenerDashboard($conn, array $f) {
  * total de ítems y fecha del más reciente. Ordenados por id_proyecto
  * DESC (el más reciente primero). El LEFT JOIN deja solicitante en
  * NULL cuando el proyecto no tiene usuario registrado ("Sin registro").
+ * Se acota por fechas y usuario, no por el propio filtro de proyecto
+ * (se anula antes de armar el WHERE).
  */
-function historialObtenerProyectos($conn) {
+function historialObtenerProyectos($conn, array $f) {
+    $fAmbito = $f;
+    $fAmbito['proyecto'] = null;
+    [$where, $tipos, $params] = historialCondiciones($fAmbito, true);
     $filas = historialConsultar($conn,
-        'SELECT c.id_proyecto, MAX(u.nombre) AS solicitante, COUNT(*) AS total,
+        "SELECT c.id_proyecto, MAX(u.nombre) AS solicitante, COUNT(*) AS total,
                 MAX(c.fecha_registro) AS fecha_reciente
          FROM cola_procesamiento c LEFT JOIN usuarios u ON u.id_usuario = c.id_us_registro
-         GROUP BY c.id_proyecto ORDER BY c.id_proyecto DESC');
+         $where GROUP BY c.id_proyecto ORDER BY c.id_proyecto DESC",
+        $tipos, $params);
     $out = [];
     foreach ($filas as $r) {
         if ($r['id_proyecto'] !== null && (string) $r['id_proyecto'] !== '') {
@@ -330,6 +349,46 @@ function historialObtenerProyectos($conn) {
         }
     }
     return $out;
+}
+
+/**
+ * Lista de usuarios (solicitantes) para el filtro de la vista: un
+ * renglón por usuario con ítems en la cola, ordenados por nombre.
+ * Devuelve ['lista' => [{id_us_registro, solicitante, total}], 
+ * 'sin_registro_total' => n]: los ítems sin usuario (id NULL o sin
+ * fila en usuarios) no entran en la lista; se cuentan aparte para la
+ * opción "Sin registro" del desplegable. Se acota por proyecto y
+ * fechas, no por el propio filtro de usuario (se anula antes de armar
+ * el WHERE).
+ */
+function historialObtenerUsuarios($conn, array $f) {
+    $fAmbito = $f;
+    $fAmbito['usuario'] = null;
+    [$where, $tipos, $params] = historialCondiciones($fAmbito, true);
+    $y = $where === '' ? 'WHERE ' : $where . ' AND ';
+    $filas = historialConsultar($conn,
+        "SELECT c.id_us_registro, MAX(u.nombre) AS solicitante, COUNT(*) AS total
+         FROM cola_procesamiento c LEFT JOIN usuarios u ON u.id_usuario = c.id_us_registro
+         {$y}c.id_us_registro IS NOT NULL AND u.nombre IS NOT NULL AND u.nombre <> ''
+         GROUP BY c.id_us_registro ORDER BY solicitante ASC",
+        $tipos, $params);
+    $lista = [];
+    foreach ($filas as $r) {
+        $lista[] = [
+            'id_us_registro' => (int) $r['id_us_registro'],
+            'solicitante' => (string) $r['solicitante'],
+            'total' => (int) $r['total'],
+        ];
+    }
+    $sin = historialConsultar($conn,
+        "SELECT COUNT(*) AS sin_registro_total
+         FROM cola_procesamiento c LEFT JOIN usuarios u ON u.id_usuario = c.id_us_registro
+         {$y}(u.nombre IS NULL OR u.nombre = '')",
+        $tipos, $params);
+    return [
+        'lista' => $lista,
+        'sin_registro_total' => (int) ($sin[0]['sin_registro_total'] ?? 0),
+    ];
 }
 
 /**
@@ -399,10 +458,13 @@ function historialObtenerItems($conn, array $f, $pagina, $porPagina) {
 function historialEjecutar($conn, array $get) {
     $f = historialNormalizarFiltros($get);
     $dashboard = historialObtenerDashboard($conn, $f);
-    $proyectos = historialObtenerProyectos($conn);
+    $proyectos = historialObtenerProyectos($conn, $f);
+    $usuarios = historialObtenerUsuarios($conn, $f);
     [$items, $total, $pagina, $totalPaginas] = historialObtenerItems($conn, $f, $f['pagina'], $f['por_pagina']);
     return [
         'proyectos' => $proyectos,
+        'usuarios' => $usuarios['lista'],
+        'sin_registro_total' => $usuarios['sin_registro_total'],
         'dashboard' => $dashboard,
         'items' => $items,
         'paginacion' => [
