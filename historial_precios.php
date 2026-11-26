@@ -45,6 +45,16 @@ $sel = function ($campo, $valor) use ($flt) { return ($flt($campo) === $valor) ?
         /* Hijas (es_sugerencia=1): mismo tab que el monitor en la celda
            del código; el resto de las celdas no se indenta. */
         #tabla-historial td.hija-indent { padding-left: 2rem; }
+        /* Encabezado de grupo por proyecto: banda suave como el ejemplo
+           ("Vendedor: ..."), sin rojo vivo; no es clicable. */
+        #tabla-historial tr.fila-grupo td {
+            background-color: #dbe7f5;
+            color: #1f3a5f;
+            font-weight: 600;
+            font-size: 0.85rem;
+            padding: 6px 10px;
+            cursor: default;
+        }
         .text-primary { color: var(--accent) !important; }
         #tabla-historial { border-collapse: separate; border-spacing: 0; }
         #tabla-historial thead th {
@@ -369,6 +379,49 @@ function badgesHistorial(ia, esHermana) {
     return { origenHtml, alertasHtml };
 }
 
+/**
+ * Encabezado de grupo por proyecto (una fila de ancho completo, estilo
+ * sobrio como el ejemplo: banda suave, sin rojo vivo): proyecto,
+ * solicitante, total de ítems y fecha más reciente. Sin solicitante
+ * se muestra la etiqueta "Sin registro" en ámbar (nada de rojo).
+ * El solicitante y el total se escapan igual que el resto (R5).
+ */
+function renderEncabezadoProyecto(proy) {
+    const sol = (proy.solicitante !== null && proy.solicitante !== undefined && String(proy.solicitante) !== '')
+        ? esc(proy.solicitante)
+        : '<span class="badge bg-warning text-dark x-small">Sin registro</span>';
+    const totalTxt = (proy.total !== null && proy.total !== undefined) ? ` · ${proy.total} ítems` : '';
+    const fechaTxt = proy.fecha_reciente ? ` · ${esc(String(proy.fecha_reciente).substring(0, 10))}` : '';
+    return `<tr class="fila-grupo"><td colspan="9">Proyecto: ${esc(proy.id_proyecto)} · Solicitante: ${sol}${totalTxt}${fechaTxt}</td></tr>`;
+}
+
+/**
+ * Tabla agrupada por proyecto: inserta el encabezado de grupo cada vez
+ * que cambia el proyecto dentro de la página. Como cada página empieza
+ * sin proyecto actual, un proyecto partido entre dos páginas vuelve a
+ * mostrar su encabezado arriba en la siguiente.
+ */
+function renderTablaHistorial(items, proyectos) {
+    const porId = {};
+    (proyectos || []).forEach(p => { porId[p.id_proyecto] = p; });
+    let html = '';
+    let actual = null;
+    items.forEach(item => {
+        if (item.id_proyecto !== actual) {
+            actual = item.id_proyecto;
+            const meta = porId[actual] || {};
+            html += renderEncabezadoProyecto({
+                id_proyecto: actual,
+                solicitante: meta.solicitante !== undefined ? meta.solicitante : (item.solicitante ?? null),
+                total: meta.total !== undefined ? meta.total : null,
+                fecha_reciente: meta.fecha_reciente !== undefined ? meta.fecha_reciente : null,
+            });
+        }
+        html += renderFilaHistorial(item);
+    });
+    return html;
+}
+
 const renderFilaHistorial = (item) => {
     const ia = item.propuesta_ia || {};
     const esHermana = !!item.es_sugerencia;
@@ -483,11 +536,16 @@ async function cargarDatos() {
 
         // Lista de proyectos del filtro (se rellena del endpoint; se
         // conserva la selección actual y el valor inicial de la URL).
+        // La opción muestra "PROY-... — Nombre del solicitante" (o
+        // "— Sin registro" cuando el proyecto no tiene usuario).
         const selProy = document.getElementById('f-proyecto');
         if (selProy) {
             const actual = selProy.value || proyectoInicial || '';
-            selProy.innerHTML = '<option value="">Todos</option>' + (data.proyectos || []).map(p => `<option value="${escAttr(p)}">${esc(p)}</option>`).join('');
-            if (actual && (data.proyectos || []).includes(actual)) selProy.value = actual;
+            selProy.innerHTML = '<option value="">Todos</option>' + (data.proyectos || []).map(p => {
+                const sol = (p.solicitante !== null && p.solicitante !== undefined && String(p.solicitante) !== '') ? p.solicitante : 'Sin registro';
+                return `<option value="${escAttr(p.id_proyecto)}">${esc(p.id_proyecto)} — ${esc(sol)}</option>`;
+            }).join('');
+            if (actual && (data.proyectos || []).some(p => p.id_proyecto === actual)) selProy.value = actual;
             if (proyectoInicial) { selProy.value = proyectoInicial; proyectoInicial = null; }
         }
 
@@ -495,7 +553,7 @@ async function cargarDatos() {
 
         const contenedor = document.getElementById('contenedor-historial');
         contenedor.innerHTML = datosHistorial.length
-            ? datosHistorial.map(renderFilaHistorial).join('')
+            ? renderTablaHistorial(datosHistorial, data.proyectos)
             : '<tr><td colspan="9" class="text-center py-4 text-muted">Sin ítems para estos filtros.</td></tr>';
 
         const pag = data.paginacion || {};

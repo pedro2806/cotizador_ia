@@ -7,7 +7,9 @@
  * para el dashboard de resultados. La vista pide una sola vez y recibe:
  *
  *   {
- *     "proyectos":   ["P1", "P2", ...],   // DISTINCT id_proyecto (filtro)
+ *     "proyectos":   [{id_proyecto, solicitante, total, fecha_reciente}, ...],
+ *                    // ordenados por id_proyecto DESC (el más reciente
+ *                    // primero); solicitante es u.nombre o null ("Sin registro")
  *     "dashboard":   { total, completados, pendientes, requieren_revision,
  *                       validacion_pendiente, con_precio_validado,
  *                       propuesta_invalida, propuesta_valida,
@@ -16,9 +18,20 @@
  *                       ultimos: [{id, id_proyecto, fecha_registro, codigo, precio}] },
  *     "items":       [ {id, id_proyecto, entrada_usuario, estatus,
  *                       es_sugerencia, propuesta_ia (decodificada o null),
- *                       propuesta_valida, fecha_registro, ...} ],
+ *                       propuesta_valida, fecha_registro, solicitante, ...} ],
  *     "paginacion":  {pagina, por_pagina, total, total_paginas}
  *   }
+ *
+ * Orden de la tabla: id_proyecto DESC (el formato PROY-YYYYMMDD-NNNN
+ * ordena cronológicamente como texto) y dentro del proyecto id ASC
+ * (mismo orden que el monitor), para agrupar por proyecto en la vista.
+ *
+ * El solicitante se resuelve con LEFT JOIN usuarios u ON
+ * u.id_usuario = c.id_us_registro (el id es $_SESSION['usuario_id']
+ * al subir la carga; ver procesar_carga.php). Si no hay usuario
+ * (id NULL o sin fila en usuarios), solicitante es null y la vista
+ * muestra "Sin registro". Un proyecto lo crea una sola carga de un
+ * solo usuario, así que MAX(u.nombre) por proyecto es determinista.
  *
  * Filtros (GET, todos opcionales y combinables):
  *   proyecto, cdmess (LIKE sobre el código cotizado), desde / hasta
@@ -110,17 +123,17 @@ function historialCondiciones(array $f, $ambitoSolo) {
     $params = [];
 
     if (!empty($f['proyecto'])) {
-        $conds[] = 'id_proyecto = ?';
+        $conds[] = 'c.id_proyecto = ?';
         $tipos .= 's';
         $params[] = $f['proyecto'];
     }
     if (!empty($f['desde'])) {
-        $conds[] = 'DATE(fecha_registro) >= ?';
+        $conds[] = 'DATE(c.fecha_registro) >= ?';
         $tipos .= 's';
         $params[] = $f['desde'];
     }
     if (!empty($f['hasta'])) {
-        $conds[] = 'DATE(fecha_registro) <= ?';
+        $conds[] = 'DATE(c.fecha_registro) <= ?';
         $tipos .= 's';
         $params[] = $f['hasta'];
     }
@@ -132,28 +145,28 @@ function historialCondiciones(array $f, $ambitoSolo) {
     if (!empty($f['cdmess'])) {
         // Código cotizado: vive dentro de propuesta_ia. Las filas sin
         // propuesta válida no tienen código y no entran en este filtro.
-        $conds[] = "JSON_VALID(propuesta_ia) AND JSON_UNQUOTE(JSON_EXTRACT(propuesta_ia, '\$.cdmess')) LIKE ?";
+        $conds[] = "JSON_VALID(c.propuesta_ia) AND JSON_UNQUOTE(JSON_EXTRACT(c.propuesta_ia, '\$.cdmess')) LIKE ?";
         $tipos .= 's';
         $params[] = '%' . $f['cdmess'] . '%';
     }
     if (!empty($f['origen'])) {
-        $conds[] = "JSON_VALID(propuesta_ia) AND JSON_UNQUOTE(JSON_EXTRACT(propuesta_ia, '\$.origen_precio')) = ?";
+        $conds[] = "JSON_VALID(c.propuesta_ia) AND JSON_UNQUOTE(JSON_EXTRACT(c.propuesta_ia, '\$.origen_precio')) = ?";
         $tipos .= 's';
         $params[] = $f['origen'];
     }
     if (!empty($f['estatus'])) {
-        $conds[] = 'estatus = ?';
+        $conds[] = 'c.estatus = ?';
         $tipos .= 's';
         $params[] = $f['estatus'];
     }
     if (!empty($f['solo_revision'])) {
-        $conds[] = "JSON_VALID(propuesta_ia) AND JSON_UNQUOTE(JSON_EXTRACT(propuesta_ia, '\$.requiere_revision')) = 'true'";
+        $conds[] = "JSON_VALID(c.propuesta_ia) AND JSON_UNQUOTE(JSON_EXTRACT(c.propuesta_ia, '\$.requiere_revision')) = 'true'";
     }
     if (!empty($f['solo_validacion'])) {
-        $conds[] = "JSON_VALID(propuesta_ia) AND JSON_UNQUOTE(JSON_EXTRACT(propuesta_ia, '\$.atlas.requiere_validacion_experto')) = 'true'";
+        $conds[] = "JSON_VALID(c.propuesta_ia) AND JSON_UNQUOTE(JSON_EXTRACT(c.propuesta_ia, '\$.atlas.requiere_validacion_experto')) = 'true'";
     }
     if (!empty($f['q'])) {
-        $conds[] = 'entrada_usuario LIKE ?';
+        $conds[] = 'c.entrada_usuario LIKE ?';
         $tipos .= 's';
         $params[] = '%' . $f['q'] . '%';
     }
@@ -196,21 +209,21 @@ function historialObtenerDashboard($conn, array $f) {
 
     $tot = historialConsultar($conn,
         "SELECT COUNT(*) AS total,
-                SUM(CASE WHEN estatus = 'completado' THEN 1 ELSE 0 END) AS completados,
-                SUM(CASE WHEN estatus <> 'completado' THEN 1 ELSE 0 END) AS pendientes,
-                SUM(CASE WHEN JSON_VALID(propuesta_ia) AND JSON_UNQUOTE(JSON_EXTRACT(propuesta_ia, '\$.requiere_revision')) = 'true' THEN 1 ELSE 0 END) AS requieren_revision,
-                SUM(CASE WHEN JSON_VALID(propuesta_ia) AND JSON_UNQUOTE(JSON_EXTRACT(propuesta_ia, '\$.atlas.requiere_validacion_experto')) = 'true' THEN 1 ELSE 0 END) AS validacion_pendiente,
-                SUM(CASE WHEN JSON_VALID(propuesta_ia) AND JSON_UNQUOTE(JSON_EXTRACT(propuesta_ia, '\$.tiene_precio_validado')) = 'true' THEN 1 ELSE 0 END) AS con_precio_validado,
-                SUM(CASE WHEN propuesta_ia IS NOT NULL AND NOT JSON_VALID(propuesta_ia) THEN 1 ELSE 0 END) AS propuesta_invalida,
-                SUM(CASE WHEN JSON_VALID(propuesta_ia) THEN 1 ELSE 0 END) AS propuesta_valida
-         FROM cola_procesamiento $where",
+                SUM(CASE WHEN c.estatus = 'completado' THEN 1 ELSE 0 END) AS completados,
+                SUM(CASE WHEN c.estatus <> 'completado' THEN 1 ELSE 0 END) AS pendientes,
+                SUM(CASE WHEN JSON_VALID(c.propuesta_ia) AND JSON_UNQUOTE(JSON_EXTRACT(c.propuesta_ia, '\$.requiere_revision')) = 'true' THEN 1 ELSE 0 END) AS requieren_revision,
+                SUM(CASE WHEN JSON_VALID(c.propuesta_ia) AND JSON_UNQUOTE(JSON_EXTRACT(c.propuesta_ia, '\$.atlas.requiere_validacion_experto')) = 'true' THEN 1 ELSE 0 END) AS validacion_pendiente,
+                SUM(CASE WHEN JSON_VALID(c.propuesta_ia) AND JSON_UNQUOTE(JSON_EXTRACT(c.propuesta_ia, '\$.tiene_precio_validado')) = 'true' THEN 1 ELSE 0 END) AS con_precio_validado,
+                SUM(CASE WHEN c.propuesta_ia IS NOT NULL AND NOT JSON_VALID(c.propuesta_ia) THEN 1 ELSE 0 END) AS propuesta_invalida,
+                SUM(CASE WHEN JSON_VALID(c.propuesta_ia) THEN 1 ELSE 0 END) AS propuesta_valida
+         FROM cola_procesamiento c LEFT JOIN usuarios u ON u.id_usuario = c.id_us_registro $where",
         $tipos, $params);
     $t = $tot[0] ?? [];
     $total = (int) ($t['total'] ?? 0);
 
     $porOrigenFilas = historialConsultar($conn,
-        "SELECT COALESCE(JSON_UNQUOTE(JSON_EXTRACT(propuesta_ia, '\$.origen_precio')), 'sin_origen') AS origen, COUNT(*) AS n
-         FROM cola_procesamiento {$y}JSON_VALID(propuesta_ia)
+        "SELECT COALESCE(JSON_UNQUOTE(JSON_EXTRACT(c.propuesta_ia, '\$.origen_precio')), 'sin_origen') AS origen, COUNT(*) AS n
+         FROM cola_procesamiento c LEFT JOIN usuarios u ON u.id_usuario = c.id_us_registro {$y}JSON_VALID(c.propuesta_ia)
          GROUP BY origen ORDER BY n DESC",
         $tipos, $params);
     $porOrigen = [];
@@ -242,11 +255,11 @@ function historialObtenerDashboard($conn, array $f) {
     }
 
     $top = historialConsultar($conn,
-        "SELECT JSON_UNQUOTE(JSON_EXTRACT(propuesta_ia, '\$.cdmess')) AS codigo, COUNT(*) AS n,
-                ROUND(AVG(JSON_EXTRACT(propuesta_ia, '\$.precio_ia')), 2) AS precio_promedio_sugerido
-         FROM cola_procesamiento {$y}JSON_VALID(propuesta_ia)
-             AND JSON_UNQUOTE(JSON_EXTRACT(propuesta_ia, '\$.cdmess')) IS NOT NULL
-             AND JSON_UNQUOTE(JSON_EXTRACT(propuesta_ia, '\$.cdmess')) NOT IN ('', 'S/C')
+        "SELECT JSON_UNQUOTE(JSON_EXTRACT(c.propuesta_ia, '\$.cdmess')) AS codigo, COUNT(*) AS n,
+                ROUND(AVG(JSON_EXTRACT(c.propuesta_ia, '\$.precio_ia')), 2) AS precio_promedio_sugerido
+         FROM cola_procesamiento c LEFT JOIN usuarios u ON u.id_usuario = c.id_us_registro {$y}JSON_VALID(c.propuesta_ia)
+             AND JSON_UNQUOTE(JSON_EXTRACT(c.propuesta_ia, '\$.cdmess')) IS NOT NULL
+             AND JSON_UNQUOTE(JSON_EXTRACT(c.propuesta_ia, '\$.cdmess')) NOT IN ('', 'S/C')
          GROUP BY codigo ORDER BY n DESC, codigo ASC LIMIT 10",
         $tipos, $params);
     $topLimpio = [];
@@ -259,11 +272,11 @@ function historialObtenerDashboard($conn, array $f) {
     }
 
     $ultimos = historialConsultar($conn,
-        "SELECT id, id_proyecto, fecha_registro,
-                JSON_UNQUOTE(JSON_EXTRACT(propuesta_ia, '\$.cdmess')) AS codigo,
-                JSON_EXTRACT(propuesta_ia, '\$.precio_ia') AS precio
-         FROM cola_procesamiento {$y}JSON_VALID(propuesta_ia) AND estatus = 'completado'
-         ORDER BY fecha_registro DESC, id DESC LIMIT 10",
+        "SELECT c.id, c.id_proyecto, c.fecha_registro,
+                JSON_UNQUOTE(JSON_EXTRACT(c.propuesta_ia, '\$.cdmess')) AS codigo,
+                JSON_EXTRACT(c.propuesta_ia, '\$.precio_ia') AS precio
+         FROM cola_procesamiento c LEFT JOIN usuarios u ON u.id_usuario = c.id_us_registro {$y}JSON_VALID(c.propuesta_ia) AND c.estatus = 'completado'
+         ORDER BY c.fecha_registro DESC, c.id DESC LIMIT 10",
         $tipos, $params);
     $ultimosLimpios = [];
     foreach ($ultimos as $r) {
@@ -291,14 +304,29 @@ function historialObtenerDashboard($conn, array $f) {
     ];
 }
 
-/** Lista de proyectos para el filtro (DISTINCT id_proyecto de la cola). */
+/**
+ * Lista de proyectos para el filtro y para los encabezados de grupo de
+ * la vista: un renglón por proyecto con su solicitante (u.nombre),
+ * total de ítems y fecha del más reciente. Ordenados por id_proyecto
+ * DESC (el más reciente primero). El LEFT JOIN deja solicitante en
+ * NULL cuando el proyecto no tiene usuario registrado ("Sin registro").
+ */
 function historialObtenerProyectos($conn) {
     $filas = historialConsultar($conn,
-        'SELECT DISTINCT id_proyecto FROM cola_procesamiento ORDER BY id_proyecto ASC');
+        'SELECT c.id_proyecto, MAX(u.nombre) AS solicitante, COUNT(*) AS total,
+                MAX(c.fecha_registro) AS fecha_reciente
+         FROM cola_procesamiento c LEFT JOIN usuarios u ON u.id_usuario = c.id_us_registro
+         GROUP BY c.id_proyecto ORDER BY c.id_proyecto DESC');
     $out = [];
     foreach ($filas as $r) {
         if ($r['id_proyecto'] !== null && (string) $r['id_proyecto'] !== '') {
-            $out[] = (string) $r['id_proyecto'];
+            $sol = $r['solicitante'] ?? null;
+            $out[] = [
+                'id_proyecto' => (string) $r['id_proyecto'],
+                'solicitante' => ($sol !== null && (string) $sol !== '') ? (string) $sol : null,
+                'total' => (int) $r['total'],
+                'fecha_reciente' => $r['fecha_reciente'],
+            ];
         }
     }
     return $out;
@@ -332,6 +360,7 @@ function historialArmarFila(array $row) {
         'categoria_rechazo' => $row['categoria_rechazo'] ?? null,
         'fecha_registro' => $row['fecha_registro'],
         'id_us_registro' => $row['id_us_registro'] ?? null,
+        'solicitante' => $row['solicitante'] ?? null,
         'propuesta_ia' => $propuesta,
         'propuesta_valida' => $valida,
     ];
@@ -342,7 +371,7 @@ function historialObtenerItems($conn, array $f, $pagina, $porPagina) {
     [$where, $tipos, $params] = historialCondiciones($f, false);
 
     $tot = historialConsultar($conn,
-        "SELECT COUNT(*) AS total_items FROM cola_procesamiento $where",
+        "SELECT COUNT(*) AS total_items FROM cola_procesamiento c LEFT JOIN usuarios u ON u.id_usuario = c.id_us_registro $where",
         $tipos, $params);
     $total = (int) ($tot[0]['total_items'] ?? 0);
     $totalPaginas = max(1, (int) ceil($total / $porPagina));
@@ -354,11 +383,11 @@ function historialObtenerItems($conn, array $f, $pagina, $porPagina) {
     $paramsItems[] = $inicio;
     $paramsItems[] = $porPagina;
     $filas = historialConsultar($conn,
-        "SELECT id, id_proyecto, entrada_usuario, cdmess_historico, descripcion_historica,
-                estatus, es_sugerencia, propuesta_ia, fecha_registro, id_us_registro,
-                precio_usuario, respuesta, categoria_rechazo
-         FROM cola_procesamiento $where
-         ORDER BY fecha_registro DESC, id DESC LIMIT ?, ?",
+        "SELECT c.id, c.id_proyecto, c.entrada_usuario, c.cdmess_historico, c.descripcion_historica,
+                c.estatus, c.es_sugerencia, c.propuesta_ia, c.fecha_registro, c.id_us_registro,
+                c.precio_usuario, c.respuesta, c.categoria_rechazo, u.nombre AS solicitante
+         FROM cola_procesamiento c LEFT JOIN usuarios u ON u.id_usuario = c.id_us_registro $where
+         ORDER BY c.id_proyecto DESC, c.id ASC LIMIT ?, ?",
         $tiposItems, $paramsItems);
 
     $items = [];
