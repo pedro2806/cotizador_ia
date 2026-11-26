@@ -1,4 +1,5 @@
 <?php include 'acciones_login.php'; ?>
+<?php require_once __DIR__ . '/core/permisos_vistas.php'; ?>
 
 <!DOCTYPE html>
 <html lang="es">
@@ -300,6 +301,17 @@
             transition: background-color .2s ease;
         }
         .mx-btn-salir:hover { background: var(--mx-rojo-hover); }
+        /* Enlace discreto a Permisos: solo lo ven los administradores
+           de permisos (ver el aside); texto chico y tenue, sin tarjeta
+           ni icono llamativo. */
+        .mx-link-permisos {
+            display: block;
+            margin-top: 10px;
+            font-size: 0.8rem;
+            color: rgba(255,255,255,.55);
+            text-decoration: none;
+        }
+        .mx-link-permisos:hover { color: rgba(255,255,255,.85); text-decoration: underline; }
 
         @media (max-width: 899px) {
             .mx-panel { grid-template-columns: 1fr; }
@@ -417,6 +429,9 @@
             <p class="mx-bienvenido">Bienvenido</p>
             <p class="mx-nombre"><?php echo htmlspecialchars($_SESSION['nombre']); ?></p>
             <button type="button" class="mx-btn-salir" onclick="confirmarSalida()">Salir</button>
+            <?php if (esAdminPermisos($_SESSION['usuario_id'] ?? 0)): ?>
+                <a class="mx-link-permisos" href="permisos.php">Permisos</a>
+            <?php endif; ?>
         </aside>
     </div>
 

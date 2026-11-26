@@ -5,6 +5,16 @@ if (empty($_SESSION['usuario_id'])) {
     exit;
 }
 
+// Permisos por vista (2026-11-26): solo abre quien tenga acceso a
+// 'historial_precios' (los admins de permisos siempre). $conn viene de
+// conexion.php, igual que en el resto del cotizador.
+require_once __DIR__ . '/conexion.php';
+require_once __DIR__ . '/core/permisos_vistas.php';
+if (!tieneAccesoVista($conn, 'historial_precios', $_SESSION['usuario_id'])) {
+    header('Location: index.php');
+    exit;
+}
+
 // Valores iniciales de los filtros desde la URL (para poder compartir
 // el enlace con filtros puestos). El JavaScript los lee del formulario.
 $flt = function ($k) { return htmlspecialchars($_GET[$k] ?? '', ENT_QUOTES, 'UTF-8'); };

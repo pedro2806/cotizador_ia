@@ -480,6 +480,14 @@ if (php_sapi_name() !== 'cli') {
     require_once __DIR__ . '/conexion.php';
     set_time_limit(0);
 
+    // Permisos por vista (2026-11-26): solo abre quien tenga acceso a
+    // 'actualizar_tarifario_validado' (los admins de permisos siempre).
+    require_once __DIR__ . '/core/permisos_vistas.php';
+    if (!tieneAccesoVista($conn, 'actualizar_tarifario_validado', $_SESSION['usuario_id'])) {
+        header('Location: index.php');
+        exit;
+    }
+
     $error = null;
     $reporte = null;
     // Valores del formulario: lo tecleado en el POST si lo hubo, si no
