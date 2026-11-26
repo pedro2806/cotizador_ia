@@ -331,6 +331,16 @@
             transition: background-color .2s ease;
         }
         .mx-btn-vista:hover { background: var(--mx-azul-btn-hover); }
+        /* Contenedor de los botones de sesión (2026-11-26): los botones
+           del aside (Salir, Permisos y las 3 vistas) van en columna, uno
+           debajo del otro, alineados a la derecha. Antes eran inline y
+           fluían en una sola fila horizontal. */
+        .mx-acciones-sesion {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 8px;
+        }
 
         @media (max-width: 899px) {
             .mx-panel { grid-template-columns: 1fr; }
@@ -447,6 +457,7 @@
         <aside class="mx-bienvenida" aria-label="Sesión">
             <p class="mx-bienvenido">Bienvenido</p>
             <p class="mx-nombre"><?php echo htmlspecialchars($_SESSION['nombre']); ?></p>
+            <div class="mx-acciones-sesion">
             <button type="button" class="mx-btn-salir" onclick="confirmarSalida()">Salir</button>
             <?php if (esAdminPermisos((int)($_COOKIE['noEmpleado'] ?? 0))): ?>
                 <button type="button" class="mx-link-permisos" onclick="location.href='permisos.php'">Permisos</button>
@@ -481,6 +492,7 @@
             ?>
                 <button type="button" class="mx-btn-vista" onclick="location.href='<?php echo $vistaClave; ?>.php'"><?php echo htmlspecialchars($etiqueta, ENT_QUOTES, 'UTF-8'); ?></button>
             <?php endforeach; ?>
+            </div>
         </aside>
     </div>
 
