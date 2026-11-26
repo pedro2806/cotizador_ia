@@ -19,6 +19,16 @@ if (ob_get_level()) ob_end_clean();
 ob_implicit_flush(true);
 
 require_once __DIR__ . '/conexion.php';
+
+// Permisos por vista (2026-11-26): solo abre quien tenga acceso a
+// 'importar_v2' (los admins de permisos siempre). El candado cubre la
+// vista; procesar_carga.php (donde postea el form) no se toca. El
+// permiso es por noEmpleado de la cookie, no por id_usuario.
+require_once __DIR__ . '/core/permisos_vistas.php';
+if (!tieneAccesoVista($conn, 'importar_v2', (int)($_COOKIE['noEmpleado'] ?? 0))) {
+    http_response_code(403);
+    die('Sin acceso a esta vista. Pide acceso a un administrador de permisos.');
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">

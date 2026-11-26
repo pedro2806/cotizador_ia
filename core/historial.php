@@ -570,6 +570,13 @@ function calcularPercentil(array $valores_ordenados, float $percentil) {
  * quedaran menos de 3 muestras, se conservan las originales y se marca
  * que no se limpió. Si IQR=0 los límites colapsan a Q1=Q3 y solo sobreviven
  * los valores iguales a ese precio (con el mismo rescate de <3 muestras).
+ * A+B (2026-11-23) — Regla del 40% (antes 60%; apretada a 40% el 2026-11-26
+ * a petición de Pedro): segundo paso sobre las muestras ya
+ * limpias por IQR: se calcula su mediana y se descartan las que se desvíen
+ * más del 40% de ella (|p - mediana| / mediana > 0.40). Mismas guardas:
+ * solo con n>=8 y si tras aplicar la regla quedaran menos de 3 muestras
+ * se revierte a las limpias por IQR (la regla no descarta nada). Las
+ * descartadas por esta regla también cuentan en n_atipicos.
  * Devuelve ['muestras'=>..., 'n_atipicos'=>int, 'aplicada'=>bool].
  */
 function limpiarAtipicosIQR(array $muestras) {
@@ -587,6 +594,20 @@ function limpiarAtipicosIQR(array $muestras) {
         if ($m['precio_usd'] >= $lim_inf && $m['precio_usd'] <= $lim_sup) $limpias[] = $m;
     }
     if (count($limpias) < 3) return ['muestras' => $muestras, 'n_atipicos' => 0, 'aplicada' => false];
+    // A+B: regla del 40% sobre la mediana de las limpias por IQR.
+    $precios_limpios = array_column($limpias, 'precio_usd');
+    sort($precios_limpios, SORT_NUMERIC);
+    $mediana = calcularPercentil($precios_limpios, 50);
+    if ($mediana > 0) {
+        $limpias40 = [];
+        foreach ($limpias as $m) {
+            if (abs($m['precio_usd'] - $mediana) / $mediana <= 0.40) $limpias40[] = $m;
+        }
+        if (count($limpias40) >= 3) {
+            return ['muestras' => $limpias40, 'n_atipicos' => $n - count($limpias40), 'aplicada' => true];
+        }
+        // Si quedaran <3, se revierte a las limpias por IQR.
+    }
     return ['muestras' => $limpias, 'n_atipicos' => $n - count($limpias), 'aplicada' => true];
 }
 
@@ -880,6 +901,50 @@ function atlasTokenizar($texto) {
         $unicos[$t] = true;
     }
     return array_keys($unicos);
+}
+
+/**
+ * Precio validado del tarifario (tarifario_validado).
+ *
+ * Lee el precio unitario validado por el área responsable para un CDMESS.
+ * Solo filas con activo = 1. Devuelve ['usd' => float, 'mxn' => float|null]
+ * o null si el código no tiene precio validado activo (o el precio no es
+ * válido). 'mxn' es null cuando la fila no trae precio en MXN: el worker
+ * lo deriva del USD con el ratio USD/MXN del histórico.
+ *
+ * Ante cualquier error de consulta devuelve null y NO lanza excepción: el
+ * validado es referencia (ancla en el prompt) y respaldo, nunca un
+ * requisito; sin él el worker sigue como hoy. Solo tabla de consulta: no
+ * lleva quién/cuándo (eso vive en otro lado).
+ */
+function obtenerPrecioValidado($cdmess, $conn) {
+    $cdmess = trim((string) $cdmess);
+    if ($cdmess === '' || strcasecmp($cdmess, 'S/C') === 0) return null;
+
+    try {
+        $stmt = $conn->prepare(
+            "SELECT precio_validado_usd, precio_validado_mxn
+             FROM tarifario_validado
+             WHERE cdmess = ? AND activo = 1"
+        );
+        $stmt->bind_param('s', $cdmess);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $row = $res ? $res->fetch_assoc() : null;
+        $stmt->close();
+        if (!$row || !isset($row['precio_validado_usd']) || (float) $row['precio_validado_usd'] <= 0) {
+            return null;
+        }
+        return [
+            'usd' => round((float) $row['precio_validado_usd'], 2),
+            'mxn' => ($row['precio_validado_mxn'] !== null && (float) $row['precio_validado_mxn'] > 0)
+                ? round((float) $row['precio_validado_mxn'], 2)
+                : null,
+        ];
+    } catch (Throwable $e) {
+        error_log('tarifario_validado: obtenerPrecioValidado(' . $cdmess . ') falló: ' . $e->getMessage());
+        return null;
+    }
 }
 
 /**

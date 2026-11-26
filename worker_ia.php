@@ -438,6 +438,15 @@ function procesarSiguientePendiente() {
         }
     }
 
+    // Precio validado (tarifario): se busca DESPUÉS del re-base D1, por el
+    // código FINAL (el principal si hubo re-base), no por la clave
+    // encontrada. Solo filas activo = 1. null si el código no tiene precio
+    // validado: el flujo sigue como hoy (el validado es ancla en el prompt
+    // y respaldo, nunca un requisito).
+    $precio_validado = obtenerPrecioValidado($cdmess_contexto, $conn);
+    $precio_validado_usd = ($precio_validado !== null) ? (float) $precio_validado['usd'] : null;
+    $precio_validado_mxn = ($precio_validado !== null) ? $precio_validado['mxn'] : null;
+
     // Folio y fecha de la cotización que se usó como base (la más reciente del CDMESS).
     // Se calcula DESPUÉS del re-base de la Fase 2: si hay principal, el
     // folio es el del principal, no el de la clave encontrada.
@@ -460,7 +469,7 @@ function procesarSiguientePendiente() {
     // A6: latencia de la llamada a Ollama (incluye reintentos y
     // re-preguntas de A5). $t_inicio (arriba) ya mide el ítem completo.
     $t_ia_inicio = microtime(true);
-    $respuesta_ia_raw = preguntarOllamaConPrecios($stats, $entrada, $aprendizaje, $contexto_precio);
+    $respuesta_ia_raw = preguntarOllamaConPrecios($stats, $entrada, $aprendizaje, $contexto_precio, $precio_validado_usd);
     $latencia_ia_ms = (int) round((microtime(true) - $t_ia_inicio) * 1000);
     $respuesta_ia = json_decode($respuesta_ia_raw, true);
     if (!is_array($respuesta_ia)) {
@@ -470,16 +479,38 @@ function procesarSiguientePendiente() {
     // A5: diagnóstico de la llamada a Ollama que trae preguntarOllamaConPrecios()
     // en la propia respuesta (van a propuesta_ia). ia_degradado=true significa
     // que Ollama no devolvió una propuesta válida de precio en esta vuelta y
-    // el precio de la IA es el respaldo del promedio (o el ancla humana si
-    // hay aprendizaje); no afirma por sí solo que el precio final sea el
-    // promedio cuando hay mezcla humana (ahí origen_precio es 'mixto'/'humano').
+    // el precio de la IA es el respaldo (validado del tarifario, ponderado o
+    // promedio, en ese orden; o el ancla humana si hay aprendizaje); no
+    // afirma por sí solo que el precio final sea el promedio cuando hay
+    // mezcla humana (ahí origen_precio es 'mixto'/'humano').
     $ia_intentos = isset($respuesta_ia['ia_intentos']) ? (int) $respuesta_ia['ia_intentos'] : 0;
     $ia_error = isset($respuesta_ia['ia_error']) && $respuesta_ia['ia_error'] !== '' && $respuesta_ia['ia_error'] !== null ? (string) $respuesta_ia['ia_error'] : null;
     $ia_degradado = !empty($respuesta_ia['ia_degradado']);
     //error_log("APRENDIZAJE PARA $cdmess_para_aprendizaje: ". json_encode($aprendizaje));
 
     $precio_base = round($stats_item['avg']?? 0, 2);
-    $precio_final = $precio_base;
+    // A+B (2026-11-23): el precio de RESPALDO ("Promedio (respaldo)",
+    // origen_precio 'promedio', cuando Ollama no propuso precio válido)
+    // es el promedio PONDERADO por antigüedad del contexto (A3), no el
+    // simple: lo reciente pesa más. Solo afecta al respaldo: $precio_base
+    // (simple) se conserva para $ratio_mxn, para el ancla del aprendizaje
+    // humano (A4) y para el campo precio_promedio que muestra el monitor
+    // (promedio simple histórico). Sin contexto o con ponderado no válido,
+    // se queda el simple de hoy. NO se reasigna $precio_base: hacerlo
+    // cambiaría precio_promedio a ponderado y movería el ancla de la
+    // categoría A4 sin IA; el humano seguiría mandando en sus ramas, pero
+    // el respaldo es lo único que debe cambiar.
+    // Precio validado (tarifario, 2026-11-24): si el código tiene precio
+    // validado activo, EL RESPALDO ES EL VALIDADO, antes que el ponderado
+    // y que el simple (origen_precio 'validado', ver abajo). El validado
+    // no toca $precio_base ni el ancla A4: solo alimenta $precio_final
+    // inicial, igual que el ponderado.
+    $precio_base_respaldo = ($precio_validado_usd !== null)
+        ? $precio_validado_usd
+        : ((!empty($contexto_precio) && isset($contexto_precio['promedio_ponderado']) && (float) $contexto_precio['promedio_ponderado'] > 0)
+            ? round((float) $contexto_precio['promedio_ponderado'], 2)
+            : $precio_base);
+    $precio_final = $precio_base_respaldo;
     $precio_final_min = round($stats_item['min']?? 0, 2);
     $precio_final_max = round($stats_item['max']?? 0, 2);
     $precio_base_mxn = round($stats_item['avg_mxn']?? 0, 2);
@@ -490,6 +521,13 @@ function procesarSiguientePendiente() {
     // del histórico (la usa tanto el precio humano como el de la IA).
     list($banda_min, $banda_max) = calcularBandaPrecio($contexto_precio, $stats_item);
     $ratio_mxn = ($precio_base > 0) ? ($precio_base_mxn / $precio_base) : 1;
+    // A+B: el MXN del respaldo deriva del base ponderado con el ratio
+    // simple, para que USD y MXN queden consistentes.
+    // Precio validado: si la fila trae precio en MXN se usa tal cual; si
+    // no, se deriva del validado USD con el mismo ratio.
+    $precio_final_mxn = ($precio_validado_usd !== null && $precio_validado_mxn !== null)
+        ? $precio_validado_mxn
+        : round($precio_base_respaldo * $ratio_mxn, 2);
     // A5: el Rango que muestra el monitor (precio_min/max en propuesta_ia)
     // usa los extremos LIMPIOS por IQR cuando hay contexto (A3), no los
     // crudos con atípicos como el Min $5.67 / Max $6650 de S2-5. El contexto
@@ -636,6 +674,16 @@ function procesarSiguientePendiente() {
             $precio_final_min = round(min($precio_final_min, $precio_final), 2);
             $precio_final_max = round(max($precio_final_max, $precio_final), 2);
         }
+    }
+
+    // Precio validado (tarifario): si el precio final quedó en el respaldo
+    // y hay validado, el origen es 'validado' (no 'promedio'). Solo se
+    // llega aquí con origen 'promedio' cuando no hubo aprendizaje que
+    // mandara ni precio válido de IA: el final ES el respaldo. Con
+    // aprendizaje ('humano'/'mixto') o con IA válida ('ia') no se toca.
+    if ($origen_precio === 'promedio' && $precio_validado_usd !== null) {
+        $origen_precio = 'validado';
+        $nota_final .= " | Precio validado (tarifario): $" . number_format($precio_validado_usd, 2) . " usd";
     }
 
     // Genera el texto que va debajo de la descripción
@@ -820,6 +868,12 @@ function procesarSiguientePendiente() {
         "precio_max_mxn" => $display_max_mxn,
         "precio_promedio_mxn" => $precio_base_mxn,
         "precio_ia_mxn" => $precio_final_mxn,
+        // Precio validado (tarifario): el que se usó como ancla en el
+        // prompt y como respaldo (null si el código no tiene). El monitor
+        // lo muestra con su insignia y su línea en el modal.
+        "precio_validado_usd" => $precio_validado_usd,
+        "precio_validado_mxn" => $precio_validado_mxn,
+        "tiene_precio_validado" => $precio_validado_usd !== null,
         "notas" => $nota_final,
         "veredicto_ia" => $veredicto_ia,
         "coincidencias" => $stats['alternativas']?? '',
