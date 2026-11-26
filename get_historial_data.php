@@ -24,7 +24,8 @@
  *   proyecto, cdmess (LIKE sobre el código cotizado), desde / hasta
  *   (fecha_registro), origen (ia/promedio/validado/humano/mixto),
  *   estatus (completado/procesando/pendiente/error), solo_revision=1,
- *   solo_validacion=1, q (texto en entrada_usuario), pagina, por_pagina.
+ *   solo_validacion=1, q (texto en entrada_usuario), pagina, por_pagina
+ *   (10 por defecto; permitidos 10/25/50/100, cualquier otro se ignora).
  *
  * El dashboard respeta SOLO los filtros de proyecto y fechas; si no hay
  * filtro, es global. La tabla sí aplica todos los filtros.
@@ -47,7 +48,8 @@
 // 'sin_propuesta' = sin propuesta_ia válida (NULL o JSON inválido).
 const HISTORIAL_ORIGENES = ['ia', 'promedio', 'validado', 'humano', 'mixto'];
 const HISTORIAL_ESTATUS = ['completado', 'procesando', 'pendiente', 'error'];
-const HISTORIAL_POR_PAGINA = 25;
+const HISTORIAL_POR_PAGINA = 10;
+const HISTORIAL_POR_PAGINA_PERMITIDOS = [10, 25, 50, 100];
 
 /**
  * Normaliza los filtros que vienen por GET: recorta texto, valida fechas
@@ -78,8 +80,10 @@ function historialNormalizarFiltros(array $get) {
     if ($f['q'] === '') $f['q'] = null;
 
     $f['pagina'] = max(1, intval($get['pagina'] ?? 1));
+    // Tamaño de página: solo se aceptan 10/25/50/100; cualquier otro
+    // valor (o su ausencia) usa el valor por defecto (10).
     $f['por_pagina'] = intval($get['por_pagina'] ?? HISTORIAL_POR_PAGINA);
-    if ($f['por_pagina'] < 1 || $f['por_pagina'] > 100) $f['por_pagina'] = HISTORIAL_POR_PAGINA;
+    if (!in_array($f['por_pagina'], HISTORIAL_POR_PAGINA_PERMITIDOS, true)) $f['por_pagina'] = HISTORIAL_POR_PAGINA;
 
     return $f;
 }

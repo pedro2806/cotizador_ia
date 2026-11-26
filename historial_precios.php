@@ -181,6 +181,7 @@ $sel = function ($campo, $valor) use ($flt) { return ($flt($campo) === $valor) ?
                     <div class="card shadow-sm h-100">
                         <div class="card-header bg-white py-2"><h6 class="mb-0 fw-bold text-dark x-small text-uppercase">Por origen del precio</h6></div>
                         <div class="card-body p-2" id="d-origen"></div>
+                        <div class="x-small text-muted px-2 pb-2" id="d-origen-nota"></div>
                     </div>
                 </div>
                 <div class="col-md-6">
@@ -195,20 +196,6 @@ $sel = function ($campo, $valor) use ($flt) { return ($flt($campo) === $valor) ?
                     </div>
                 </div>
             </div>
-            <div class="row g-2 mb-3">
-                <div class="col-12">
-                    <div class="card shadow-sm">
-                        <div class="card-header bg-white py-2"><h6 class="mb-0 fw-bold text-dark x-small text-uppercase">Últimos 10 procesados</h6></div>
-                        <div class="card-body p-2">
-                            <table class="table table-sm font-small mb-0">
-                                <thead><tr class="x-small text-uppercase text-muted"><th>Fecha</th><th>Proyecto</th><th>Código</th><th class="text-end">Precio sugerido</th></tr></thead>
-                                <tbody id="d-ultimos"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <div class="table-container p-4">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <div>
@@ -239,12 +226,35 @@ $sel = function ($campo, $valor) use ($flt) { return ($flt($campo) === $valor) ?
                 </div>
                 <div class="d-flex justify-content-between align-items-center mt-3">
                     <span class="x-small text-muted" id="paginacion-info"></span>
-                    <div class="btn-group btn-group-sm">
-                        <button class="btn btn-outline-secondary" id="btn-ant" onclick="irPagina(paginaActual - 1)"><i class="bi bi-chevron-left"></i> Anterior</button>
-                        <button class="btn btn-outline-secondary" id="btn-sig" onclick="irPagina(paginaActual + 1)">Siguiente <i class="bi bi-chevron-right"></i></button>
+                    <div class="d-flex align-items-center gap-2">
+                        <label class="x-small text-muted mb-0" for="sel-por-pagina">Por página</label>
+                        <select id="sel-por-pagina" class="form-select form-select-sm w-auto" onchange="cambiarPorPagina(this.value)" title="Ítems por página">
+                            <option value="10" selected>10</option>
+                            <option value="25">25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                        </select>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-secondary" id="btn-ant" onclick="irPagina(paginaActual - 1)"><i class="bi bi-chevron-left"></i> Anterior</button>
+                            <button class="btn btn-outline-secondary" id="btn-sig" onclick="irPagina(paginaActual + 1)">Siguiente <i class="bi bi-chevron-right"></i></button>
+                        </div>
                     </div>
                 </div>
             </div>
+            <div class="row g-2 mb-3">
+                <div class="col-12">
+                    <div class="card shadow-sm">
+                        <div class="card-header bg-white py-2"><h6 class="mb-0 fw-bold text-dark x-small text-uppercase">Últimos 10 procesados</h6></div>
+                        <div class="card-body p-2">
+                            <table class="table table-sm font-small mb-0">
+                                <thead><tr class="x-small text-uppercase text-muted"><th>Fecha</th><th>Proyecto</th><th>Código</th><th class="text-end">Precio sugerido</th></tr></thead>
+                                <tbody id="d-ultimos"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 </div>
@@ -266,6 +276,7 @@ $sel = function ($campo, $valor) use ($flt) { return ($flt($campo) === $valor) ?
 let datosHistorial = [];
 let paginaActual = 1;
 let totalPaginas = 1;
+let porPagina = 10;
 let proyectoInicial = null;
 
 const fmt = v => parseFloat(v || 0).toFixed(2);
@@ -312,6 +323,16 @@ function limpiarFiltros() {
 function irPagina(n) {
     if (n < 1 || n > totalPaginas || n === paginaActual) return;
     paginaActual = n;
+    cargarDatos();
+}
+
+// Tamaño de página (10 / 25 / 50 / 100): al cambiarlo se recargan los
+// datos desde la página 1. Solo se aceptan los valores del selector.
+function cambiarPorPagina(v) {
+    const n = parseInt(v, 10);
+    if (![10, 25, 50, 100].includes(n)) return;
+    porPagina = n;
+    paginaActual = 1;
     cargarDatos();
 }
 
@@ -414,6 +435,17 @@ function renderDashboard(d) {
                 <div class="progress" style="height: 6px;"><div class="progress-bar ${claseOrigen[o.origen] || 'bg-secondary'}" style="width: ${o.pct}%"></div></div>
             </div>`).join('') || '<div class="x-small text-muted">Sin datos.</div>';
     }
+    // Nota bajo el desglose: explica las dos etiquetas que suelen
+    // preguntar. Solo aparece cuando al menos una de las dos tiene
+    // conteo > 0; si no hay ninguna, queda vacía (sin texto).
+    const notaOrigen = document.getElementById('d-origen-nota');
+    if (notaOrigen) {
+        const por = {};
+        (d.por_origen || []).forEach(o => { por[o.origen] = o.n; });
+        notaOrigen.textContent = ((por['sin_origen'] || 0) > 0 || (por['sin_propuesta'] || 0) > 0)
+            ? 'Sin origen: ítems con propuesta válida pero sin origen registrado (procesados antes de que se guardara ese dato). Sin propuesta válida: aún no procesados o con propuesta inválida.'
+            : '';
+    }
     const topEl = document.getElementById('d-top');
     if (topEl) {
         topEl.innerHTML = (d.top_codigos || []).map(t => `
@@ -433,12 +465,19 @@ async function cargarDatos() {
     const params = new URLSearchParams();
     Object.keys(f).forEach(k => { if (f[k] !== '' && f[k] != null) params.append(k, f[k]); });
     params.append('pagina', paginaActual);
+    params.append('por_pagina', porPagina);
     try {
         const response = await fetch('get_historial_data.php?' + params.toString());
         const data = await response.json();
         datosHistorial = data.items || [];
         paginaActual = data.paginacion ? data.paginacion.pagina : 1;
         totalPaginas = data.paginacion ? data.paginacion.total_paginas : 1;
+        // El servidor es la fuente de verdad del tamaño de página
+        // (acota lo inválido al valor por defecto); el selector refleja
+        // lo que realmente se está usando.
+        if (data.paginacion && data.paginacion.por_pagina) porPagina = data.paginacion.por_pagina;
+        const selPP = document.getElementById('sel-por-pagina');
+        if (selPP) selPP.value = String(porPagina);
 
         document.getElementById('last-update').innerHTML = `<i class="bi bi-clock-history me-1"></i> Sync: ${new Date().toLocaleTimeString()}`;
 
