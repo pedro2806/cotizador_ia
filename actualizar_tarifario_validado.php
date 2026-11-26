@@ -482,8 +482,9 @@ if (php_sapi_name() !== 'cli') {
 
     // Permisos por vista (2026-11-26): solo abre quien tenga acceso a
     // 'actualizar_tarifario_validado' (los admins de permisos siempre).
+    // El permiso es por noEmpleado de la cookie, no por id_usuario.
     require_once __DIR__ . '/core/permisos_vistas.php';
-    if (!tieneAccesoVista($conn, 'actualizar_tarifario_validado', $_SESSION['usuario_id'])) {
+    if (!tieneAccesoVista($conn, 'actualizar_tarifario_validado', (int)($_COOKIE['noEmpleado'] ?? 0))) {
         header('Location: index.php');
         exit;
     }

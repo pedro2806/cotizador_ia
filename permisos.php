@@ -3,9 +3,10 @@
  * ========================================================================
  * PERMISOS DE VISTAS — quién puede abrir 3 vistas del cotizador
  * ========================================================================
- * Solo la ven los administradores de permisos (523 Sebastián, 276 Pedro,
- * 183 Amram; ver core/permisos_vistas.php). Cualquier otro usuario
- * logueado se redirige a index.php.
+ * Solo la ven los administradores de permisos (noEmpleado 523
+ * Sebastián, 276 Pedro, 183 Amram; ver core/permisos_vistas.php).
+ * Cualquier otro usuario logueado se redirige a index.php. El acceso se
+ * administra por noEmpleado (cookie), no por id_usuario de sesión.
  *
  * Por cada vista se muestra quién tiene acceso (los administradores van
  * marcados y no se les puede quitar: siempre entran), se agrega acceso
@@ -22,7 +23,7 @@ require_once __DIR__ . '/conexion.php';
 require_once __DIR__ . '/core/permisos_vistas.php';
 
 asegurarTablaPermisosVistas($conn);
-if (!esAdminPermisos($_SESSION['usuario_id'])) {
+if (!esAdminPermisos((int)($_COOKIE['noEmpleado'] ?? 0))) {
     header('Location: index.php');
     exit;
 }
@@ -31,11 +32,11 @@ if (!esAdminPermisos($_SESSION['usuario_id'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $accion = $_POST['accion'] ?? '';
     $vista = $_POST['vista'] ?? '';
-    $id_usuario = (int) ($_POST['id_usuario'] ?? 0);
+    $noEmpleado = (int) ($_POST['noEmpleado'] ?? 0);
     if ($accion === 'agregar') {
-        permisosAgregarAcceso($conn, $vista, $id_usuario);
+        permisosAgregarAcceso($conn, $vista, $noEmpleado);
     } elseif ($accion === 'quitar') {
-        permisosQuitarAcceso($conn, $vista, $id_usuario);
+        permisosQuitarAcceso($conn, $vista, $noEmpleado);
     }
     header('Location: permisos.php');
     exit;
@@ -104,16 +105,16 @@ foreach (PERMISOS_VISTAS as $clave => $nombre) {
                         <ul class="list-group list-group-flush mb-3">
                             <?php foreach ($v['con_acceso'] as $u): ?>
                             <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-1 x-small">
-                                <span><?php echo htmlspecialchars($u['nombre'], ENT_QUOTES, 'UTF-8'); ?> <span class="text-muted">(<?php echo (int) $u['id_usuario']; ?>)</span>
-                                    <?php if (esAdminPermisos($u['id_usuario'])): ?>
+                                <span><?php echo htmlspecialchars($u['nombre'], ENT_QUOTES, 'UTF-8'); ?> <span class="text-muted">(<?php echo (int) $u['noEmpleado']; ?>)</span>
+                                    <?php if (esAdminPermisos($u['noEmpleado'])): ?>
                                         <span class="badge bg-secondary ms-1">Administrador</span>
                                     <?php endif; ?>
                                 </span>
-                                <?php if (!esAdminPermisos($u['id_usuario'])): ?>
+                                <?php if (!esAdminPermisos($u['noEmpleado'])): ?>
                                 <form method="post" class="m-0" onsubmit="return confirm('¿Quitar el acceso a <?php echo htmlspecialchars($u['nombre'], ENT_QUOTES, 'UTF-8'); ?>?');">
                                     <input type="hidden" name="accion" value="quitar">
                                     <input type="hidden" name="vista" value="<?php echo htmlspecialchars($clave, ENT_QUOTES, 'UTF-8'); ?>">
-                                    <input type="hidden" name="id_usuario" value="<?php echo (int) $u['id_usuario']; ?>">
+                                    <input type="hidden" name="noEmpleado" value="<?php echo (int) $u['noEmpleado']; ?>">
                                     <button type="submit" class="btn btn-outline-secondary btn-sm">Quitar</button>
                                 </form>
                                 <?php endif; ?>
@@ -149,7 +150,7 @@ foreach (PERMISOS_VISTAS as $clave => $nombre) {
                     <input type="hidden" name="accion" value="agregar">
                     <input type="hidden" name="vista" id="modalVista" value="">
                     <label class="form-label x-small fw-bold mb-1" for="modalUsuario">Usuario</label>
-                    <select name="id_usuario" id="modalUsuario" class="form-select select-usuario" style="width: 100%" required></select>
+                    <select name="noEmpleado" id="modalUsuario" class="form-select select-usuario" style="width: 100%" required></select>
                     <div class="form-text x-small">Busca por nombre; solo se muestran los usuarios activos sin acceso a esta vista.</div>
                 </div>
                 <div class="modal-footer">
@@ -186,7 +187,7 @@ foreach (PERMISOS_VISTAS as $clave => $nombre) {
         const sel = $('.select-usuario');
         sel.empty();
         (disponiblesPorVista[vista] || []).forEach(u => {
-            sel.append(new Option(u.nombre + ' (' + u.id_usuario + ')', String(u.id_usuario)));
+            sel.append(new Option(u.nombre + ' (' + u.noEmpleado + ')', String(u.noEmpleado)));
         });
         sel.val(null).trigger('change');
         bootstrap.Modal.getOrCreateInstance(document.getElementById('modalPermiso')).show();

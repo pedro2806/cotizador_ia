@@ -429,7 +429,7 @@
             <p class="mx-bienvenido">Bienvenido</p>
             <p class="mx-nombre"><?php echo htmlspecialchars($_SESSION['nombre']); ?></p>
             <button type="button" class="mx-btn-salir" onclick="confirmarSalida()">Salir</button>
-            <?php if (esAdminPermisos($_SESSION['usuario_id'] ?? 0)): ?>
+            <?php if (esAdminPermisos((int)($_COOKIE['noEmpleado'] ?? 0))): ?>
                 <a class="mx-link-permisos" href="permisos.php">Permisos</a>
             <?php endif; ?>
         </aside>

@@ -495,9 +495,10 @@ if (php_sapi_name() !== 'cli') {
     }
 
     // Permisos por vista (2026-11-26): sin acceso a 'historial_precios'
-    // el endpoint no sirve los datos por URL directa (403 JSON).
+    // el endpoint no sirve los datos por URL directa (403 JSON). El
+    // permiso es por noEmpleado de la cookie, no por id_usuario.
     require_once __DIR__ . '/core/permisos_vistas.php';
-    if (!tieneAccesoVista($conn, 'historial_precios', $_SESSION['usuario_id'])) {
+    if (!tieneAccesoVista($conn, 'historial_precios', (int)($_COOKIE['noEmpleado'] ?? 0))) {
         http_response_code(403);
         echo json_encode(['error' => 'Sin acceso a esta vista']);
         exit;

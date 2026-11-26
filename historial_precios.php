@@ -7,10 +7,11 @@ if (empty($_SESSION['usuario_id'])) {
 
 // Permisos por vista (2026-11-26): solo abre quien tenga acceso a
 // 'historial_precios' (los admins de permisos siempre). $conn viene de
-// conexion.php, igual que en el resto del cotizador.
+// conexion.php, igual que en el resto del cotizador. El permiso es por
+// noEmpleado de la cookie, no por id_usuario de sesión.
 require_once __DIR__ . '/conexion.php';
 require_once __DIR__ . '/core/permisos_vistas.php';
-if (!tieneAccesoVista($conn, 'historial_precios', $_SESSION['usuario_id'])) {
+if (!tieneAccesoVista($conn, 'historial_precios', (int)($_COOKIE['noEmpleado'] ?? 0))) {
     header('Location: index.php');
     exit;
 }
