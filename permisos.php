@@ -66,6 +66,7 @@ foreach (PERMISOS_VISTAS as $clave => $nombre) {
     <link rel="stylesheet" href="css/bootstrap-icons.css">
     <link rel="stylesheet" href="css/estilos.css">
     <link rel="stylesheet" href="css/marco_messias.css">
+    <link rel="stylesheet" href="css/select2.min.css">
     <style>
         /* Mismo marco messIAs que monitor_precios_v2.php e
            historial_precios.php. Solo van aquí reglas propias de esta
@@ -134,51 +135,61 @@ foreach (PERMISOS_VISTAS as $clave => $nombre) {
 </div>
 </main>
 
-<script src="js/sweetalert2.all.min.js"></script>
+<!-- Modal único para agregar acceso (Bootstrap, no SweetAlert2: con Swal,
+     Select2 pelea por el foco y no deja teclear en el buscador). -->
+<div class="modal fade" id="modalPermiso" tabindex="-1" aria-labelledby="modalPermisoTitulo" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="permisos.php">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalPermisoTitulo">Agregar acceso</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="accion" value="agregar">
+                    <input type="hidden" name="vista" id="modalVista" value="">
+                    <label class="form-label x-small fw-bold mb-1" for="modalUsuario">Usuario</label>
+                    <select name="id_usuario" id="modalUsuario" class="form-select select-usuario" style="width: 100%" required></select>
+                    <div class="form-text x-small">Busca por nombre; solo se muestran los usuarios activos sin acceso a esta vista.</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning btn-sm fw-bold">Agregar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="js/jquery.min.js"></script>
+<script src="js/bootstrap.bundle.min.js"></script>
+<script src="js/select2.min.js"></script>
 <script>
     // Usuarios disponibles por vista, para el modal de agregar (un solo
     // modal reutilizable). El JSON se escapa para incrustarlo seguro.
     const disponiblesPorVista = <?php echo json_encode($disponibles, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
     const nombresVista = <?php echo json_encode($nombresVista, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
 
-    // Modal (SweetAlert2, el mismo que usa el monitor; js/ no trae el
-    // bundle JS de Bootstrap) para agregar acceso a una vista: el botón
-    // Agregar de cada vista lo abre con esa vista en el campo oculto y
-    // el select con solo sus usuarios disponibles.
-    function abrirModalAgregar(vista) {
-        const lista = disponiblesPorVista[vista] || [];
-        const opciones = {};
-        lista.forEach(u => { opciones[String(u.id_usuario)] = u.nombre + ' (' + u.id_usuario + ')'; });
-        Swal.fire({
-            title: 'Agregar acceso a ' + (nombresVista[vista] || vista),
-            input: 'select',
-            inputOptions: opciones,
-            inputPlaceholder: 'Elegir usuario...',
-            showCancelButton: true,
-            confirmButtonText: 'Agregar',
-            cancelButtonText: 'Cancelar',
-            confirmButtonColor: '#002d5a',
-            inputValidator: v => !v ? 'Elige un usuario' : null
-        }).then(result => {
-            if (result && result.isConfirmed && result.value) enviarAgregar(vista, result.value);
-        });
-    }
+    // Select2 con buscador: el dropdownParent al modal es obligatorio o
+    // el desplegable se corta (el modal tiene overflow propio).
+    $(function () {
+        $('.select-usuario').select2({dropdownParent: $('#modalPermiso'), width: '100%', placeholder: 'Buscar usuario...'});
+    });
 
-    // El guardado es el mismo POST de siempre (accion=agregar, vista,
-    // id_usuario); la página recarga la lista por la redirección.
-    function enviarAgregar(vista, idUsuario) {
-        const form = document.createElement('form');
-        form.method = 'post';
-        form.action = 'permisos.php';
-        [['accion', 'agregar'], ['vista', vista], ['id_usuario', idUsuario]].forEach(([k, v]) => {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = k;
-            input.value = v;
-            form.appendChild(input);
+    // El botón Agregar de cada vista abre el modal con esa vista en el
+    // campo oculto y el select con solo sus usuarios disponibles
+    // (nombre + id). Al guardar, el form hace el POST de siempre y la
+    // página recarga la lista por la redirección.
+    function abrirModalAgregar(vista) {
+        $('#modalVista').val(vista);
+        $('#modalPermisoTitulo').text('Agregar acceso a ' + (nombresVista[vista] || vista));
+        const sel = $('.select-usuario');
+        sel.empty();
+        (disponiblesPorVista[vista] || []).forEach(u => {
+            sel.append(new Option(u.nombre + ' (' + u.id_usuario + ')', String(u.id_usuario)));
         });
-        document.body.appendChild(form);
-        form.submit();
+        sel.val(null).trigger('change');
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('modalPermiso')).show();
     }
 </script>
 
