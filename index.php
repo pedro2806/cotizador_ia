@@ -305,13 +305,17 @@
            de permisos (ver el aside); texto chico y tenue, sin tarjeta
            ni icono llamativo. */
         .mx-link-permisos {
-            display: block;
-            margin-top: 10px;
-            font-size: 0.8rem;
-            color: rgba(255,255,255,.55);
-            text-decoration: none;
+            border: 2px solid #fff;
+            border-radius: 999px;
+            background: var(--mx-oro);
+            color: #fff;
+            font: inherit;
+            font-size: 1.2rem;
+            line-height: 1.2;
+            padding: 3px 28px;
+            transition: background-color .2s ease;
         }
-        .mx-link-permisos:hover { color: rgba(255,255,255,.85); text-decoration: underline; }
+        .mx-link-permisos:hover { background: var(--mx-oro-hover); }
 
         @media (max-width: 899px) {
             .mx-panel { grid-template-columns: 1fr; }
@@ -430,7 +434,7 @@
             <p class="mx-nombre"><?php echo htmlspecialchars($_SESSION['nombre']); ?></p>
             <button type="button" class="mx-btn-salir" onclick="confirmarSalida()">Salir</button>
             <?php if (esAdminPermisos((int)($_COOKIE['noEmpleado'] ?? 0))): ?>
-                <a class="mx-link-permisos" href="permisos.php">Permisos</a>
+                <button type="button" class="mx-link-permisos" onclick="location.href='permisos.php'">Permisos</button>
             <?php endif; ?>
         </aside>
     </div>
