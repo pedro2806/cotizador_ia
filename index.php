@@ -316,6 +316,21 @@
             transition: background-color .2s ease;
         }
         .mx-link-permisos:hover { background: var(--mx-oro-hover); }
+        /* Botones a las vistas con permiso (2026-11-26): misma forma
+           que Salir y Permisos, pero en azul marino (--mx-azul-btn, el
+           de los botones "Consultar mis cotizaciones"). Nada de rojo. */
+        .mx-btn-vista {
+            border: 2px solid #fff;
+            border-radius: 999px;
+            background: var(--mx-azul-btn);
+            color: #fff;
+            font: inherit;
+            font-size: 1.2rem;
+            line-height: 1.2;
+            padding: 3px 28px;
+            transition: background-color .2s ease;
+        }
+        .mx-btn-vista:hover { background: var(--mx-azul-btn-hover); }
 
         @media (max-width: 899px) {
             .mx-panel { grid-template-columns: 1fr; }
@@ -436,6 +451,36 @@
             <?php if (esAdminPermisos((int)($_COOKIE['noEmpleado'] ?? 0))): ?>
                 <button type="button" class="mx-link-permisos" onclick="location.href='permisos.php'">Permisos</button>
             <?php endif; ?>
+            <?php
+            // Botones a las vistas con permiso (2026-11-26): debajo de
+            // Salir y Permisos, misma forma, otro color (azul marino).
+            // Cada uno solo se ve si el noEmpleado de la cookie tiene
+            // acceso a esa vista. $conn ya viene de acciones_login.php
+            // (que incluye la conexión); si no hay conexión (o falla
+            // la consulta), no se muestra ningún botón y el inicio sigue
+            // funcionando (los admins siempre entran por URL, como hoy).
+            $etiquetasBotonesVistas = [
+                'actualizar_tarifario_validado' => 'Actualizar tarifario validado',
+                'historial_precios' => 'Historial de cotizaciones',
+                'importar_v2' => 'Importar cotizaciones',
+            ];
+            $botonesVistas = [];
+            $noEmpleadoIdx = (int)($_COOKIE['noEmpleado'] ?? 0);
+            if ($noEmpleadoIdx > 0 && isset($conn) && $conn instanceof mysqli) {
+                try {
+                    foreach (PERMISOS_VISTAS as $vistaClave => $vistaNombre) {
+                        if (tieneAccesoVista($conn, $vistaClave, $noEmpleadoIdx)) {
+                            $botonesVistas[$vistaClave] = $etiquetasBotonesVistas[$vistaClave] ?? $vistaNombre;
+                        }
+                    }
+                } catch (Throwable $e) {
+                    $botonesVistas = [];
+                }
+            }
+            foreach ($botonesVistas as $vistaClave => $etiqueta):
+            ?>
+                <button type="button" class="mx-btn-vista" onclick="location.href='<?php echo $vistaClave; ?>.php'"><?php echo htmlspecialchars($etiqueta, ENT_QUOTES, 'UTF-8'); ?></button>
+            <?php endforeach; ?>
         </aside>
     </div>
 
