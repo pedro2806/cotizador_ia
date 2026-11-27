@@ -15,6 +15,15 @@
  *   +100 si contiene la acción pedida (calibración, revisión, ...)
  *    +30 extra si la descripción EMPIEZA con esa acción
  *    +20 por cada token de la búsqueda presente en la descripción
+ *    +50 si el candidato es SERVICIO (tipo de cotizaciones_items; MAX por
+ *        código: basta un renglón servicio para que el código cuente como
+ *        servicio). Constante de calibración (BOOST_SERVICIO): la mitad del
+ *        peso de la acción para que la acción pedida siga mandando —
+ *        equipo con acción (100) > servicio sin acción (50), y servicio
+ *        con acción (150) > equipo con acción (100). Si Pedro prefiere
+ *        orden estricto (servicio siempre antes que equipo), subir el
+ *        boost por encima de 100 + 30 + 20·n_tokens o cambiar el criterio
+ *        a tipo primero.
  * Desempate: total_veces (frecuencia histórica) y luego CDMESS.
  * Así 'calibración de cmm' pone primero los S1-5 / S5-85 / S1-459 de
  * calibración, aunque Revisión (S1-250, 1412 veces) sea más frecuente.
@@ -30,6 +39,10 @@ function ordenarPorRelevancia(array $resultados, array $tokens, $accion) {
     }
     $tokens_norm = array_keys($tokens_norm);
 
+    // Boost de servicios: constante de calibración BOOST_SERVICIO (ver
+    // docblock). Las filas sin 'tipo' (p. ej. semánticas) no suman nada.
+    $boost_servicio = 50;
+
     foreach ($resultados as $i => $fila) {
         $desc_norm = normalizarTextoPlano($fila['descripcion'] ?? '');
         $puntaje = 0;
@@ -42,6 +55,9 @@ function ordenarPorRelevancia(array $resultados, array $tokens, $accion) {
         }
         foreach ($tokens_norm as $token) {
             if (strpos($desc_norm, $token) !== false) $puntaje += 20;
+        }
+        if (($fila['tipo'] ?? '') === 'SERVICIO') {
+            $puntaje += $boost_servicio;
         }
         $resultados[$i]['_puntaje_relevancia'] = $puntaje;
         $resultados[$i]['_total_veces'] = (int) ($fila['total_veces'] ?? 0);
@@ -105,7 +121,7 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $tipoBusqueda, $cliente, $co
         }
 
         if ($esvalido) {
-            $sql = "SELECT TRIM(CDMESS) as CDMESS, MAX(DESCRIPCION) as descripcion, ROUND(AVG(PRECIO_VENTA/CANT), 2) as precio_promedio
+            $sql = "SELECT TRIM(CDMESS) as CDMESS, MAX(DESCRIPCION) as descripcion, ROUND(AVG(PRECIO_VENTA/CANT), 2) as precio_promedio, MAX(TIPO) AS tipo
                     FROM cotizaciones_items
                     INNER JOIN cotizaciones ON cotizaciones_items.IDCOTIZA = cotizaciones.IDCOTIZA
                     WHERE (MATCH(DESCRIPCION) AGAINST(? IN BOOLEAN MODE) OR CDMESS LIKE ?)
@@ -143,7 +159,11 @@ function obtenerOpcionesUnicasHistoricas($busqueda, $tipoBusqueda, $cliente, $co
     }
 
     // Constructor dinámico para consultas generales
-    $sql_base = "SELECT TRIM(ci.CDMESS) as CDMESS, MAX(ci.DESCRIPCION) as descripcion, ROUND(AVG(ci.PRECIO_VENTA/ci.CANT), 2) as precio_promedio, COUNT(*) as total_veces, t.STATUS
+    // MAX(ci.TIPO) AS tipo: 'SERVICIO' si algún renglón del código es
+    // servicio ('S' > 'E'); alimenta el boost de servicios de
+    // ordenarPorRelevancia() (no es filtro: equipos y servicios se
+    // buscan juntos, solo se ordenan).
+    $sql_base = "SELECT TRIM(ci.CDMESS) as CDMESS, MAX(ci.DESCRIPCION) as descripcion, ROUND(AVG(ci.PRECIO_VENTA/ci.CANT), 2) as precio_promedio, COUNT(*) as total_veces, t.STATUS, MAX(ci.TIPO) AS tipo
                  FROM cotizaciones_items ci
                  LEFT JOIN tarifario t ON ci.CDMESS = t.CDMESS
                  INNER JOIN cotizaciones c ON ci.IDCOTIZA = c.IDCOTIZA ";
@@ -269,11 +289,10 @@ function obtenerHistorialMESS($busqueda, $idclte = null) {
 
     $contexto = procesarContextoBusqueda($busqueda);
     $busqueda_limpia = $contexto['busqueda_limpia'];
-    $tipo_val = $contexto['tipo'];
     $termino = $contexto['termino'];
 
-    $params = [$termino, $termino, $termino, $termino, $termino, $termino, $termino, $tipo_val];
-    $types = 'ssssssss';
+    $params = [$termino, $termino, $termino, $termino, $termino, $termino, $termino];
+    $types = 'sssssss';
     $join_cliente = '';
     $filtro_cliente = '';
     if ($idclte !== null) {
@@ -283,6 +302,10 @@ function obtenerHistorialMESS($busqueda, $idclte = null) {
         $types .= 'i';
     }
 
+    // Servicios primero: una sola consulta a ambos tipos, sin filtro por
+    // TIPO ni reintento. MAX(ci.TIPO = 'SERVICIO') vale 1 si algún renglón
+    // del código es servicio, así los servicios van antes que los equipos
+    // y dentro de cada tipo manda la frecuencia.
     $sql = "SELECT ci.CDMESS, MAX(ci.DESCRIPCION) as DESCRIPCION,
             ROUND(AVG(ci.PRECIO_VENTA/ci.CANT), 2) AS PRECIO_VENTA,
             ROUND(MIN(ci.PRECIO_VENTA/ci.CANT), 2) AS PRECIO_MIN,
@@ -293,22 +316,13 @@ function obtenerHistorialMESS($busqueda, $idclte = null) {
             COUNT(*) as TOTAL_VECES
         FROM cotizaciones_items ci{$join_cliente}
         WHERE (ci.DESCRIPCION LIKE ? OR ci.CDMESS LIKE ? OR ci.MARCA LIKE ? OR ci.MODELO LIKE ? OR ci.SERIE LIKE ? OR ci.MESSTAG LIKE ? OR ci.ID_EQ_CLIENTE LIKE ?)
-        AND ci.TIPO = ? AND ci.PRECIO_VENTA > 0 AND ci.CANT > 0{$filtro_cliente}
-        GROUP BY ci.CDMESS ORDER BY TOTAL_VECES DESC, ci.CDMESS LIMIT 10";
+        AND ci.PRECIO_VENTA > 0 AND ci.CANT > 0{$filtro_cliente}
+        GROUP BY ci.CDMESS ORDER BY MAX(ci.TIPO = 'SERVICIO') DESC, TOTAL_VECES DESC, ci.CDMESS LIMIT 10";
 
     $stmt = $conn->prepare($sql);
     $stmt->bind_param($types, ...$params);
     $stmt->execute();
     $res = $stmt->get_result();
-
-    // Reintento dinámico si no encuentra resultados con el tipo original
-    if ($res->num_rows === 0) {
-        $tipo_val = ($tipo_val === 'SERVICIO') ? 'EQUIPO' : 'SERVICIO';
-        $params[7] = $tipo_val;
-        $stmt->bind_param($types, ...$params);
-        $stmt->execute();
-        $res = $stmt->get_result();
-    }
     $stmt->close();
 
     $resultados = [];
